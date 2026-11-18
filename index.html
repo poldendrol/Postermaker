@@ -174,6 +174,8 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
 .multibar button { background: var(--bg); color: var(--fg); border: none; }
 .row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .hint { color: var(--muted); font-size: 12px; margin: 0; }
+.imp { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.imp b { font-size: 13px; }
 .fold > summary small { margin: 0 auto 0 8px; color: var(--muted); font-weight: 600; font-size: 12px; background: var(--field); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
 .fold > summary small:empty { display: none; }
 header { justify-content: space-between; align-items: center; flex-wrap: nowrap; }
@@ -309,6 +311,17 @@ footer details label { margin-top: 8px; max-width: 420px; }
         <summary>Watchlist <small id="wlCount"></small></summary>
         <div class="mini" id="wl"></div>
         <p class="hint" id="wlEmpty">Tap “+ Watchlist” after a search to save a title for later.</p>
+        <div class="imp">
+          <b>Import</b>
+          <div class="row-btns">
+            <button id="tmdbImport">From TMDB</button>
+            <button id="imdbImport">IMDb file</button>
+            <input type="file" id="imdbFile" accept=".csv,text/csv" hidden>
+          </div>
+          <label class="check"><input type="checkbox" id="impRatings" checked> Also bring in my ratings (used as my score)</label>
+          <p class="hint" id="impStatus">TMDB: sign in once and your watchlist comes in. IMDb: on imdb.com open your Watchlist (or Ratings), tap ⋯ then Export, and pick the CSV file here.</p>
+          <button class="link" id="tmdbOut" hidden>Sign out of TMDB</button>
+        </div>
       </details>
 
       <details class="section fold s-top">
@@ -1128,6 +1141,15 @@ footer details label { margin-top: 8px; max-width: 420px; }
     if (!r.ok) throw { code: "http" };
     return r.json();
   }
+  async function tmPost(path, body, params = {}) {
+    const u = new URL(TMDB + path);
+    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+    const headers = { accept: "application/json", "content-type": "application/json" };
+    if (key.startsWith("eyJ")) headers.Authorization = "Bearer " + key; else u.searchParams.set("api_key", key);
+    const r = await fetch(u, { method: "POST", headers, body: JSON.stringify(body) });
+    if (!r.ok) throw { code: r.status === 401 ? "auth" : "http" };
+    return r.json();
+  }
   const GENRE_SHORT = { "Science Fiction": "Sci-Fi", "Sci-Fi & Fantasy": "Sci-Fi", "Action & Adventure": "Action", "War & Politics": "War", "TV Movie": "TV Movie" };
   const yearOf = d => (d || "").slice(0, 4);
   function shortSynopsis(t) {
@@ -1206,7 +1228,8 @@ footer details label { margin-top: 8px; max-width: 420px; }
       runtime = kind === "Mini-series" ? `${d.number_of_episodes || ""} episodes`.trim() : n ? `${n} season${n > 1 ? "s" : ""}` : "";
       by = (d.created_by || []).slice(0, 2).map(c => c.name).join(" & ");
     }
-    const score = d.vote_average ? Math.round(d.vote_average * 2) / 2 : state.rating;
+    const mine = myRatings()[type + ":" + it.id];
+    const score = mine != null ? mine : d.vote_average ? Math.round(d.vote_average * 2) / 2 : state.rating;
     Object.assign(state, {
       title: d.title || d.name, kind, year: year || "", genres: genres.slice(0, 3).join(", "), runtime: runtime || "", by: by || "",
       cast: (d.credits?.cast || []).slice(0, 3).map(c => c.name).join(", "), synopsis: shortSynopsis(d.overview),
@@ -1340,6 +1363,119 @@ footer details label { margin-top: 8px; max-width: 420px; }
   };
   $("topClear").onclick = () => { LS.set("marqueeTop", []); renderTop(); refreshTitleBtns(); };
 
+  // ---------- imports (TMDB sign-in, IMDb CSV) ----------
+  const myRatings = () => LS.get("marqueeRatings", {});
+  function impStatus(t, err) { const el = $("impStatus"); el.textContent = t; el.style.color = err ? "var(--accent)" : ""; }
+  function mergeWl(items) {
+    const l = LS.get("marqueeWatchlist", []), have = new Set(l.map(keyOf)); let added = 0;
+    items.forEach(x => { const k = keyOf(x); if (!have.has(k)) { have.add(k); l.push(x); added++; } });
+    LS.set("marqueeWatchlist", l); renderWl(); refreshTitleBtns(); return added;
+  }
+  function mergeRatings(map) { const r = myRatings(); Object.assign(r, map); LS.set("marqueeRatings", r); return Object.keys(map).length; }
+  const wlItem = (x, type) => ({ type, id: x.id, title: x.title || x.name, year: yearOf(x.release_date || x.first_air_date), poster: x.poster_path || "" });
+  async function allPages(path, params) {
+    const out = []; let page = 1, total = 1;
+    do { const d = await tm(path, { ...params, page }); out.push(...(d.results || [])); total = Math.min(d.total_pages || 1, 50); page++; } while (page <= total);
+    return out;
+  }
+  async function tmdbPull() {
+    const session_id = LS.get("tmdbSession", null); if (!session_id) return;
+    $("tmdbImport").disabled = true; impStatus("Loading your TMDB watchlist…");
+    try {
+      const acc = await tm("/account", { session_id });
+      const base = `/account/${acc.id}`;
+      const [wm, wt] = await Promise.all([allPages(base + "/watchlist/movies", { session_id }), allPages(base + "/watchlist/tv", { session_id })]);
+      const added = mergeWl([...wm.map(x => wlItem(x, "movie")), ...wt.map(x => wlItem(x, "tv"))]);
+      let rated = 0;
+      if ($("impRatings").checked) {
+        const [rm, rt] = await Promise.all([allPages(base + "/rated/movies", { session_id }), allPages(base + "/rated/tv", { session_id })]);
+        const map = {}; rm.forEach(x => map["movie:" + x.id] = x.rating); rt.forEach(x => map["tv:" + x.id] = x.rating);
+        rated = mergeRatings(map);
+      }
+      impStatus(`TMDB: ${wm.length + wt.length} on your watchlist, ${added} new added${$("impRatings").checked ? `, ${rated} ratings brought in` : ""}. Tap “From TMDB” again any time to update.`);
+      $("tmdbOut").hidden = false;
+    } catch (e) {
+      if (e?.code === "key") { LS.set("tmdbSession", null); impStatus("Your TMDB sign-in expired. Tap “From TMDB” to sign in again.", true); }
+      else impStatus("Couldn't reach TMDB. Try again in a moment.", true);
+    } finally { $("tmdbImport").disabled = false; }
+  }
+  $("tmdbImport").onclick = async () => {
+    if (LS.get("tmdbSession", null)) return tmdbPull();
+    try {
+      impStatus("Opening TMDB…");
+      const t = await tm("/authentication/token/new");
+      LS.set("tmdbImpRatings", $("impRatings").checked);
+      const back = location.origin + location.pathname + "?tmdb=1";
+      location.href = `https://www.themoviedb.org/authenticate/${t.request_token}?redirect_to=${encodeURIComponent(back)}`;
+    } catch { impStatus("Couldn't reach TMDB. Try again in a moment.", true); }
+  };
+  $("tmdbOut").onclick = async () => {
+    const sid = LS.get("tmdbSession", null); LS.set("tmdbSession", null); $("tmdbOut").hidden = true; impStatus("Signed out of TMDB on this device.");
+    if (sid) { try { const u = new URL(TMDB + "/authentication/session"); u.searchParams.set("api_key", key); await fetch(u, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ session_id: sid }) }); } catch {} }
+  };
+  async function tmdbReturn() {
+    const q = new URLSearchParams(location.search), tok = q.get("request_token");
+    if (!q.has("tmdb") && !tok) return;
+    history.replaceState(null, "", location.pathname);
+    document.querySelector(".s-wl").open = true;
+    $("impRatings").checked = LS.get("tmdbImpRatings", true) !== false;
+    if (!tok || q.get("approved") !== "true") { impStatus("TMDB sign-in was cancelled.", true); return; }
+    try {
+      const d = await tmPost("/authentication/session/new", { request_token: tok });
+      LS.set("tmdbSession", d.session_id);
+      await tmdbPull();
+      document.querySelector(".s-wl").scrollIntoView({ behavior: "smooth" });
+    } catch { impStatus("TMDB sign-in didn't finish. Tap “From TMDB” to try again.", true); }
+  }
+  function parseCSV(text) {
+    const rows = []; let row = [], f = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+      else if (c === '"') q = true;
+      else if (c === ",") { row.push(f); f = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); f = ""; if (row.some(x => x !== "")) rows.push(row); row = []; }
+      else f += c;
+    }
+    row.push(f); if (row.some(x => x !== "")) rows.push(row);
+    return rows;
+  }
+  $("imdbImport").onclick = () => $("imdbFile").click();
+  $("imdbFile").onchange = async e => {
+    const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+    const rows = parseCSV((await file.text()).replace(/^﻿/, ""));
+    if (rows.length < 2) { impStatus("That file looks empty.", true); return; }
+    const head = rows[0].map(h => h.trim().toLowerCase());
+    const ci = head.indexOf("const"), ri = head.indexOf("your rating"), ti = head.indexOf("title"), di = head.findIndex(h => h === "date rated" || h === "created");
+    if (ci < 0) { impStatus("That doesn't look like an IMDb export. It needs the “Const” column with tt… IDs.", true); return; }
+    const list = rows.slice(1).map(r => ({ tt: (r[ci] || "").trim(), rating: ri >= 0 ? parseFloat(r[ri]) : NaN, title: ti >= 0 ? r[ti] : "" })).filter(x => /^tt\d+$/.test(x.tt));
+    const isRatings = ri >= 0 && list.filter(x => !isNaN(x.rating)).length > list.length / 2;
+    const wantRatings = $("impRatings").checked;
+    $("imdbImport").disabled = true;
+    const items = [], map = {}; let done = 0, missed = 0;
+    const work = list.slice();
+    async function worker() {
+      while (work.length) {
+        const x = work.shift();
+        try {
+          const f = await tm("/find/" + x.tt, { external_source: "imdb_id" });
+          const m = (f.movie_results || [])[0], t = (f.tv_results || [])[0];
+          const hit = m ? wlItem(m, "movie") : t ? wlItem(t, "tv") : null;
+          if (!hit) missed++;
+          else { if (!isRatings) items.push(hit); if (!isNaN(x.rating) && wantRatings) map[keyOf(hit)] = x.rating; }
+        } catch { missed++; }
+        done++; if (done % 5 === 0 || done === list.length) impStatus(`Matching IMDb titles… ${done} of ${list.length}`);
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    const added = items.length ? mergeWl(items) : 0, rated = wantRatings ? mergeRatings(map) : 0;
+    impStatus(isRatings
+      ? `IMDb ratings: ${rated} scores brought in. They're used as your score when you open those titles.${missed ? ` ${missed} couldn't be matched.` : ""}`
+      : `IMDb watchlist: ${added} new titles added${rated ? `, ${rated} ratings` : ""}.${missed ? ` ${missed} couldn't be matched.` : ""}`);
+    $("imdbImport").disabled = false;
+  };
+  if (LS.get("tmdbSession", null)) $("tmdbOut").hidden = false;
+
   // ---------- multi-title posters ----------
   let multi = null;
   const loadImg = url => new Promise(res => { if (!url) return res(null); const im = new Image(); im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = () => res(null); im.src = url; });
@@ -1466,7 +1602,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
   // ---------- boot ----------
-  buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderWl(); renderTop();
+  buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderWl(); renderTop(); tmdbReturn();
   render();
   if (document.fonts) {
     Promise.all(["Anton", "Inter", "italic 40px 'DM Serif Display'", "700 40px Inter"].map(f => document.fonts.load(f.includes("px") ? f : "40px " + f).catch(() => {}))).then(render);
