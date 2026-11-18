@@ -90,7 +90,6 @@ button:disabled { opacity: .55; cursor: progress; }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg button { flex: 1 1 auto; padding: 8px 10px; }
 #tpl { display: grid; grid-template-columns: repeat(6, 1fr); }
-@media (max-width: 560px) { #tpl { grid-template-columns: repeat(3, 1fr); } }
 .seg button[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .sw { width: 28px; height: 28px; border-radius: 50%; padding: 0; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--line); }
@@ -109,7 +108,7 @@ button:disabled { opacity: .55; cursor: progress; }
 .drop .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
 .stage { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .canvas-box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; justify-content: center; }
-#preview { display: block; max-width: 100%; max-height: 72vh; width: auto; height: auto; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,.18); }
+#preview { display: block; max-width: 100%; max-height: 62vh; width: auto; height: auto; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,.18); }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .actions button.primary { flex: 1 1 200px; padding: 12px 16px; font-size: 14px; }
 .example { font-size: 12px; color: var(--muted); }
@@ -146,40 +145,104 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
   #preview { max-height: 62vh; }
 }
 @media (prefers-reduced-motion: no-preference) { button { transition: filter .15s, border-color .15s; } }
+
+/* ---- streamlined layout ---- */
+header { justify-content: space-between; align-items: center; flex-wrap: nowrap; }
+header > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+header p { font-size: 13px; }
+button.ghost { border-radius: 99px; padding: 8px 14px; }
+input[type=search] { font: inherit; font-size: 16px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; width: 100%; min-width: 0; -webkit-appearance: none; }
+.rating .lbl { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.fold { gap: 0; }
+.fold[open] { gap: 12px; }
+.fold > summary, .more > summary { cursor: pointer; font-weight: 700; font-size: 14px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.fold > summary::-webkit-details-marker, .more > summary::-webkit-details-marker { display: none; }
+.fold > summary::after, .more > summary::after { content: "+"; font-size: 18px; color: var(--muted); font-weight: 500; }
+.fold[open] > summary::after, .more[open] > summary::after { content: "–"; }
+.more { display: flex; flex-direction: column; gap: 10px; }
+.more > summary { font-size: 13px; color: var(--muted); font-weight: 600; }
+.more[open] { gap: 10px; }
+.ep { background: var(--panel); }
+footer details { flex-basis: 100%; }
+footer details label { margin-top: 8px; max-width: 420px; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 13px; z-index: 60; box-shadow: 0 6px 24px rgba(0,0,0,.25); max-width: calc(100% - 32px); text-align: center; }
+@media (max-width: 820px) {
+  body { padding-top: 14px; }
+  header h1 { font-size: 28px; }
+  header p { display: none; }
+  .app { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+  .app > * , .controls > *, .stage > * { min-width: 0; max-width: 100%; }
+  #fmt button { flex: 1 1 0; }
+  .controls, .stage { display: contents; }
+  .s-search { order: 1; } .s-ep { order: 2; } .s-canvas { order: 3; } .s-example { order: 4; } .s-tpl { order: 5; } .s-fmt { order: 6; }
+  .s-take { order: 7; } .s-actions { order: 8; } .s-info { order: 9; } .s-pic { order: 10; } .s-cap { order: 11; } .s-hist { order: 12; }
+  .canvas-box { padding: 10px; }
+  #preview { max-height: 56vh; }
+  .s-actions { position: sticky; bottom: 0; z-index: 5; background: var(--bg); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-bottom: -10px; }
+  #tpl { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .s-tpl::-webkit-scrollbar { display: none; }
+  .s-tpl button { flex: 0 0 auto; }
+}
 </style>
 </head>
 <body>
 
 <div class="wrap">
   <header>
-    <h1>Marquee</h1>
-    <p>Make an Instagram post for any movie or series.</p>
+    <div><h1>Marquee</h1><p>Instagram posts for any movie or series.</p></div>
+    <button id="invite" class="ghost">Invite friends</button>
   </header>
 
   <div class="app">
     <div class="controls">
-      <section class="section">
-        <h2>1 · Find a movie or series</h2>
+      <section class="section s-search">
         <div class="search">
-          <input type="text" id="q" placeholder="e.g. Severance, Past Lives, Dune" aria-label="Movie or series name" enterkeyhint="search">
+          <input type="search" id="q" placeholder="Search a movie or series" aria-label="Movie or series name" enterkeyhint="search">
           <button class="primary" id="fill">Search</button>
         </div>
-        <p class="status" id="status">Search a title. The poster and all the details load by themselves.</p>
+        <p class="status" id="status">Type a title. The poster and details load by themselves.</p>
         <div class="results" id="results"></div>
-        <details id="keyBox">
-          <summary>Use your own TMDB key (optional)</summary>
-          <label>Your free TMDB API key <input type="text" id="tmdbKey" placeholder="Leave empty to use the built-in key" autocomplete="off" spellcheck="false"></label>
-          <small>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>, then go to Settings → API and copy the key. You only paste it once: it stays saved in this browser.</small>
+      </section>
+
+      <section class="section ep s-ep" id="epRow" hidden>
+        <b>Which episode are you watching?</b>
+        <div class="row">
+          <label>Season <select id="season"><option value="">Whole series</option></select></label>
+          <label>Episode <select id="episode" disabled><option value="">Pick a season first</option></select></label>
+        </div>
+      </section>
+
+      <section class="section s-take">
+        <div class="rating">
+          <span class="lbl">My score</span>
+          <input type="range" id="rating" min="0" max="10" step="0.5" value="8.5" aria-label="My score out of 10">
+          <output id="ratingOut">8.5/10</output>
+        </div>
+        <textarea id="take" rows="2" placeholder="What did you think? (optional)" aria-label="What you thought"></textarea>
+        <details class="more">
+          <summary>Date, friends, @handle</summary>
+          <div class="row">
+            <label>Watched on <input type="date" id="watchedOn"></label>
+            <label>Watched with <input type="text" id="watchedWith" placeholder="Sarah, Tom"></label>
+          </div>
+          <label>Your Instagram handle <input type="text" id="handle" placeholder="@yourname"></label>
+          <label class="check"><input type="checkbox" id="showRating" checked> Show my score on the post</label>
         </details>
       </section>
 
-      <section class="section">
-        <h2>2 · Picture</h2>
+      <details class="section fold s-info">
+        <summary>What's on the post</summary>
+        <div class="info-head"><b id="infoTitle"></b><small id="infoKind"></small></div>
+        <div class="info" id="info"></div>
+      </details>
+
+      <details class="section fold s-pic">
+        <summary>Picture and colour</summary>
         <div class="choices" id="choices" hidden></div>
         <div class="drop" id="drop">
           <span class="thumb" id="thumb"></span>
           <div>
-            <small>The poster loads by itself. You can also use your own image: choose, drop or paste one here.</small>
+            <small>Use your own image: choose, drop or paste one.</small>
             <div class="btns">
               <button id="pick">Choose image</button>
               <button id="clearImg" hidden>Remove</button>
@@ -190,53 +253,27 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
         <label id="posWrap" hidden>Image position
           <input type="range" id="pos" min="0" max="100" value="50">
         </label>
-      </section>
+        <div class="swatches" id="colors" aria-label="Color"></div>
+      </details>
 
-      <section class="section">
-        <h2>3 · Details <span style="text-transform:none;letter-spacing:0;font-weight:500">(from TMDB, tick what to show on the post)</span></h2>
-        <div class="info-head"><b id="infoTitle"></b><small id="infoKind"></small></div>
-        <div class="ep" id="epRow" hidden>
-          <b>Which episode are you watching?</b>
-          <div class="row">
-            <label>Season <select id="season"><option value="">Whole series</option></select></label>
-            <label>Episode <select id="episode" disabled><option value="">Pick a season first</option></select></label>
-          </div>
-          <small>Shows on the post as “Watching S2 E5” with the episode title.</small>
-        </div>
-        <div class="info" id="info"></div>
-      </section>
-
-      <section class="section">
-        <h2>4 · Your take (optional)</h2>
-        <div class="rating">
-          <input type="range" id="rating" min="0" max="10" step="0.5" value="8.5" aria-label="Rating out of 10">
-          <output id="ratingOut">8.5/10</output>
-        </div>
-        <label class="check"><input type="checkbox" id="showRating" checked> Show my score on the post (starts at the TMDB score, slide to set yours)</label>
-        <label>What you thought <textarea id="take" rows="2" placeholder="One or two lines. Leave empty to show the synopsis."></textarea></label>
-        <div class="row">
-          <label>Watched on <input type="date" id="watchedOn"></label>
-          <label>Watched with <input type="text" id="watchedWith" placeholder="Sarah, Tom"></label>
-        </div>
-        <label>Your Instagram handle <input type="text" id="handle" placeholder="@yourname"></label>
-      </section>
-
-      <section class="section caption">
-        <h2>Caption</h2>
+      <details class="section fold caption s-cap">
+        <summary>Caption and hashtags</summary>
         <textarea id="caption" aria-label="Instagram caption"></textarea>
         <div class="actions"><button id="copyCap">Copy caption</button></div>
-      </section>
+      </details>
 
-      <section class="section">
-        <h2>Your past posts</h2>
+      <details class="section fold s-hist">
+        <summary>Past posts</summary>
         <div class="hist" id="hist"></div>
-        <p class="hist-empty" id="histEmpty">Posts you share or download show up here, so you can open them again. They're only saved on this device.</p>
+        <p class="hist-empty" id="histEmpty">Posts you share or download show up here. They're only saved on this phone or computer.</p>
         <button class="link" id="histClear" hidden>Clear history</button>
-      </section>
+      </details>
     </div>
 
     <div class="stage">
-      <div class="seg" id="tpl" role="group" aria-label="Design">
+      <div class="canvas-box s-canvas" id="canvasBox"><canvas id="preview" width="1080" height="1350" aria-label="Post preview"></canvas></div>
+      <p class="example s-example" id="exampleNote">This is an example. Search a title to make your own.</p>
+      <div class="seg s-tpl" id="tpl" role="group" aria-label="Design">
         <button data-v="poster" aria-pressed="true">Poster</button>
         <button data-v="ticket" aria-pressed="false">Ticket</button>
         <button data-v="review" aria-pressed="false">Review</button>
@@ -244,18 +281,15 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
         <button data-v="minimal" aria-pressed="false">Minimal</button>
         <button data-v="diary" aria-pressed="false">Diary</button>
       </div>
-      <div class="seg" id="fmt" role="group" aria-label="Size">
-        <button data-v="portrait" aria-pressed="true">Post 4:5</button>
-        <button data-v="square" aria-pressed="false">Square 1:1</button>
-        <button data-v="story" aria-pressed="false">Story 9:16</button>
+      <div class="seg s-fmt" id="fmt" role="group" aria-label="Size">
+        <button data-v="portrait" aria-pressed="true">Post</button>
+        <button data-v="square" aria-pressed="false">Square</button>
+        <button data-v="story" aria-pressed="false">Story</button>
       </div>
-      <div class="swatches" id="colors" aria-label="Color"></div>
-      <div class="canvas-box" id="canvasBox"><canvas id="preview" width="1080" height="1350" aria-label="Post preview"></canvas></div>
-      <div class="actions">
-        <button class="primary" id="share" hidden>Share to Instagram</button>
-        <button class="primary" id="download">Download PNG</button>
+      <div class="actions s-actions">
+        <button class="primary" id="share" hidden>Share</button>
+        <button class="primary" id="download">Save image</button>
       </div>
-      <p class="example" id="exampleNote">Showing an example. Search a title to make your own.</p>
     </div>
   </div>
 </div>
@@ -263,7 +297,14 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
 <footer>
   <svg width="58" height="12" viewBox="0 0 58 12" aria-label="TMDB"><rect width="58" height="12" rx="6" fill="#0d253f"/><text x="29" y="9" text-anchor="middle" font-family="Inter, sans-serif" font-size="8" font-weight="700" fill="#90cea1">TMDB</text></svg>
   <span>This product uses the TMDB API but is not endorsed or certified by TMDB. Posters and details come from <a href="https://www.themoviedb.org" target="_blank" rel="noopener">themoviedb.org</a>.</span>
+  <details id="keyBox">
+    <summary>Use your own TMDB key</summary>
+    <label>Your free TMDB API key <input type="text" id="tmdbKey" placeholder="Leave empty to use the built-in key" autocomplete="off" spellcheck="false"></label>
+    <small>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>, then go to Settings → API and copy the key. It stays saved in this browser.</small>
+  </details>
 </footer>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 <div class="overlay" id="overlay" hidden>
   <img id="overlayImg" alt="Your finished post">
@@ -906,7 +947,7 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
   }
   $("download").onclick = async () => {
     const blob = await makeBlob(); if (!blob) return;
-    saveBlob(blob); saveHistory();
+    saveBlob(blob); saveHistory(); toast("Image saved.");
   };
   const canShareFiles = (() => { try { return !!navigator.canShare && navigator.canShare({ files: [new File([new Blob(["x"])], "t.png", { type: "image/png" })] }); } catch { return false; } })();
   if (canShareFiles) { $("share").hidden = false; $("download").classList.remove("primary"); }
@@ -916,11 +957,24 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
     const file = new File([blob], slug(), { type: "image/png" });
     try {
       await navigator.share({ files: [file] });
-      saveHistory(); setStatus("Shared. The caption is copied too, so you can paste it in Instagram.");
+      saveHistory(); toast("Shared. The caption is copied too, paste it in Instagram.");
     } catch (e) {
       if (e && e.name === "AbortError") return;
       saveBlob(blob); saveHistory(); setStatus("Sharing didn't work here, so the image was downloaded instead.", true);
     }
+  };
+
+  // ---------- invite ----------
+  let toastT = 0;
+  function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 2600); }
+  $("invite").onclick = async () => {
+    const url = location.origin + location.pathname;
+    const text = "I make my movie and series posts for Instagram with Marquee. Search a title and you get a poster with your score in seconds. It's free, no account needed:";
+    if (navigator.share) {
+      try { await navigator.share({ title: "Marquee", text, url }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(text + " " + url); toast("Invite link copied. Paste it to your friends."); }
+    catch { prompt("Copy this link and send it to your friends:", url); }
   };
 
   // ---------- history ----------
