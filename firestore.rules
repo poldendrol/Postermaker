@@ -1,0 +1,61 @@
+rules_version = '2';
+// Security rules for Marquee Friends. Paste into Firebase console → Firestore → Rules → Publish.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isFriend(a, b) { return exists(/databases/$(db)/documents/users/$(a)/friends/$(b)); }
+
+    // Public profile: name, photo and friend code. Anyone signed in can read it.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['name', 'photo', 'code', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+      allow delete: if false;
+
+      // Friends list. Adding a friend writes both sides, so the other person may add or remove themselves.
+      match /friends/{friendId} {
+        allow read: if signedIn() && uid() == userId;
+        allow create: if signedIn() && (uid() == userId || uid() == friendId)
+          && request.resource.data.keys().hasOnly(['name', 'photo', 'since']);
+        allow delete: if signedIn() && (uid() == userId || uid() == friendId);
+        allow update: if false;
+      }
+
+      // Push tokens: only the owner (and the server function) can see them.
+      match /private/{docId} {
+        allow read, write: if signedIn() && uid() == userId;
+      }
+    }
+
+    // Friend codes point to a user id. Codes can't be changed or taken over.
+    match /codes/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == uid() && request.resource.data.keys().hasOnly(['uid']);
+      allow update, delete: if false;
+    }
+
+    // Suggestions: only the sender and the receiver can see one.
+    match /suggestions/{id} {
+      allow read: if signedIn() && (resource.data.from == uid() || resource.data.to == uid());
+      allow create: if signedIn()
+        && request.resource.data.from == uid()
+        && isFriend(uid(), request.resource.data.to)
+        && request.resource.data.status == 'open'
+        && request.resource.data.seenBySender == false
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200
+        && request.resource.data.note is string && request.resource.data.note.size() <= 140;
+      allow update: if signedIn() && (
+        // The receiver marks it watched, with an optional score and comment.
+        (resource.data.to == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'watchedAt', 'score', 'comment'])
+          && request.resource.data.status == 'watched'
+          && request.resource.data.comment.size() <= 140)
+        // The sender only marks the "watched" news as seen.
+        || (resource.data.from == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenBySender'])));
+      allow delete: if signedIn() && (resource.data.from == uid() || resource.data.to == uid());
+    }
+  }
+}
