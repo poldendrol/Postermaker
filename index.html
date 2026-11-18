@@ -216,19 +216,61 @@ footer details label { margin-top: 8px; max-width: 420px; }
   .s-tpl::-webkit-scrollbar { display: none; }
   .s-tpl button { flex: 0 0 auto; }
 }
+
+/* ---- left menu + views ---- */
+.news { display: flex; flex-direction: column; }
+.news a, .news button.nt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border: none; border-top: 1px solid var(--line); background: none; color: var(--fg); text-decoration: none; text-align: left; white-space: normal; font-weight: 400; border-radius: 0; }
+.news > :first-child { border-top: none; }
+.news img, .news i { width: 92px; height: 62px; object-fit: cover; border-radius: 8px; background: var(--line); flex: none; }
+.news .poster img, .news .poster i { width: 54px; height: 80px; }
+.news span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.news b { font-size: 14px; line-height: 1.3; }
+.news small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+body:not([data-view=make]) .v-make, body:not([data-view=watchlist]) .v-watchlist, body:not([data-view=top]) .v-top,
+body:not([data-view=past]) .v-past, body:not([data-view=news]) .v-news, body:not([data-view=settings]) .v-settings { display: none !important; }
+body:not([data-view=make]) .app { grid-template-columns: minmax(0, 640px); }
+.section h2 small { margin-left: 6px; font-weight: 600; letter-spacing: 0; background: var(--field); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
+.section h2 small:empty { display: none; }
+.view-title { margin: 0; font-size: 15px; color: var(--muted); font-weight: 600; }
+.sidenav { position: fixed; left: 0; top: 0; bottom: 0; width: 196px; z-index: 20; background: var(--panel); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 4px; padding: max(16px, env(safe-area-inset-top, 0px)) 12px max(16px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.sidenav .brand { font-family: var(--display); font-size: 26px; width: 42px; height: 42px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; text-decoration: none; margin: 0 0 14px 6px; }
+.sidenav button { display: flex; align-items: center; gap: 12px; border: none; background: none; padding: 11px 12px; border-radius: 10px; color: var(--muted); font-size: 14px; text-align: left; white-space: nowrap; }
+.sidenav button:hover { background: var(--field); color: var(--fg); }
+.sidenav button[aria-current] { background: var(--fg); color: var(--bg); }
+.sidenav .nav-invite { margin-top: auto; color: var(--accent); }
+body { padding-left: calc(196px + 24px); }
+header { min-height: 42px; }
+footer { padding-left: 0; }
+@media (max-width: 820px) {
+  .sidenav { width: 68px; padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: 6px; gap: 2px; align-items: stretch; }
+  .sidenav .brand { width: 40px; height: 40px; font-size: 22px; margin: 0 auto 10px; }
+  .sidenav button { flex-direction: column; gap: 3px; padding: 9px 2px; font-size: 10px; text-align: center; white-space: normal; line-height: 1.15; justify-content: center; }
+  body { padding-left: calc(68px + 12px); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+}
 </style>
 </head>
 <body>
 
+  <nav class="sidenav" id="nav" aria-label="Main">
+    <a class="brand" href="./" aria-label="Marquee home">M</a>
+    <button data-view="make" aria-current="page"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Make poster</span></button>
+    <button data-view="watchlist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Watchlist</span></button>
+    <button data-view="top"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg><span>Top 3</span></button>
+    <button data-view="past"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Past posts</span></button>
+    <button data-view="news"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/></svg><span>News</span></button>
+    <button data-view="settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
+    <button id="invite" class="nav-invite"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg><span>Invite</span></button>
+  </nav>
 <div class="wrap">
   <header>
     <div><h1>Marquee</h1><p>Instagram posts for any movie or series.</p></div>
-    <div class="hbtns"><button id="install" class="ghost" hidden>Install</button><button id="invite" class="ghost">Invite friends</button></div>
+    <h2 class="view-title" id="viewTitle"></h2>
   </header>
 
   <div class="app">
     <div class="controls">
-      <section class="section s-search">
+      <section class="section s-search v-make">
         <div class="search">
           <input type="search" id="q" placeholder="Search a title or paste an IMDb link" aria-label="Movie or series name" enterkeyhint="search">
           <button class="primary" id="fill">Search</button>
@@ -241,7 +283,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
         </div>
       </section>
 
-      <section class="section s-take">
+      <section class="section s-take v-make">
         <div class="starpick" id="starpick" role="group" aria-label="My score">
           <button data-i="0" aria-label="1 star">★</button><button data-i="1" aria-label="2 stars">★</button><button data-i="2" aria-label="3 stars">★</button><button data-i="3" aria-label="4 stars">★</button><button data-i="4" aria-label="5 stars">★</button>
           <output id="ratingOut">8.5/10</output>
@@ -257,17 +299,16 @@ footer details label { margin-top: 8px; max-width: 420px; }
         </div>
         <textarea id="take" rows="2" placeholder="What did you think? (optional)" aria-label="What you thought"></textarea>
         <details class="more">
-          <summary>Date, friends, @handle</summary>
+          <summary>Date, friends, score on/off</summary>
           <div class="row">
             <label>Watched on <input type="date" id="watchedOn"></label>
             <label>Watched with <input type="text" id="watchedWith" placeholder="Sarah, Tom"></label>
           </div>
-          <label>Your Instagram handle <input type="text" id="handle" placeholder="@yourname"></label>
           <label class="check"><input type="checkbox" id="showRating" checked> Show my score on the post</label>
         </details>
       </section>
 
-      <details class="section fold s-info">
+      <details class="section fold s-info v-make">
         <summary>What's on the post</summary>
         <div class="info-head"><b id="infoTitle"></b><small id="infoKind"></small></div>
         <div class="ep" id="epRow" hidden>
@@ -281,7 +322,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
         <div class="info" id="info"></div>
       </details>
 
-      <details class="section fold s-pic">
+      <details class="section fold s-pic v-make">
         <summary>Own picture and colour</summary>
         <div class="drop" id="drop">
           <span class="thumb" id="thumb"></span>
@@ -300,15 +341,14 @@ footer details label { margin-top: 8px; max-width: 420px; }
         <div class="swatches" id="colors" aria-label="Color"></div>
       </details>
 
-      <details class="section fold caption s-cap">
+      <details class="section fold caption s-cap v-make">
         <summary>Caption and hashtags</summary>
         <textarea id="caption" aria-label="Instagram caption"></textarea>
-        <label>My own hashtags (always added) <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
         <div class="actions"><button id="copyCap">Copy caption</button></div>
       </details>
 
-      <details class="section fold s-wl">
-        <summary>Watchlist <small id="wlCount"></small></summary>
+      <section class="section s-wl v-watchlist">
+        <h2>Watchlist <small id="wlCount"></small></h2>
         <div class="mini" id="wl"></div>
         <p class="hint" id="wlEmpty">Tap “+ Watchlist” after a search to save a title for later.</p>
         <div class="imp">
@@ -322,25 +362,52 @@ footer details label { margin-top: 8px; max-width: 420px; }
           <p class="hint" id="impStatus">TMDB: sign in once and your watchlist comes in. IMDb: on imdb.com open your Watchlist (or Ratings), tap ⋯ then Export, and pick the CSV file here.</p>
           <button class="link" id="tmdbOut" hidden>Sign out of TMDB</button>
         </div>
-      </details>
+      </section>
 
-      <details class="section fold s-top">
-        <summary>Top 3 / Versus <small id="topCount"></small></summary>
+      <section class="section s-top v-top">
+        <h2>Top 3 / Versus <small id="topCount"></small></h2>
         <div class="mini" id="top"></div>
         <p class="hint" id="topEmpty">Add 2 titles for a Versus poster, or 3 for a Top 3. Use “+ Top 3 / Versus” after a search.</p>
         <div class="row-btns"><button class="primary" id="topMake" disabled>Make the poster</button><button class="link" id="topClear" hidden>Clear</button></div>
-      </details>
+      </section>
 
-      <details class="section fold s-hist">
-        <summary>Past posts</summary>
+      <section class="section s-hist v-past">
+        <h2>Past posts</h2>
         <button class="primary" id="yearMake">Make my year in review</button>
         <div class="hist" id="hist"></div>
         <p class="hist-empty" id="histEmpty">Posts you share or download show up here. They're only saved on this phone or computer.</p>
         <button class="link" id="histClear" hidden>Clear history</button>
-      </details>
+      </section>
+
+      <section class="section s-news v-news">
+        <div class="seg" id="newsTabs" role="group" aria-label="News">
+          <button data-v="headlines" aria-pressed="true">Headlines</button>
+          <button data-v="trending" aria-pressed="false">Trending</button>
+          <button data-v="cinema" aria-pressed="false">In cinemas</button>
+          <button data-v="soon" aria-pressed="false">Coming soon</button>
+        </div>
+        <p class="hint" id="newsStatus"></p>
+        <div class="news" id="news"></div>
+      </section>
+
+      <section class="section s-set v-settings">
+        <h2>Settings</h2>
+        <label>Your Instagram handle (shown on posts) <input type="text" id="handle" placeholder="@yourname"></label>
+        <label>My own hashtags (added to every caption) <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
+        <div class="imp">
+          <b>Use Marquee like an app</b>
+          <button class="primary" id="install" hidden>Install on this device</button>
+          <p class="hint" id="installHint">On iPhone: open this page in Safari, tap Share, then “Add to Home Screen”. On Android: open the browser menu and tap “Install app” or “Add to Home screen”.</p>
+        </div>
+        <div class="imp" id="keyWrap">
+          <b>TMDB key</b>
+          <label>Your own TMDB API key (optional) <input type="text" id="tmdbKey" placeholder="Leave empty to use the built-in key" autocomplete="off" spellcheck="false"></label>
+          <p class="hint">Only needed if the built-in key stops working. Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>, then Settings → API.</p>
+        </div>
+      </section>
     </div>
 
-    <div class="stage">
+    <div class="stage v-make">
       <div class="canvas-box s-canvas" id="canvasBox"><canvas id="preview" width="1080" height="1350" aria-label="Post preview"></canvas></div>
       <div class="multibar s-multi" id="multiBar" hidden><span id="multiLabel"></span><button id="multiExit">Back to my post</button></div>
       <div class="pics s-pics" id="picsBox" hidden><small>Picture</small><div class="choices" id="choices"></div></div>
@@ -369,12 +436,6 @@ footer details label { margin-top: 8px; max-width: 420px; }
 <footer>
   <svg width="58" height="12" viewBox="0 0 58 12" aria-label="TMDB"><rect width="58" height="12" rx="6" fill="#0d253f"/><text x="29" y="9" text-anchor="middle" font-family="Inter, sans-serif" font-size="8" font-weight="700" fill="#90cea1">TMDB</text></svg>
   <span>This product uses the TMDB API but is not endorsed or certified by TMDB. Posters and details come from <a href="https://www.themoviedb.org" target="_blank" rel="noopener">themoviedb.org</a>.</span>
-  <span id="iosHint" hidden>Tip: on iPhone tap Share, then “Add to Home Screen” to use Marquee like an app.</span>
-  <details id="keyBox">
-    <summary>Use your own TMDB key</summary>
-    <label>Your free TMDB API key <input type="text" id="tmdbKey" placeholder="Leave empty to use the built-in key" autocomplete="off" spellcheck="false"></label>
-    <small>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>, then go to Settings → API and copy the key. It stays saved in this browser.</small>
-  </details>
 </footer>
 
 <div class="toast" id="toast" role="status" hidden></div>
@@ -422,6 +483,20 @@ footer details label { margin-top: 8px; max-width: 420px; }
     INFO.forEach(([k]) => { if (k !== "watch" && !showOf(k)) { saved[k] = state[k]; state[k] = ""; } });
     try { return fn(); } finally { Object.assign(state, saved); }
   }
+
+  // ---------- views (left menu) ----------
+  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Top 3 / Versus", past: "Past posts", news: "Movie news", settings: "Settings" };
+  function setView(v) {
+    if (!(v in VIEW_TITLES)) v = "make";
+    document.body.dataset.view = v;
+    document.querySelectorAll("#nav [data-view]").forEach(b => b.toggleAttribute("aria-current", b.dataset.view === v));
+    $("viewTitle").textContent = VIEW_TITLES[v];
+    try { sessionStorage.setItem("marqueeView", v); } catch {}
+    if (v === "news" && typeof loadNews === "function") loadNews();
+    window.scrollTo({ top: 0 });
+  }
+  $("nav").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); });
+  { let v = "make"; try { v = sessionStorage.getItem("marqueeView") || "make"; } catch {} document.body.dataset.view = v; }
 
   // ---------- remembered preferences ----------
   const PREF_KEYS = ["tpl", "fmt", "color", "show", "showRating", "showWatch", "myTags", "handle"];
@@ -1108,6 +1183,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
     });
   }
   async function restore(e) {
+    setView("make");
     Object.assign(state, { show: { cast: false } }, e.state, { example: false });
     current = e.current || null; captionEdited = false;
     syncForm(); syncSegments(); fillSeasons(current?.seasons || [], state.season); fillEpisodes(current?.episodes || [], state.episode);
@@ -1124,7 +1200,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
   const DEFAULT_KEY = "74291c551ed59c6c86af38b7d24a65cc";
   let key = DEFAULT_KEY;
   try { key = localStorage.getItem("tmdbKey") || DEFAULT_KEY; } catch {}
-  $("tmdbKey").value = key === DEFAULT_KEY ? "" : key; $("keyBox").open = false;
+  $("tmdbKey").value = key === DEFAULT_KEY ? "" : key; 
   $("tmdbKey").addEventListener("input", () => {
     const v = $("tmdbKey").value.trim();
     key = v || DEFAULT_KEY;
@@ -1162,7 +1238,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
 
   async function search() {
     const q = $("q").value.trim(); if (!q) { $("q").focus(); return; }
-    if (!key) { setStatus("Paste your free TMDB key first (one time only).", true); $("keyBox").open = true; $("tmdbKey").focus(); return; }
+    if (!key) { setStatus("Paste your free TMDB key first (one time only).", true); setView("settings"); $("tmdbKey").focus(); return; }
     $("fill").disabled = true; setStatus("Searching…");
     try {
       const tmdbLink = q.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i), imdbLink = q.match(/(tt\d{5,})/i);
@@ -1181,13 +1257,13 @@ footer details label { margin-top: 8px; max-width: 420px; }
       const d = await tm("/search/multi", { query: q, include_adult: "false" });
       const items = (d.results || []).filter(r => r.media_type === "movie" || r.media_type === "tv").slice(0, 6);
       if (!items.length) { $("results").innerHTML = ""; setStatus("Nothing found for “" + q + "”. Check the spelling and try again.", true); return; }
-      showResults(items); $("keyBox").open = false;
+      showResults(items); 
       await pick(items[0]);
     } catch (e) { handleErr(e); }
     finally { $("fill").disabled = false; }
   }
   function handleErr(e) {
-    if (e?.code === "key") { setStatus("TMDB didn't accept that key. Copy it again from themoviedb.org → Settings → API.", true); $("keyBox").open = true; }
+    if (e?.code === "key") { setStatus("TMDB didn't accept that key. Copy it again from themoviedb.org → Settings → API.", true); setView("settings"); }
     else setStatus("Couldn't reach TMDB. Check your connection and try again.", true);
   }
   function showResults(items) {
@@ -1336,7 +1412,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
   function renderWl() {
     const list = LS.get("marqueeWatchlist", []), box = $("wl"); box.innerHTML = "";
     $("wlEmpty").hidden = !!list.length; $("wlCount").textContent = list.length ? list.length : "";
-    list.forEach((x, i) => miniRow(box, x, i, async () => { window.scrollTo({ top: 0, behavior: "smooth" }); $("q").value = x.title; try { await pick({ media_type: x.type, id: x.id, title: x.title }); } catch (e) { handleErr(e); } },
+    list.forEach((x, i) => miniRow(box, x, i, async () => { setView("make"); $("q").value = x.title; try { await pick({ media_type: x.type, id: x.id, title: x.title }); } catch (e) { handleErr(e); } },
       () => { const l = LS.get("marqueeWatchlist", []); l.splice(i, 1); LS.set("marqueeWatchlist", l); renderWl(); refreshTitleBtns(); }));
   }
   $("wlAdd").onclick = () => {
@@ -1417,14 +1493,14 @@ footer details label { margin-top: 8px; max-width: 420px; }
     const q = new URLSearchParams(location.search), tok = q.get("request_token");
     if (!q.has("tmdb") && !tok) return;
     history.replaceState(null, "", location.pathname);
-    document.querySelector(".s-wl").open = true;
+    setView("watchlist");
     $("impRatings").checked = LS.get("tmdbImpRatings", true) !== false;
     if (!tok || q.get("approved") !== "true") { impStatus("TMDB sign-in was cancelled.", true); return; }
     try {
       const d = await tmPost("/authentication/session/new", { request_token: tok });
       LS.set("tmdbSession", d.session_id);
       await tmdbPull();
-      document.querySelector(".s-wl").scrollIntoView({ behavior: "smooth" });
+
     } catch { impStatus("TMDB sign-in didn't finish. Tap “From TMDB” to try again.", true); }
   }
   function parseCSV(text) {
@@ -1476,10 +1552,70 @@ footer details label { margin-top: 8px; max-width: 420px; }
   };
   if (LS.get("tmdbSession", null)) $("tmdbOut").hidden = false;
 
+  // ---------- news ----------
+  const FEEDS = [
+    ["Variety", "https://variety.com/v/film/feed/"],
+    ["The Hollywood Reporter", "https://www.hollywoodreporter.com/c/movies/movie-news/feed/"],
+    ["Screen Rant", "https://screenrant.com/feed/movie-news/"]
+  ];
+  let newsTab = "headlines"; const newsCache = {};
+  const stripHtml = h => { const d = document.createElement("div"); d.innerHTML = h || ""; return (d.textContent || "").replace(/\s+/g, " ").trim(); };
+  const ago = d => { const t = new Date(d.replace(" ", "T") + (/[zZ+]/.test(d) ? "" : "Z")); if (isNaN(t)) return ""; const h = (Date.now() - t) / 36e5; return h < 1 ? "just now" : h < 24 ? Math.round(h) + "h ago" : Math.round(h / 24) + "d ago"; };
+  async function fetchHeadlines() {
+    const res = await Promise.all(FEEDS.map(async ([name, url]) => {
+      try {
+        const r = await fetch("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(url));
+        const j = await r.json(); if (j.status !== "ok") return [];
+        return j.items.map(x => ({ src: name, title: stripHtml(x.title), link: x.link, date: x.pubDate || "", img: x.thumbnail || x.enclosure?.link || ((x.description || "").match(/<img[^>]+src="([^"]+)"/) || [])[1] || "", text: stripHtml(x.description).slice(0, 140) }));
+      } catch { return []; }
+    }));
+    return res.flat().filter(x => x.title && x.link).sort((a, b) => (new Date(b.date.replace(" ", "T")) - new Date(a.date.replace(" ", "T"))) || 0).slice(0, 40);
+  }
+  async function fetchTmdbList(tab) {
+    const path = tab === "trending" ? "/trending/all/week" : tab === "cinema" ? "/movie/now_playing" : "/movie/upcoming";
+    const d = await tm(path, tab === "trending" ? {} : { region: "BE" });
+    let items = (d.results || []).filter(x => x.media_type !== "person");
+    if (tab === "soon") { const today = new Date().toISOString().slice(0, 10); items = items.filter(x => (x.release_date || "") >= today).sort((a, b) => a.release_date.localeCompare(b.release_date)); }
+    return items.slice(0, 20).map(x => ({ id: x.id, type: x.media_type || "movie", title: x.title || x.name, date: x.release_date || x.first_air_date || "", poster: x.poster_path, text: (x.overview || "").slice(0, 140), score: x.vote_average }));
+  }
+  function renderNews(tab, items) {
+    const box = $("news"); box.innerHTML = "";
+    items.forEach(x => {
+      const el = document.createElement(tab === "headlines" ? "a" : "button");
+      if (tab === "headlines") { el.href = x.link; el.target = "_blank"; el.rel = "noopener"; }
+      else { el.className = "nt poster"; el.onclick = async () => { setView("make"); $("q").value = x.title; try { await pick({ media_type: x.type, id: x.id, title: x.title }); } catch (e) { handleErr(e); } }; }
+      const imgSrc = tab === "headlines" ? x.img : x.poster ? IMG + "w154" + x.poster : "";
+      el.appendChild(imgSrc ? Object.assign(document.createElement("img"), { src: imgSrc, alt: "", loading: "lazy", referrerPolicy: "no-referrer" }) : document.createElement("i"));
+      const sp = document.createElement("span"); const b = document.createElement("b"); b.textContent = x.title;
+      const sm = document.createElement("small");
+      sm.textContent = tab === "headlines" ? [x.src, ago(x.date)].filter(Boolean).join(" · ") : [x.type === "tv" ? "Series" : "Movie", tab === "soon" ? "Out " + fmtDate(x.date) : yearOf(x.date), x.score ? "TMDB " + x.score.toFixed(1) : ""].filter(Boolean).join(" · ");
+      const tx = document.createElement("small"); tx.textContent = x.text + (x.text.length >= 140 ? "…" : "");
+      sp.append(b, sm, tx); el.appendChild(sp); box.appendChild(el);
+    });
+  }
+  async function loadNews(force) {
+    const tab = newsTab;
+    $("newsTabs").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === tab));
+    if (newsCache[tab] && !force) { renderNews(tab, newsCache[tab]); $("newsStatus").textContent = tab === "headlines" ? "Tap a headline to read it." : "Tap a title to make a post about it."; return; }
+    $("news").innerHTML = ""; $("newsStatus").textContent = "Loading…";
+    try {
+      const items = tab === "headlines" ? await fetchHeadlines() : await fetchTmdbList(tab);
+      if (tab !== newsTab) return;
+      if (!items.length) {
+        if (tab === "headlines") { $("newsStatus").textContent = "Headlines couldn't load right now, so here's what's trending."; newsTab = "trending"; return loadNews(); }
+        $("newsStatus").textContent = "Nothing to show right now."; return;
+      }
+      newsCache[tab] = items; renderNews(tab, items);
+      $("newsStatus").textContent = tab === "headlines" ? "Latest from Variety, The Hollywood Reporter and Screen Rant. Tap to read." : tab === "trending" ? "Trending this week. Tap a title to make a post about it." : tab === "cinema" ? "Now playing in Belgian cinemas. Tap to make a post." : "Coming to Belgian cinemas. Tap to make a post.";
+    } catch { $("newsStatus").textContent = "Couldn't load news. Check your connection."; }
+  }
+  $("newsTabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; newsTab = b.dataset.v; loadNews(); });
+
   // ---------- multi-title posters ----------
   let multi = null;
   const loadImg = url => new Promise(res => { if (!url) return res(null); const im = new Image(); im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = () => res(null); im.src = url; });
   async function enterMulti(kind, items, label) {
+    setView("make");
     setStatus("Loading pictures…");
     const ims = await Promise.all(items.map(x => loadImg(x.src)));
     multi = { kind, items: items.map((x, i) => ({ ...x, im: ims[i] })) };
@@ -1595,13 +1731,14 @@ footer details label { margin-top: 8px; max-width: 420px; }
 
   // ---------- install (home screen) ----------
   let installEvt = null;
-  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("install").hidden = false; });
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("install").hidden = false; $("installHint").hidden = true; });
   $("install").onclick = async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch {} installEvt = null; $("install").hidden = true; };
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone) $("iosHint").hidden = false;
+  if (standalone) $("installHint").textContent = "You're using the installed app.";
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
   // ---------- boot ----------
+  setView(document.body.dataset.view);
   buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderWl(); renderTop(); tmdbReturn();
   render();
   if (document.fonts) {
