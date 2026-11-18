@@ -115,6 +115,20 @@ button:disabled { opacity: .55; cursor: progress; }
 .example { font-size: 12px; color: var(--muted); }
 .caption textarea { min-height: 120px; font-size: 13px; }
 select { appearance: auto; }
+.ep { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--field); border: 1px solid var(--line); }
+.ep b { font-size: 14px; }
+.ep small { color: var(--muted); font-size: 12px; }
+.info-head { display: flex; flex-direction: column; gap: 2px; }
+.info-head b { font-size: 18px; }
+.info-head small { color: var(--muted); font-weight: 600; }
+.info { display: flex; flex-direction: column; gap: 2px; }
+.info label { flex-direction: row; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); color: var(--fg); font-weight: 500; font-size: 13px; cursor: pointer; }
+.info label:first-child { border-top: none; }
+.info input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.info span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.info small { color: var(--muted); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.info em { font-style: normal; overflow-wrap: anywhere; }
+.info label.off em { color: var(--muted); text-decoration: line-through; }
 input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; width: 100%; min-width: 0; }
 .hist { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
 .hist button { padding: 0; display: flex; flex-direction: column; gap: 4px; background: none; border: none; text-align: left; white-space: normal; font-weight: 600; font-size: 11px; color: var(--fg); }
@@ -179,29 +193,17 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
       </section>
 
       <section class="section">
-        <h2>3 · Details <span style="text-transform:none;letter-spacing:0;font-weight:500">(filled in for you, edit if you like)</span></h2>
-        <label>Title <input type="text" id="title"></label>
-        <div class="row">
-          <label>Type
-            <select id="kind"><option>Movie</option><option>Series</option><option>Documentary</option><option>Anime</option><option>Mini-series</option></select>
-          </label>
-          <label>Year <input type="text" id="year"></label>
+        <h2>3 · Details <span style="text-transform:none;letter-spacing:0;font-weight:500">(from TMDB, tick what to show on the post)</span></h2>
+        <div class="info-head"><b id="infoTitle"></b><small id="infoKind"></small></div>
+        <div class="ep" id="epRow" hidden>
+          <b>Which episode are you watching?</b>
+          <div class="row">
+            <label>Season <select id="season"><option value="">Whole series</option></select></label>
+            <label>Episode <select id="episode" disabled><option value="">Pick a season first</option></select></label>
+          </div>
+          <small>Shows on the post as “Watching S2 E5” with the episode title.</small>
         </div>
-        <div class="row">
-          <label>Genres <input type="text" id="genres" placeholder="Drama, Sci-Fi"></label>
-          <label>Length <input type="text" id="runtime" placeholder="2h 10m or 3 seasons"></label>
-        </div>
-        <div class="row">
-          <label>Director / creator <input type="text" id="by"></label>
-          <label>Starring <input type="text" id="cast"></label>
-        </div>
-        <div class="row" id="epRow" hidden>
-          <label>Season <select id="season"><option value="">Whole series</option></select></label>
-          <label>Episode <select id="episode" disabled><option value="">Whole season</option></select></label>
-        </div>
-        <label>Synopsis <textarea id="synopsis" rows="3"></textarea></label>
-        <label>Where to watch <input type="text" id="watch" placeholder="Stream on Netflix"></label>
-        <label class="check"><input type="checkbox" id="showWatch" checked> Show where to watch on the post (Belgium)</label>
+        <div class="info" id="info"></div>
       </section>
 
       <section class="section">
@@ -280,23 +282,43 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
     by: "Denis Villeneuve", cast: "Amy Adams, Jeremy Renner",
     synopsis: "When twelve alien ships land around the world, a linguist is asked to find a way to talk to them before fear turns into war.",
     rating: 8.5, showRating: true, take: "Quiet, strange and devastating. The ending rewired my brain.", handle: "",
-    watch: "Stream on Netflix", showWatch: true, watchedOn: "", watchedWith: "", season: "", episode: "", epTitle: "",
+    watch: "Stream on Netflix", showWatch: true, show: { cast: false }, watchedOn: "", watchedWith: "", season: "", episode: "", epTitle: "",
     example: true
   };
   let img = null, imgUrl = null, imgSrc = null, autoAccent = null, ratingTouched = false;
-  const fields = ["title", "kind", "year", "genres", "runtime", "by", "cast", "synopsis", "take", "handle", "watch", "watchedOn", "watchedWith"];
+  const fields = ["take", "handle", "watchedOn", "watchedWith"];
+  const INFO = [["year", "Year"], ["genres", "Genres"], ["runtime", "Length"], ["by", "Director / creator"], ["cast", "Starring"], ["synopsis", "Synopsis"], ["watch", "Where to watch (Belgium)"]];
+  const showOf = k => k === "watch" ? state.showWatch : state.show[k] !== false;
+  function renderInfo() {
+    $("infoTitle").textContent = state.title || "Untitled"; $("infoKind").textContent = state.kind;
+    const box = $("info"); box.innerHTML = "";
+    INFO.forEach(([k, name]) => {
+      if (!String(state[k] || "").trim()) return;
+      const l = document.createElement("label"); l.classList.toggle("off", !showOf(k));
+      const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: showOf(k) });
+      cb.onchange = () => { if (k === "watch") state.showWatch = cb.checked; else state.show = { ...state.show, [k]: cb.checked }; l.classList.toggle("off", !cb.checked); render(); };
+      const sp = document.createElement("span"); const sm = document.createElement("small"); sm.textContent = name;
+      const em = document.createElement("em"); em.textContent = state[k];
+      sp.append(sm, em); l.append(cb, sp); box.appendChild(l);
+    });
+  }
+  // run fn with hidden details blanked out, so every design and the caption respect the toggles
+  function withShown(fn) {
+    const saved = {};
+    INFO.forEach(([k]) => { if (k !== "watch" && !showOf(k)) { saved[k] = state[k]; state[k] = ""; } });
+    try { return fn(); } finally { Object.assign(state, saved); }
+  }
 
   // ---------- form <-> state ----------
   function syncForm() {
     fields.forEach(f => { $(f).value = state[f]; });
-    $("rating").value = state.rating; $("showRating").checked = state.showRating; $("showWatch").checked = state.showWatch;
+    $("rating").value = state.rating; $("showRating").checked = state.showRating; renderInfo();
     $("ratingOut").textContent = state.rating + "/10";
     $("exampleNote").hidden = !state.example;
   }
   fields.forEach(f => $(f).addEventListener("input", () => { state[f] = $(f).value; render(); }));
   $("rating").addEventListener("input", () => { ratingTouched = true; state.rating = +$("rating").value; $("ratingOut").textContent = state.rating + "/10"; render(); });
   $("showRating").addEventListener("change", () => { state.showRating = $("showRating").checked; render(); });
-  $("showWatch").addEventListener("change", () => { state.showWatch = $("showWatch").checked; render(); });
   try { const h = localStorage.getItem("handle"); if (h) state.handle = h; } catch {}
   $("handle").addEventListener("change", () => { try { localStorage.setItem("handle", state.handle); } catch {} });
   $("pos").addEventListener("input", () => { state.pos = +$("pos").value; render(); });
@@ -501,8 +523,9 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
     return "Watched" + (d ? " " + d : "") + (w ? " with " + w : "");
   };
   const watchLine = () => state.showWatch ? state.watch.trim() : "";
-  const epLine = () => state.episode && state.epTitle ? `${seLabel()} · “${state.epTitle}”` : "";
-  const notes = () => [epLine(), watchedLine(), watchLine()].filter(Boolean);
+  const epLine = () => state.season ? "Watching " + seLabel() + (state.episode && state.epTitle ? ` · “${state.epTitle}”` : "") : "";
+  const castLine = () => state.cast.trim() ? "Starring " + state.cast.trim() : "";
+  const notes = () => [epLine(), castLine(), watchedLine(), watchLine()].filter(Boolean);
   function drawNotes(ctx, x, y, maxW, size, color, lh, align = "left", list = notes()) {
     // draws notes top-down starting at baseline y; returns new y
     ctx.font = `600 ${size}px Inter`; ctx.fillStyle = color; ctx.textAlign = align;
@@ -822,7 +845,7 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H); ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
-    try { T[state.tpl](ctx, W, H); } catch (e) { console.error(e); }
+    withShown(() => { try { T[state.tpl](ctx, W, H); } catch (e) { console.error(e); } });
   }
   let raf = 0;
   function render() {
@@ -834,8 +857,8 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
   let captionEdited = false;
   $("caption").addEventListener("input", () => { captionEdited = true; });
   function tag(s) { return "#" + s.replace(/[^\p{L}\p{N}]+/gu, ""); }
-  function updateCaption() {
-    if (captionEdited) return;
+  function updateCaption() { if (!captionEdited) withShown(buildCaption); }
+  function buildCaption() {
     const full = Math.floor(state.rating / 2), half = state.rating / 2 - full >= .5;
     const starsTxt = "★".repeat(full) + (half ? "½" : "");
     const isFilm = state.kind === "Movie" || state.kind === "Documentary";
@@ -852,7 +875,7 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
       "",
       state.showRating ? `My score: ${starsTxt} ${state.rating}/10` : null,
       watchedLine() ? "🍿 " + watchedLine() : null,
-      state.watch.trim() ? "📺 " + state.watch.trim() + " (BE)" : null,
+      watchLine() ? "📺 " + watchLine() + " (BE)" : null,
       "",
       [...new Set(tags)].slice(0, 15).join(" ")
     ].filter(x => x !== null).join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -929,7 +952,7 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
     });
   }
   async function restore(e) {
-    Object.assign(state, e.state, { example: false });
+    Object.assign(state, { show: { cast: false } }, e.state, { example: false });
     current = e.current || null; captionEdited = false;
     syncForm(); syncSegments(); fillSeasons(current?.seasons || [], state.season); fillEpisodes(current?.episodes || [], state.episode);
     rebuildChoices();
@@ -1069,7 +1092,7 @@ input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background:
     s.value = sel || ""; $("epRow").hidden = !list.length;
   }
   function fillEpisodes(list, sel) {
-    const s = $("episode"); s.innerHTML = '<option value="">Whole season</option>';
+    const s = $("episode"); s.innerHTML = '<option value="">' + (list.length ? "Whole season" : "Pick a season first") + '</option>';
     list.forEach(x => s.appendChild(Object.assign(document.createElement("option"), { value: x.n, textContent: x.n + ". " + x.name })));
     s.value = sel || ""; s.disabled = !list.length;
   }
