@@ -89,6 +89,8 @@ button:disabled { opacity: .55; cursor: progress; }
 .status.err { color: var(--accent); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg button { flex: 1 1 auto; padding: 8px 10px; }
+#tpl { display: grid; grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 560px) { #tpl { grid-template-columns: repeat(3, 1fr); } }
 .seg button[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .sw { width: 28px; height: 28px; border-radius: 50%; padding: 0; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--line); }
@@ -112,6 +114,14 @@ button:disabled { opacity: .55; cursor: progress; }
 .actions button.primary { flex: 1 1 200px; padding: 12px 16px; font-size: 14px; }
 .example { font-size: 12px; color: var(--muted); }
 .caption textarea { min-height: 120px; font-size: 13px; }
+select { appearance: auto; }
+input[type=date] { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; width: 100%; min-width: 0; }
+.hist { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+.hist button { padding: 0; display: flex; flex-direction: column; gap: 4px; background: none; border: none; text-align: left; white-space: normal; font-weight: 600; font-size: 11px; color: var(--fg); }
+.hist img { width: 100%; aspect-ratio: 4/5; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: var(--field); }
+.hist small { color: var(--muted); font-weight: 500; }
+.hist-empty { color: var(--muted); font-size: 12px; margin: 0; }
+.link { background: none; border: none; padding: 0; color: var(--muted); font-size: 12px; text-decoration: underline; align-self: flex-start; }
 .overlay { position: fixed; inset: 0; background: rgba(10,8,14,.88); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .overlay img { max-width: 100%; max-height: 74vh; border-radius: 6px; }
@@ -185,7 +195,13 @@ button:disabled { opacity: .55; cursor: progress; }
           <label>Director / creator <input type="text" id="by"></label>
           <label>Starring <input type="text" id="cast"></label>
         </div>
+        <div class="row" id="epRow" hidden>
+          <label>Season <select id="season"><option value="">Whole series</option></select></label>
+          <label>Episode <select id="episode" disabled><option value="">Whole season</option></select></label>
+        </div>
         <label>Synopsis <textarea id="synopsis" rows="3"></textarea></label>
+        <label>Where to watch <input type="text" id="watch" placeholder="Stream on Netflix"></label>
+        <label class="check"><input type="checkbox" id="showWatch" checked> Show where to watch on the post (Belgium)</label>
       </section>
 
       <section class="section">
@@ -194,8 +210,12 @@ button:disabled { opacity: .55; cursor: progress; }
           <input type="range" id="rating" min="0" max="10" step="0.5" value="8.5" aria-label="Rating out of 10">
           <output id="ratingOut">8.5/10</output>
         </div>
-        <label class="check"><input type="checkbox" id="showRating" checked> Show the rating on the post (starts at the TMDB score)</label>
+        <label class="check"><input type="checkbox" id="showRating" checked> Show my score on the post (starts at the TMDB score, slide to set yours)</label>
         <label>What you thought <textarea id="take" rows="2" placeholder="One or two lines. Leave empty to show the synopsis."></textarea></label>
+        <div class="row">
+          <label>Watched on <input type="date" id="watchedOn"></label>
+          <label>Watched with <input type="text" id="watchedWith" placeholder="Sarah, Tom"></label>
+        </div>
         <label>Your Instagram handle <input type="text" id="handle" placeholder="@yourname"></label>
       </section>
 
@@ -203,6 +223,13 @@ button:disabled { opacity: .55; cursor: progress; }
         <h2>Caption</h2>
         <textarea id="caption" aria-label="Instagram caption"></textarea>
         <div class="actions"><button id="copyCap">Copy caption</button></div>
+      </section>
+
+      <section class="section">
+        <h2>Your past posts</h2>
+        <div class="hist" id="hist"></div>
+        <p class="hist-empty" id="histEmpty">Posts you share or download show up here, so you can open them again. They're only saved on this device.</p>
+        <button class="link" id="histClear" hidden>Clear history</button>
       </section>
     </div>
 
@@ -212,6 +239,8 @@ button:disabled { opacity: .55; cursor: progress; }
         <button data-v="ticket" aria-pressed="false">Ticket</button>
         <button data-v="review" aria-pressed="false">Review</button>
         <button data-v="bold" aria-pressed="false">Bold</button>
+        <button data-v="minimal" aria-pressed="false">Minimal</button>
+        <button data-v="diary" aria-pressed="false">Diary</button>
       </div>
       <div class="seg" id="fmt" role="group" aria-label="Size">
         <button data-v="portrait" aria-pressed="true">Post 4:5</button>
@@ -221,6 +250,7 @@ button:disabled { opacity: .55; cursor: progress; }
       <div class="swatches" id="colors" aria-label="Color"></div>
       <div class="canvas-box" id="canvasBox"><canvas id="preview" width="1080" height="1350" aria-label="Post preview"></canvas></div>
       <div class="actions">
+        <button class="primary" id="share" hidden>Share to Instagram</button>
         <button class="primary" id="download">Download PNG</button>
       </div>
       <p class="example" id="exampleNote">Showing an example. Search a title to make your own.</p>
@@ -250,21 +280,25 @@ button:disabled { opacity: .55; cursor: progress; }
     by: "Denis Villeneuve", cast: "Amy Adams, Jeremy Renner",
     synopsis: "When twelve alien ships land around the world, a linguist is asked to find a way to talk to them before fear turns into war.",
     rating: 8.5, showRating: true, take: "Quiet, strange and devastating. The ending rewired my brain.", handle: "",
+    watch: "Stream on Netflix", showWatch: true, watchedOn: "", watchedWith: "", season: "", episode: "", epTitle: "",
     example: true
   };
-  let img = null, imgUrl = null, autoAccent = null;
-  const fields = ["title", "kind", "year", "genres", "runtime", "by", "cast", "synopsis", "take", "handle"];
+  let img = null, imgUrl = null, imgSrc = null, autoAccent = null, ratingTouched = false;
+  const fields = ["title", "kind", "year", "genres", "runtime", "by", "cast", "synopsis", "take", "handle", "watch", "watchedOn", "watchedWith"];
 
   // ---------- form <-> state ----------
   function syncForm() {
     fields.forEach(f => { $(f).value = state[f]; });
-    $("rating").value = state.rating; $("showRating").checked = state.showRating;
+    $("rating").value = state.rating; $("showRating").checked = state.showRating; $("showWatch").checked = state.showWatch;
     $("ratingOut").textContent = state.rating + "/10";
     $("exampleNote").hidden = !state.example;
   }
   fields.forEach(f => $(f).addEventListener("input", () => { state[f] = $(f).value; render(); }));
-  $("rating").addEventListener("input", () => { state.rating = +$("rating").value; $("ratingOut").textContent = state.rating + "/10"; render(); });
+  $("rating").addEventListener("input", () => { ratingTouched = true; state.rating = +$("rating").value; $("ratingOut").textContent = state.rating + "/10"; render(); });
   $("showRating").addEventListener("change", () => { state.showRating = $("showRating").checked; render(); });
+  $("showWatch").addEventListener("change", () => { state.showWatch = $("showWatch").checked; render(); });
+  try { const h = localStorage.getItem("handle"); if (h) state.handle = h; } catch {}
+  $("handle").addEventListener("change", () => { try { localStorage.setItem("handle", state.handle); } catch {} });
   $("pos").addEventListener("input", () => { state.pos = +$("pos").value; render(); });
 
   function segment(id, key) {
@@ -277,6 +311,10 @@ button:disabled { opacity: .55; cursor: progress; }
     });
   }
   segment("tpl", "tpl"); segment("fmt", "fmt");
+  function syncSegments() {
+    [["tpl", "tpl"], ["fmt", "fmt"]].forEach(([id, k]) => $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.v === state[k])));
+    $("colors").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === state.color));
+  }
 
   function buildSwatches() {
     const box = $("colors"); box.innerHTML = "";
@@ -305,7 +343,7 @@ button:disabled { opacity: .55; cursor: progress; }
   function loadFile(file) {
     if (!file || !file.type.startsWith("image/")) return;
     if (imgUrl) URL.revokeObjectURL(imgUrl);
-    imgUrl = URL.createObjectURL(file);
+    imgUrl = URL.createObjectURL(file); imgSrc = null;
     const im = new Image();
     im.onload = () => { markChoice(null); setImage(im, imgUrl); };
     im.src = imgUrl;
@@ -313,7 +351,7 @@ button:disabled { opacity: .55; cursor: progress; }
   function loadUrl(url, thumb) {
     return new Promise(res => {
       const im = new Image(); im.crossOrigin = "anonymous";
-      im.onload = () => { setImage(im, thumb || url); res(true); };
+      im.onload = () => { imgSrc = url; setImage(im, thumb || url); res(true); };
       im.onerror = () => res(false);
       im.src = url;
     });
@@ -321,7 +359,7 @@ button:disabled { opacity: .55; cursor: progress; }
   $("pick").onclick = () => $("file").click();
   $("file").onchange = e => { loadFile(e.target.files[0]); e.target.value = ""; };
   $("clearImg").onclick = () => {
-    markChoice(null); img = null; autoAccent = null; if (imgUrl) URL.revokeObjectURL(imgUrl); imgUrl = null;
+    markChoice(null); img = null; imgSrc = null; autoAccent = null; if (imgUrl) URL.revokeObjectURL(imgUrl); imgUrl = null;
     $("thumb").style.backgroundImage = ""; $("clearImg").hidden = true; $("posWrap").hidden = true; render();
   };
   ["drop", "canvasBox"].forEach(id => {
@@ -454,7 +492,23 @@ button:disabled { opacity: .55; cursor: progress; }
   function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 
   const genreList = () => state.genres.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3);
-  const metaLine = () => [state.year, genreList().join(" / "), state.runtime].filter(Boolean).join("  ·  ");
+  const seLabel = () => state.season ? ("S" + state.season + (state.episode ? " E" + state.episode : "")) : "";
+  const metaLine = () => [state.year, genreList().join(" / "), seLabel() || state.runtime].filter(Boolean).join("  ·  ");
+  const fmtDate = d => { if (!d) return ""; const t = new Date(d + "T12:00:00"); return isNaN(t) ? "" : t.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+  const watchedLine = () => {
+    const d = fmtDate(state.watchedOn), w = state.watchedWith.trim();
+    if (!d && !w) return "";
+    return "Watched" + (d ? " " + d : "") + (w ? " with " + w : "");
+  };
+  const watchLine = () => state.showWatch ? state.watch.trim() : "";
+  const epLine = () => state.episode && state.epTitle ? `${seLabel()} · “${state.epTitle}”` : "";
+  const notes = () => [epLine(), watchedLine(), watchLine()].filter(Boolean);
+  function drawNotes(ctx, x, y, maxW, size, color, lh, align = "left", list = notes()) {
+    // draws notes top-down starting at baseline y; returns new y
+    ctx.font = `600 ${size}px Inter`; ctx.fillStyle = color; ctx.textAlign = align;
+    list.forEach(n => { let t = n; while (t.length > 3 && ctx.measureText(t).width > maxW) t = t.slice(0, -2).trimEnd() + "…"; ctx.fillText(t, x, y); y += lh; });
+    ctx.textAlign = "left"; return y;
+  }
   const bodyText = () => (state.take.trim() || state.synopsis.trim());
   const isTake = () => !!state.take.trim();
   const handle = () => { const h = state.handle.trim(); return h ? (h.startsWith("@") ? h : "@" + h) : ""; };
@@ -490,7 +544,8 @@ button:disabled { opacity: .55; cursor: progress; }
     const parts = [];
     const metaH = metaLine() ? 50 * u : 0;
     const starH = state.showRating ? 72 * u : 0;
-    const total = metaH + title.lines.length * tl + 18 * u + starH + (body.length ? 22 * u + body.length * bl : 0) + (state.by ? 52 * u : 0);
+    const noteH = notes().length ? 16 * u + notes().length * 40 * u : 0;
+    const total = metaH + title.lines.length * tl + 18 * u + starH + (body.length ? 22 * u + body.length * bl : 0) + noteH + (state.by ? 52 * u : 0);
     let y = H - pad - total;
 
     if (metaH) { ctx.font = `600 ${26 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.78)"; spaced(ctx, metaLine().toUpperCase(), pad, y + 28 * u, 2 * u); y += metaH; }
@@ -506,6 +561,7 @@ button:disabled { opacity: .55; cursor: progress; }
       y += 22 * u; ctx.font = `400 ${36 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.92)";
       body.forEach(l => { y += bl; ctx.fillText(l, pad, y - 12 * u); });
     }
+    if (noteH) { y = drawNotes(ctx, pad, y + 16 * u + 30 * u, maxW, 26 * u, a === "#1c1a22" ? "#fff" : "rgba(255,255,255,.85)", 40 * u) - 30 * u; }
     if (state.by) { ctx.font = `500 ${24 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.55)"; y += 52 * u; ctx.fillText((state.kind === "Movie" || state.kind === "Documentary" ? "Directed by " : "Created by ") + state.by, pad, y - 6 * u); }
   };
 
@@ -549,7 +605,11 @@ button:disabled { opacity: .55; cursor: progress; }
       ctx.font = `700 ${28 * u}px Inter`; ctx.fillStyle = ink; ctx.textBaseline = "middle"; ctx.fillText(state.rating + "/10", ix + sw + 18 * u, y + 28 * u); ctx.textBaseline = "alphabetic";
       y += 66 * u;
     }
-    const left = cy + ch - p - bottomH - y;
+    const room0 = cy + ch - p - bottomH - y - 6 * u;
+    let tList = notes(); if (tList.length * 36 * u > room0) tList = tList.length && room0 >= 36 * u ? [tList.join("  ·  ")] : [];
+    const tNoteH = tList.length * 36 * u;
+    if (tNoteH) drawNotes(ctx, ix, cy + ch - p - bottomH - tNoteH + 10 * u, iw, 22 * u, "rgba(29,26,32,.6)", 36 * u, "left", tList);
+    const left = cy + ch - p - bottomH - tNoteH - y;
     if (bodyText() && left > 60 * u) {
       ctx.font = `italic 400 ${34 * u}px "DM Serif Display"`; ctx.fillStyle = "rgba(29,26,32,.85)";
       const lines = wrap(ctx, isTake() ? "“" + bodyText() + "”" : bodyText(), iw, Math.max(1, Math.floor(left / (44 * u))));
@@ -597,7 +657,7 @@ button:disabled { opacity: .55; cursor: progress; }
       ctx.strokeStyle = panel; ctx.lineWidth = 10 * u; ctx.stroke();
       const ink = inkOn(a); ctx.fillStyle = ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.font = `${92 * u}px Anton`; ctx.fillText(String(state.rating), dx, dy - 10 * u);
-      ctx.font = `700 ${22 * u}px Inter`; spaced(ctx, "", 0, 0, 0); ctx.fillText("OUT OF 10", dx, dy + 52 * u);
+      ctx.font = `700 ${22 * u}px Inter`; spaced(ctx, "", 0, 0, 0); ctx.fillText("MY SCORE", dx, dy + 52 * u);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       titleMax = W - pad * 2 - R * 2 - 30 * u;
     }
@@ -609,13 +669,16 @@ button:disabled { opacity: .55; cursor: progress; }
     y += 30 * u;
     const footY = H - pad;
     if (state.showRating && y < imgH + R + 20 * u) y = Math.max(y, imgH + R - 10 * u);
-    const left = footY - 70 * u - y;
+    const rNoteH = notes().length * 38 * u;
+    if (rNoteH) drawNotes(ctx, pad, footY - 50 * u - rNoteH + 28 * u, W - pad * 2, 24 * u, "rgba(255,255,255,.72)", 38 * u);
+    const bodyEnd = footY - 70 * u - rNoteH;
+    const left = bodyEnd - y;
     if (bodyText() && left > 60 * u) {
       const size = isTake() ? (H === W ? 40 : 50) : (H === W ? 32 : 38), lh = size * 1.28 * u;
       ctx.font = isTake() ? `italic 400 ${size * u}px "DM Serif Display"` : `400 ${size * u}px Inter`;
       ctx.fillStyle = isTake() ? "#fff" : "rgba(255,255,255,.85)";
       if (isTake()) { ctx.save(); ctx.font = `${150 * u}px "DM Serif Display"`; ctx.fillStyle = a; ctx.fillText("“", pad - 6 * u, y + 108 * u); ctx.restore(); y += 70 * u; }
-      const lines = wrap(ctx, bodyText(), W - pad * 2, Math.max(1, Math.floor((footY - 70 * u - y) / lh)));
+      const lines = wrap(ctx, bodyText(), W - pad * 2, Math.max(1, Math.floor((bodyEnd - y) / lh)));
       lines.forEach(l => { y += lh; ctx.fillText(l, pad, y - lh * .22); });
     }
     ctx.font = `500 ${24 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.5)";
@@ -640,7 +703,8 @@ button:disabled { opacity: .55; cursor: progress; }
     // bottom block measure
     ctx.font = `500 ${32 * u}px Inter`;
     const body = bodyText() ? wrap(ctx, isTake() ? "“" + bodyText() + "”" : bodyText(), W - pad * 2, 2) : [];
-    const bottomH = (state.showRating ? 70 * u : 0) + body.length * 44 * u + 30 * u;
+    const bNoteH = notes().length * 38 * u + (notes().length ? 8 * u : 0);
+    const bottomH = (state.showRating ? 70 * u : 0) + body.length * 44 * u + bNoteH + 30 * u;
     const imgBottom = H - pad - bottomH;
     const ih = imgBottom - y;
     if (ih > 120 * u) {
@@ -660,6 +724,95 @@ button:disabled { opacity: .55; cursor: progress; }
     }
     ctx.font = `500 ${32 * u}px Inter`; ctx.fillStyle = ink;
     body.forEach(l => { y += 44 * u; ctx.fillText(l, pad, y - 10 * u); });
+    if (bNoteH) drawNotes(ctx, pad, y + 8 * u + 28 * u, W - pad * 2, 24 * u, ink, 38 * u);
+  };
+
+  T.minimal = (ctx, W, H) => {
+    const u = W / 1080, a = accent(), paper = "#f5f2ec", ink = "#18151c";
+    ctx.fillStyle = paper; ctx.fillRect(0, 0, W, H);
+    const tall = H > W * 1.5, sq = H === W;
+    const top = (tall ? 150 : sq ? 64 : 84) * u;
+    const ih = H * (tall ? .44 : sq ? .44 : .46), iw = ih * 2 / 3, ix = (W - iw) / 2;
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,.25)"; ctx.shadowBlur = 40 * u; ctx.shadowOffsetY = 16 * u;
+    ctx.fillStyle = "#ddd"; ctx.fillRect(ix, top, iw, ih); ctx.restore();
+    drawCover(ctx, ix, top, iw, ih);
+    let y = top + ih + (sq ? 64 : 84) * u;
+    const cxm = W / 2, maxW = W - 160 * u;
+    ctx.textAlign = "center";
+    const title = fitText(ctx, state.title || "Untitled", '"DM Serif Display"', maxW, 2, (sq ? 76 : 88) * u, 44 * u, false);
+    ctx.font = `${title.size}px "DM Serif Display"`; ctx.fillStyle = ink;
+    title.lines.forEach((l, i) => { if (i) y += title.size * 1.05; ctx.fillText(l, cxm, y); });
+    if (metaLine()) { y += 50 * u; ctx.font = `600 ${22 * u}px Inter`; ctx.fillStyle = "rgba(24,21,28,.55)"; const m = metaLine().toUpperCase(); ctx.textAlign = "left"; spaced(ctx, m, cxm - spacedWidth(ctx, m, 3 * u) / 2, y, 3 * u); ctx.textAlign = "center"; }
+    if (state.showRating) {
+      y += 34 * u; const size = 36 * u, gap = size * .28, sw = 5 * size + 4 * gap;
+      ctx.font = `700 ${28 * u}px Inter`; const lab = state.rating + "/10", lw = ctx.measureText(lab).width;
+      const sx = cxm - (sw + 16 * u + lw) / 2;
+      ctx.textAlign = "left"; stars(ctx, sx, y + size / 2, size, state.rating, a === "#efe9dc" ? ink : a, "rgba(24,21,28,.14)");
+      ctx.fillStyle = ink; ctx.textBaseline = "middle"; ctx.fillText(lab, sx + sw + 16 * u, y + size / 2 + 2 * u); ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
+      y += size;
+    }
+    const nn = notes().length, foot = H - (tall ? 150 : 64) * u - (handle() ? 40 * u : 0);
+    const noteTop = foot - nn * 34 * u;
+    if (bodyText()) {
+      const sz = (sq ? 30 : 34) * u, lh = sz * 1.35;
+      ctx.font = isTake() ? `italic 400 ${sz}px "DM Serif Display"` : `400 ${sz * .85}px Inter`;
+      ctx.fillStyle = "rgba(24,21,28,.82)";
+      const room = Math.floor((noteTop - 20 * u - (y + 30 * u)) / lh);
+      if (room >= 1) { y += 30 * u; wrap(ctx, isTake() ? "“" + bodyText() + "”" : bodyText(), maxW, Math.min(room, tall ? 5 : 3)).forEach(l => { y += lh; ctx.fillText(l, cxm, y - lh * .25); }); }
+    }
+    if (nn) drawNotes(ctx, cxm, noteTop + 24 * u, maxW, 22 * u, "rgba(24,21,28,.6)", 34 * u, "center");
+    if (handle()) { ctx.font = `600 ${24 * u}px Inter`; ctx.fillStyle = ink; ctx.textAlign = "center"; ctx.fillText(handle(), cxm, H - (tall ? 150 : 64) * u); }
+    ctx.textAlign = "left";
+  };
+
+  T.diary = (ctx, W, H) => {
+    const u = W / 1080, a = accent(), bg = "#121016", pad = 72 * u;
+    const tall = H > W * 1.5, sq = H === W;
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); addGrain(ctx, 0, 0, W, H);
+    ctx.fillStyle = a; ctx.fillRect(0, 0, W, 14 * u);
+    let y = pad + (tall ? 90 : 10) * u;
+    // date header
+    const d = state.watchedOn ? new Date(state.watchedOn + "T12:00:00") : new Date();
+    const day = String(d.getDate()), mon = d.toLocaleDateString("en-GB", { month: "long" }).toUpperCase(), yr = String(d.getFullYear());
+    ctx.font = `${150 * u}px Anton`; ctx.fillStyle = a; ctx.fillText(day, pad - 4 * u, y + 130 * u);
+    const dw = ctx.measureText(day).width;
+    ctx.font = `700 ${30 * u}px Inter`; ctx.fillStyle = "#fff"; spaced(ctx, mon, pad + dw + 24 * u, y + 70 * u, 5 * u);
+    ctx.font = `500 ${26 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fillText(yr + "  ·  " + (state.kind === "Movie" || state.kind === "Documentary" ? "WATCH DIARY" : "BINGE DIARY"), pad + dw + 24 * u, y + 116 * u);
+    if (handle()) { ctx.textAlign = "right"; ctx.font = `600 ${26 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillText(handle(), W - pad, y + 70 * u); ctx.textAlign = "left"; }
+    y += 170 * u;
+    // poster + info
+    const pw = (sq ? 300 : 360) * u, ph = pw * 1.5;
+    ctx.save(); rr(ctx, pad, y, pw, ph, 14 * u); ctx.clip(); drawCover(ctx, pad, y, pw, ph); ctx.restore();
+    const rx = pad + pw + 44 * u, rw = W - pad - rx;
+    let ry = y;
+    const title = fitText(ctx, state.title || "Untitled", "Anton", rw, 3, 96 * u, 48 * u);
+    ctx.font = `${title.size}px Anton`; ctx.fillStyle = "#fff";
+    title.lines.forEach(l => { ry += title.size; ctx.fillText(l, rx, ry - title.size * .1); });
+    ctx.font = `500 ${24 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.6)";
+    [state.year && (state.year + (state.runtime && !state.season ? "  ·  " + state.runtime : "")), seLabel() && (state.epTitle ? seLabel() + " · " + state.epTitle : "Season " + state.season), genreList().join(" / "), state.by && ((state.kind === "Movie" || state.kind === "Documentary" ? "Dir. " : "By ") + state.by)]
+      .filter(Boolean).forEach(t => { ry += 40 * u; let s2 = t; while (s2.length > 3 && ctx.measureText(s2).width > rw) s2 = s2.slice(0, -2).trimEnd() + "…"; ctx.fillText(s2, rx, ry); });
+    if (state.showRating) {
+      ry += 40 * u;
+      ctx.font = `700 ${20 * u}px Inter`; ctx.fillStyle = a; spaced(ctx, "MY SCORE", rx, ry + 10 * u, 3 * u);
+      ry += 30 * u;
+      ctx.font = `${110 * u}px Anton`; ctx.fillStyle = "#fff"; ctx.fillText(String(state.rating), rx, ry + 100 * u);
+      const sw2 = ctx.measureText(String(state.rating)).width;
+      ctx.font = `600 ${32 * u}px Inter`; ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.fillText("/10", rx + sw2 + 10 * u, ry + 100 * u);
+      ry += 116 * u;
+      if (ry + 40 * u < y + ph) stars(ctx, rx, ry + 10 * u, 34 * u, state.rating, a, "rgba(255,255,255,.2)");
+    }
+    y = Math.max(y + ph, ry) + 60 * u;
+    // take + notes
+    const nn = notes().length, foot = H - pad - (tall ? 80 : 0) * u;
+    const noteTop = foot - nn * 38 * u;
+    if (bodyText()) {
+      const sz = (sq ? 34 : 40) * u, lh = sz * 1.3;
+      ctx.font = isTake() ? `italic 400 ${sz}px "DM Serif Display"` : `400 ${sz * .8}px Inter`;
+      ctx.fillStyle = isTake() ? "#fff" : "rgba(255,255,255,.8)";
+      const room = Math.floor((noteTop - 16 * u - y) / lh);
+      if (room >= 1) wrap(ctx, isTake() ? "“" + bodyText() + "”" : bodyText(), W - pad * 2, Math.min(room, tall ? 6 : 4)).forEach(l => { y += lh; ctx.fillText(l, pad, y - lh * .25); });
+    }
+    if (nn) { ctx.fillStyle = "rgba(255,255,255,.15)"; ctx.fillRect(pad, noteTop - 8 * u, W - pad * 2, 2 * u); drawNotes(ctx, pad, noteTop + 30 * u, W - pad * 2, 24 * u, "rgba(255,255,255,.75)", 38 * u); }
   };
 
   // ---------- render ----------
@@ -669,7 +822,7 @@ button:disabled { opacity: .55; cursor: progress; }
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H); ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
-    T[state.tpl](ctx, W, H);
+    try { T[state.tpl](ctx, W, H); } catch (e) { console.error(e); }
   }
   let raf = 0;
   function render() {
@@ -685,16 +838,23 @@ button:disabled { opacity: .55; cursor: progress; }
     if (captionEdited) return;
     const full = Math.floor(state.rating / 2), half = state.rating / 2 - full >= .5;
     const starsTxt = "★".repeat(full) + (half ? "½" : "");
-    const tags = [tag(state.title), ...genreList().map(g => tag(g.toLowerCase())),
-      state.kind === "Movie" ? "#movienight" : "#bingewatching", state.kind === "Movie" ? "#filmreview" : "#tvseries", "#nowwatching"].filter(t => t.length > 1);
+    const isFilm = state.kind === "Movie" || state.kind === "Documentary";
+    const people = [...state.by.split("&"), ...state.cast.split(",").slice(0, 2)].map(x => x.trim()).filter(Boolean).map(x => tag(x.toLowerCase()));
+    const prov = (current?.providers || []).slice(0, 2).map(x => tag(x.toLowerCase()));
+    const tags = [tag(state.title), state.season ? tag(state.title) + "season" + state.season : "", ...genreList().map(g => tag(g.toLowerCase())), ...people, ...prov,
+      isFilm ? "#movienight" : "#bingewatching", isFilm ? "#filmreview" : "#tvseries", isFilm ? "#filmtip" : "#seriestip", isFilm ? "#cinephile" : "#whattowatch", "#nowwatching"]
+      .filter(t => t && t.length > 2);
+    const head = `${state.title}${state.year ? " (" + state.year + ")" : ""}` + (seLabel() ? ` · ${seLabel()}${state.epTitle && state.episode ? " “" + state.epTitle + "”" : ""}` : "");
     $("caption").value = [
-      `${state.title}${state.year ? " (" + state.year + ")" : ""}`,
+      `🎬 ${head}`,
       "",
       state.take.trim() || state.synopsis.trim(),
       "",
-      state.showRating ? `My rating: ${starsTxt} ${state.rating}/10` : "",
-      state.showRating ? "" : null,
-      [...new Set(tags)].join(" ")
+      state.showRating ? `My score: ${starsTxt} ${state.rating}/10` : null,
+      watchedLine() ? "🍿 " + watchedLine() : null,
+      state.watch.trim() ? "📺 " + state.watch.trim() + " (BE)" : null,
+      "",
+      [...new Set(tags)].slice(0, 15).join(" ")
     ].filter(x => x !== null).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   }
   $("copyCap").onclick = async () => {
@@ -710,17 +870,74 @@ button:disabled { opacity: .55; cursor: progress; }
     const url = URL.createObjectURL(blob); $("overlayImg").src = url; $("overlay").hidden = false;
   }
   $("closeOverlay").onclick = () => { $("overlay").hidden = true; URL.revokeObjectURL($("overlayImg").src); };
-  $("download").onclick = async () => {
+  async function makeBlob() {
     const c = document.createElement("canvas"); paint(c);
-    let blob = null;
-    try { blob = await new Promise(r => c.toBlob(r, "image/png")); }
-    catch { setStatus("This picture can't be saved from the browser. Choose your own image instead.", true); return; }
-    if (!blob) return;
+    try { return await new Promise(r => c.toBlob(r, "image/png")); }
+    catch { setStatus("This picture can't be saved from the browser. Choose your own image instead.", true); return null; }
+  }
+  function saveBlob(blob) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = slug();
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  $("download").onclick = async () => {
+    const blob = await makeBlob(); if (!blob) return;
+    saveBlob(blob); saveHistory();
   };
+  const canShareFiles = (() => { try { return !!navigator.canShare && navigator.canShare({ files: [new File([new Blob(["x"])], "t.png", { type: "image/png" })] }); } catch { return false; } })();
+  if (canShareFiles) { $("share").hidden = false; $("download").classList.remove("primary"); }
+  $("share").onclick = async () => {
+    try { await navigator.clipboard.writeText($("caption").value); } catch {}
+    const blob = await makeBlob(); if (!blob) return;
+    const file = new File([blob], slug(), { type: "image/png" });
+    try {
+      await navigator.share({ files: [file] });
+      saveHistory(); setStatus("Shared. The caption is copied too, so you can paste it in Instagram.");
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      saveBlob(blob); saveHistory(); setStatus("Sharing didn't work here, so the image was downloaded instead.", true);
+    }
+  };
+
+  // ---------- history ----------
+  const HKEY = "marqueeHistory";
+  const readHist = () => { try { return JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch { return []; } };
+  function thumbOf() {
+    const c = document.createElement("canvas"); paint(c);
+    const t = document.createElement("canvas"); t.width = 160; t.height = 200; const x = t.getContext("2d");
+    const s = Math.max(160 / c.width, 200 / c.height); x.drawImage(c, (160 - c.width * s) / 2, (200 - c.height * s) / 2, c.width * s, c.height * s);
+    try { return t.toDataURL("image/jpeg", .7); } catch { return ""; }
+  }
+  function saveHistory() {
+    if (state.example) return;
+    const entry = { at: Date.now(), state: { ...state }, current, imgSrc, thumb: thumbOf() };
+    let h = readHist().filter(e => !(e.state.title === state.title && e.state.season === state.season && e.state.episode === state.episode && e.state.tpl === state.tpl));
+    h.unshift(entry); h = h.slice(0, 24);
+    for (;;) { try { localStorage.setItem(HKEY, JSON.stringify(h)); break; } catch { if (h.length <= 1) break; h.pop(); } }
+    renderHistory();
+  }
+  function renderHistory() {
+    const h = readHist(), box = $("hist"); box.innerHTML = "";
+    $("histEmpty").hidden = !!h.length; $("histClear").hidden = !h.length;
+    h.forEach(e => {
+      const b = document.createElement("button");
+      const im = document.createElement("img"); im.alt = ""; if (e.thumb) im.src = e.thumb;
+      const t = document.createElement("span"); t.textContent = e.state.title + (e.state.season ? " S" + e.state.season : "");
+      const sm = document.createElement("small"); sm.textContent = new Date(e.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      b.append(im, t, sm); b.onclick = () => restore(e); box.appendChild(b);
+    });
+  }
+  async function restore(e) {
+    Object.assign(state, e.state, { example: false });
+    current = e.current || null; captionEdited = false;
+    syncForm(); syncSegments(); fillSeasons(current?.seasons || [], state.season); fillEpisodes(current?.episodes || [], state.episode);
+    rebuildChoices();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (e.imgSrc) { markChoice(null); const ok = await loadUrl(e.imgSrc); setStatus(ok ? "Opened from your history." : "Opened, but the picture didn't load. Pick one again.", !ok); }
+    else { img = null; render(); setStatus("Opened from your history. Add your own picture again."); }
+  }
+  $("histClear").onclick = () => { try { localStorage.removeItem(HKEY); } catch {} renderHistory(); };
   $("preview").addEventListener("contextmenu", () => {});
 
   // ---------- TMDB ----------
@@ -788,7 +1005,12 @@ button:disabled { opacity: .55; cursor: progress; }
   async function pick(it) {
     const type = it.media_type;
     setStatus("Loading " + (it.title || it.name) + "…");
-    const d = await tm(`/${type}/${it.id}`, { append_to_response: "credits,images", include_image_language: "en,null" });
+    const d = await tm(`/${type}/${it.id}`, { append_to_response: "credits,images,watch/providers", include_image_language: "en,null" });
+    const wp = d["watch/providers"]?.results?.BE || {};
+    const names = l => (l || []).sort((x, y) => (x.display_priority || 0) - (y.display_priority || 0)).map(x => x.provider_name).filter((v, i, arr) => arr.indexOf(v) === i);
+    const flat = names([...(wp.flatrate || []), ...(wp.free || []), ...(wp.ads || [])]), rent = names([...(wp.rent || []), ...(wp.buy || [])]);
+    const providers = flat.length ? flat : rent;
+    const watch = flat.length ? "Stream on " + flat.slice(0, 3).join(", ") : rent.length ? "Rent on " + rent.slice(0, 2).join(", ") : "";
     const genres = (d.genres || []).map(g => GENRE_SHORT[g.name] || g.name);
     let kind = type === "movie" ? "Movie" : "Series", year, runtime, by;
     if (genres.includes("Documentary")) kind = "Documentary";
@@ -809,24 +1031,19 @@ button:disabled { opacity: .55; cursor: progress; }
     Object.assign(state, {
       title: d.title || d.name, kind, year: year || "", genres: genres.slice(0, 3).join(", "), runtime: runtime || "", by: by || "",
       cast: (d.credits?.cast || []).slice(0, 3).map(c => c.name).join(", "), synopsis: shortSynopsis(d.overview),
-      rating: score, take: "", example: false
+      rating: score, take: "", example: false, watch, season: "", episode: "", epTitle: ""
     });
-    captionEdited = false; syncForm();
+    captionEdited = false; ratingTouched = false; syncForm();
+    const seasons = type === "tv" ? (d.seasons || []).filter(x => x.season_number > 0).map(x => ({ n: x.season_number, name: x.name, poster: x.poster_path })) : [];
+    fillSeasons(seasons, ""); fillEpisodes([], "");
 
     // picture choices
     const posters = (d.images?.posters || []).slice(0, 5).map(p => p.file_path);
     if (d.poster_path && !posters.includes(d.poster_path)) posters.unshift(d.poster_path);
     const backs = (d.images?.backdrops || []).slice(0, 5).map(p => p.file_path);
     if (d.backdrop_path && !backs.includes(d.backdrop_path)) backs.unshift(d.backdrop_path);
-    current = { posters, backs };
-    const box = $("choices"); box.innerHTML = "";
-    [...posters.map(p => ["w780", p]), ...backs.map(p => ["w1280", p])].forEach(([size, p]) => {
-      const b = document.createElement("button"); b.dataset.p = p; b.setAttribute("aria-label", size === "w780" ? "Poster" : "Scene");
-      b.appendChild(Object.assign(document.createElement("img"), { src: IMG + (size === "w780" ? "w154" : "w300") + p, alt: "" }));
-      b.onclick = async () => { markChoice(p); await loadUrl(IMG + size + p, IMG + "w154" + p); };
-      box.appendChild(b);
-    });
-    box.hidden = !box.children.length;
+    current = { type, id: it.id, posters, backs, providers, seasons, episodes: [] };
+    rebuildChoices();
     const first = posters[0] ? ["w780", posters[0]] : backs[0] ? ["w1280", backs[0]] : null;
     if (first) {
       markChoice(first[1]);
@@ -835,12 +1052,60 @@ button:disabled { opacity: .55; cursor: progress; }
       else setStatus("Done. Switch designs and sizes on the right, then download.");
     } else { img = null; render(); setStatus("Details loaded. TMDB has no poster for this one, so add your own picture."); }
   }
+  function rebuildChoices() {
+    const box = $("choices"); box.innerHTML = "";
+    const posters = current?.posters || [], backs = current?.backs || [];
+    [...posters.map(p => ["w780", p]), ...backs.map(p => ["w1280", p])].forEach(([size, p]) => {
+      const b = document.createElement("button"); b.dataset.p = p; b.setAttribute("aria-label", size === "w780" ? "Poster" : "Scene");
+      b.appendChild(Object.assign(document.createElement("img"), { src: IMG + (size === "w780" ? "w154" : "w300") + p, alt: "" }));
+      b.onclick = async () => { markChoice(p); await loadUrl(IMG + size + p, IMG + "w154" + p); };
+      box.appendChild(b);
+    });
+    box.hidden = !box.children.length;
+  }
+  function fillSeasons(list, sel) {
+    const s = $("season"); s.innerHTML = '<option value="">Whole series</option>';
+    list.forEach(x => s.appendChild(Object.assign(document.createElement("option"), { value: x.n, textContent: x.name || "Season " + x.n })));
+    s.value = sel || ""; $("epRow").hidden = !list.length;
+  }
+  function fillEpisodes(list, sel) {
+    const s = $("episode"); s.innerHTML = '<option value="">Whole season</option>';
+    list.forEach(x => s.appendChild(Object.assign(document.createElement("option"), { value: x.n, textContent: x.n + ". " + x.name })));
+    s.value = sel || ""; s.disabled = !list.length;
+  }
+  $("season").addEventListener("change", async () => {
+    state.season = $("season").value; state.episode = ""; state.epTitle = ""; fillEpisodes([], ""); render();
+    if (!state.season || !current) return;
+    try {
+      setStatus("Loading season " + state.season + "…");
+      const d = await tm(`/tv/${current.id}/season/${state.season}`);
+      current.episodes = (d.episodes || []).map(e => ({ n: e.episode_number, name: e.name, still: e.still_path, vote: e.vote_average }));
+      fillEpisodes(current.episodes, "");
+      const sp = d.poster_path;
+      if (sp) {
+        if (!current.posters.includes(sp)) { current.posters.unshift(sp); rebuildChoices(); }
+        markChoice(sp); await loadUrl(IMG + "w780" + sp, IMG + "w154" + sp);
+      }
+      if (d.vote_average && !ratingTouched) { state.rating = Math.round(d.vote_average * 2) / 2; syncForm(); }
+      setStatus("Season " + state.season + " loaded. Pick an episode if you like.");
+    } catch (e) { handleErr(e); }
+  });
+  $("episode").addEventListener("change", async () => {
+    state.episode = $("episode").value;
+    const ep = (current?.episodes || []).find(e => String(e.n) === state.episode);
+    state.epTitle = ep ? ep.name : "";
+    if (ep?.vote && !ratingTouched) { state.rating = Math.round(ep.vote * 2) / 2; syncForm(); }
+    if (ep?.still) {
+      if (!current.backs.includes(ep.still)) { current.backs.unshift(ep.still); rebuildChoices(); }
+      markChoice(ep.still); await loadUrl(IMG + "w1280" + ep.still, IMG + "w154" + ep.still);
+    } else render();
+  });
   function markChoice(p) { $("choices").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.p === p)); }
   $("fill").onclick = search;
   $("q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
 
   // ---------- boot ----------
-  buildSwatches(); syncForm();
+  buildSwatches(); syncForm(); renderHistory();
   render();
   if (document.fonts) {
     Promise.all(["Anton", "Inter", "italic 40px 'DM Serif Display'", "700 40px Inter"].map(f => document.fonts.load(f.includes("px") ? f : "40px " + f).catch(() => {}))).then(render);
