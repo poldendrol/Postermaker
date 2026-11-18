@@ -162,7 +162,9 @@ input[type=search] { font: inherit; font-size: 16px; color: var(--fg); backgroun
 .more { display: flex; flex-direction: column; gap: 10px; }
 .more > summary { font-size: 13px; color: var(--muted); font-weight: 600; }
 .more[open] { gap: 10px; }
-.ep { background: var(--panel); }
+.pics { display: flex; flex-direction: column; gap: 6px; }
+.pics small { color: var(--muted); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.choices img { height: 72px; }
 footer details { flex-basis: 100%; }
 footer details label { margin-top: 8px; max-width: 420px; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 13px; z-index: 60; box-shadow: 0 6px 24px rgba(0,0,0,.25); max-width: calc(100% - 32px); text-align: center; }
@@ -174,7 +176,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
   .app > * , .controls > *, .stage > * { min-width: 0; max-width: 100%; }
   #fmt button { flex: 1 1 0; }
   .controls, .stage { display: contents; }
-  .s-search { order: 1; } .s-ep { order: 2; } .s-canvas { order: 3; } .s-example { order: 4; } .s-tpl { order: 5; } .s-fmt { order: 6; }
+  .s-search { order: 1; } .s-ep { order: 2; } .s-canvas { order: 3; } .s-pics { order: 3; } .s-example { order: 4; } .s-tpl { order: 5; } .s-fmt { order: 6; }
   .s-take { order: 7; } .s-actions { order: 8; } .s-info { order: 9; } .s-pic { order: 10; } .s-cap { order: 11; } .s-hist { order: 12; }
   .canvas-box { padding: 10px; }
   #preview { max-height: 56vh; }
@@ -204,14 +206,6 @@ footer details label { margin-top: 8px; max-width: 420px; }
         <div class="results" id="results"></div>
       </section>
 
-      <section class="section ep s-ep" id="epRow" hidden>
-        <b>Which episode are you watching?</b>
-        <div class="row">
-          <label>Season <select id="season"><option value="">Whole series</option></select></label>
-          <label>Episode <select id="episode" disabled><option value="">Pick a season first</option></select></label>
-        </div>
-      </section>
-
       <section class="section s-take">
         <div class="rating">
           <span class="lbl">My score</span>
@@ -233,12 +227,19 @@ footer details label { margin-top: 8px; max-width: 420px; }
       <details class="section fold s-info">
         <summary>What's on the post</summary>
         <div class="info-head"><b id="infoTitle"></b><small id="infoKind"></small></div>
+        <div class="ep" id="epRow" hidden>
+          <b>Episode you're watching</b>
+          <div class="row">
+            <label>Season <select id="season"><option value="">Whole series</option></select></label>
+            <label>Episode <select id="episode" disabled><option value="">Pick a season first</option></select></label>
+          </div>
+          <small>Shows as “Watching S2 E5” on the post. It doesn't change the picture.</small>
+        </div>
         <div class="info" id="info"></div>
       </details>
 
       <details class="section fold s-pic">
-        <summary>Picture and colour</summary>
-        <div class="choices" id="choices" hidden></div>
+        <summary>Own picture and colour</summary>
         <div class="drop" id="drop">
           <span class="thumb" id="thumb"></span>
           <div>
@@ -272,6 +273,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
 
     <div class="stage">
       <div class="canvas-box s-canvas" id="canvasBox"><canvas id="preview" width="1080" height="1350" aria-label="Post preview"></canvas></div>
+      <div class="pics s-pics" id="picsBox" hidden><small>Picture</small><div class="choices" id="choices"></div></div>
       <p class="example s-example" id="exampleNote">This is an example. Search a title to make your own.</p>
       <div class="seg s-tpl" id="tpl" role="group" aria-label="Design">
         <button data-v="poster" aria-pressed="true">Poster</button>
@@ -1138,7 +1140,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
       b.onclick = async () => { markChoice(p); await loadUrl(IMG + size + p, IMG + "w154" + p); };
       box.appendChild(b);
     });
-    box.hidden = !box.children.length;
+    $("picsBox").hidden = !box.children.length;
   }
   function fillSeasons(list, sel) {
     const s = $("season"); s.innerHTML = '<option value="">Whole series</option>';
@@ -1160,11 +1162,10 @@ footer details label { margin-top: 8px; max-width: 420px; }
       fillEpisodes(current.episodes, "");
       const sp = d.poster_path;
       if (sp) {
-        if (!current.posters.includes(sp)) { current.posters.unshift(sp); rebuildChoices(); }
-        markChoice(sp); await loadUrl(IMG + "w780" + sp, IMG + "w154" + sp);
+        if (!current.posters.includes(sp)) { current.posters.push(sp); rebuildChoices(); markChoice(currentChoice); }
       }
       if (d.vote_average && !ratingTouched) { state.rating = Math.round(d.vote_average * 2) / 2; syncForm(); }
-      setStatus("Season " + state.season + " loaded. Pick an episode if you like.");
+      setStatus("Season " + state.season + " loaded. Its poster and episode pictures are added to the pictures under the post.");
     } catch (e) { handleErr(e); }
   });
   $("episode").addEventListener("change", async () => {
@@ -1173,11 +1174,12 @@ footer details label { margin-top: 8px; max-width: 420px; }
     state.epTitle = ep ? ep.name : "";
     if (ep?.vote && !ratingTouched) { state.rating = Math.round(ep.vote * 2) / 2; syncForm(); }
     if (ep?.still) {
-      if (!current.backs.includes(ep.still)) { current.backs.unshift(ep.still); rebuildChoices(); }
-      markChoice(ep.still); await loadUrl(IMG + "w1280" + ep.still, IMG + "w154" + ep.still);
-    } else render();
+      if (!current.backs.includes(ep.still)) { current.backs.unshift(ep.still); rebuildChoices(); markChoice(currentChoice); }
+    }
+    render();
   });
-  function markChoice(p) { $("choices").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.p === p)); }
+  let currentChoice = null;
+  function markChoice(p) { currentChoice = p; $("choices").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.p === p)); }
   $("fill").onclick = search;
   $("q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
 
