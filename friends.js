@@ -20,10 +20,8 @@ $("suggestBtn").onclick = () => { M.setView("friends"); };
 }
 
 if (!cfg || !cfg.apiKey) {
-  view.innerHTML = `
-    <h2>Friends</h2>
-    <p>Suggest movies and series to your mates, and get a ping when they've watched them.</p>
-    <p class="hint">Friends isn't switched on yet. It needs a free Firebase project, which the owner of this site sets up once.</p>`;
+  // No accounts set up: use the link + ping version, which needs no setup.
+  import("./lite.js").then(m => m.startLite()).catch(e => { console.error(e); view.innerHTML = `<h2>Friends</h2><p class="hint">Friends couldn't load. Refresh the page.</p>`; });
 } else {
   start().catch(e => { console.error(e); view.innerHTML = `<h2>Friends</h2><p class="hint">Friends couldn't load. Check your connection and refresh.</p>`; });
 }
