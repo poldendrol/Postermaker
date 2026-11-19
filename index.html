@@ -115,7 +115,7 @@ button:disabled { opacity: .55; cursor: progress; }
 .drop .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
 .stage { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .canvas-box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; justify-content: center; }
-#preview { display: block; max-width: 100%; max-height: 62vh; width: auto; height: auto; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,.18); }
+#preview { display: block; max-width: 100%; max-height: 56vh; width: auto; height: auto; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,.18); }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .actions button.primary { flex: 1 1 200px; padding: 12px 16px; font-size: 14px; }
 .example { font-size: 12px; color: var(--muted); }
@@ -208,7 +208,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
   #fmt button { flex: 1 1 0; }
   .controls, .stage { display: contents; }
   .s-search { order: 1; } .s-ep { order: 2; } .s-canvas { order: 3; } .s-pics { order: 3; } .s-example { order: 4; } .s-tpl { order: 5; } .s-fmt { order: 6; }
-  .s-multi { order: 3; } .s-take { order: 7; } .s-actions { order: 8; } .s-info { order: 9; } .s-pic { order: 10; } .s-cap { order: 11; } .s-wl { order: 12; } .s-top { order: 13; } .s-hist { order: 14; }
+  .s-multi { order: 3; } .s-take { order: 7; } .s-actions { order: 8; } .s-opts { order: 9; } .s-wl { order: 12; } .s-top { order: 13; } .s-hist { order: 14; }
   .canvas-box { padding: 10px; }
   #preview { max-height: 56vh; }
   .s-actions { position: sticky; bottom: 0; z-index: 5; background: var(--bg); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-bottom: -10px; }
@@ -229,6 +229,13 @@ footer details label { margin-top: 8px; max-width: 420px; }
 body:not([data-view=make]) .v-make, body:not([data-view=watchlist]) .v-watchlist, body:not([data-view=top]) .v-top,
 body:not([data-view=past]) .v-past, body:not([data-view=news]) .v-news, body:not([data-view=friends]) .v-friends, body:not([data-view=club]) .v-club, body:not([data-view=settings]) .v-settings { display: none !important; }
 body:not([data-view=make]) .app { grid-template-columns: minmax(0, 640px); }
+.subtabs { display: none; gap: 6px; max-width: 640px; }
+body[data-view=past] .subtabs.v-past, body[data-view=top] .subtabs.v-past, body[data-view=friends] .subtabs.v-friends, body[data-view=club] .subtabs.v-friends { display: flex !important; }
+.subtabs button { flex: 1; border-radius: 99px; padding: 9px 12px; position: relative; }
+.subtabs button[aria-current] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.nbadge.inline { position: static; display: inline-block; margin-left: 4px; vertical-align: 1px; }
+.sidenav button.dot::after { content: ""; position: absolute; top: 7px; left: 34px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.sidenav .nav-bottom { margin-top: auto; }
 .section h2 small { margin-left: 6px; font-weight: 600; letter-spacing: 0; background: var(--field); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
 .section h2 small:empty { display: none; }
 .view-title { margin: 0; font-size: 15px; color: var(--muted); font-weight: 600; }
@@ -249,6 +256,15 @@ footer { padding-left: 0; }
   body { padding-left: calc(68px + 12px); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
 }
 
+/* ---- tidy ---- */
+.pane { display: flex; flex-direction: column; gap: 12px; }
+.opt-tabs button { flex: 1 1 0; font-size: 12px; padding: 8px 6px; }
+.starpick button { font-size: 30px; }
+@media (max-width: 820px) {
+  header { display: none; }
+  body[data-view=make] .wrap { padding-top: 2px; }
+  .subtabs { margin-top: 2px; }
+}
 /* ---- friends ---- */
 .sidenav button.has-badge { position: relative; }
 .nbadge { position: absolute; top: 6px; left: 30px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 11px; line-height: 18px; text-align: center; padding: 0 5px; font-weight: 700; }
@@ -329,15 +345,12 @@ footer { padding-left: 0; }
 
   <nav class="sidenav" id="nav" aria-label="Main">
     <a class="brand" href="./" aria-label="Marquee home">M</a>
-    <button data-view="make" aria-current="page"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Make poster</span></button>
+    <button data-view="make" aria-current="page"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Make</span></button>
     <button data-view="watchlist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Watchlist</span></button>
-    <button data-view="top"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg><span>Top 3</span></button>
-    <button data-view="past"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Past posts</span></button>
+    <button data-view="past" data-group="past top"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Library</span></button>
     <button data-view="news"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/></svg><span>News</span></button>
-    <button data-view="friends" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5a4.5 4.5 0 0 1 4.5 4.5"/></svg><span>Friends</span><b class="nbadge" id="navBadge" hidden></b></button>
-    <button data-view="club" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 11 3.3 7.6a1 1 0 0 1 .8-1.2l14-2.9a1 1 0 0 1 1.2.8L20 7.5"/><path d="m8 5.6 2.5 3.5M13 4.5l2.5 3.6"/></svg><span>Movie club</span><b class="nbadge" id="clubBadge" hidden></b></button>
-    <button data-view="settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
-    <button id="invite" class="nav-invite"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg><span>Invite</span></button>
+    <button data-view="friends" data-group="friends club" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5a4.5 4.5 0 0 1 4.5 4.5"/></svg><span>Friends</span><b class="nbadge" id="navBadge" hidden></b></button>
+    <button data-view="settings" class="nav-bottom"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
   </nav>
 <div class="wrap">
   <header>
@@ -345,6 +358,12 @@ footer { padding-left: 0; }
     <h2 class="view-title" id="viewTitle"></h2>
   </header>
 
+  <div class="subtabs v-past v-top" role="tablist" aria-label="Library">
+    <button data-view="past">Past posts</button><button data-view="top">Top 3 / Versus</button>
+  </div>
+  <div class="subtabs v-friends v-club" role="tablist" aria-label="Friends">
+    <button data-view="friends">Suggestions</button><button data-view="club">Movie club <b class="nbadge inline" id="clubBadge" hidden></b></button>
+  </div>
   <div class="app">
     <div class="controls">
       <section class="section s-search v-make">
@@ -356,8 +375,8 @@ footer { padding-left: 0; }
         <div class="results" id="results"></div>
         <div class="row-btns" id="titleBtns" hidden>
           <button class="chip" id="wlAdd">+ Watchlist</button>
-          <button class="chip" id="topAdd">+ Top 3 / Versus</button>
-          <button class="chip" id="suggestBtn">Suggest to a friend</button>
+          <button class="chip" id="topAdd">+ Top 3</button>
+          <button class="chip" id="suggestBtn">Suggest</button>
         </div>
       </section>
 
@@ -369,7 +388,6 @@ footer { padding-left: 0; }
         <div class="rating fine">
           <input type="range" id="rating" min="0" max="10" step="0.5" value="8.5" aria-label="My score out of 10, fine tune">
         </div>
-        <p class="hint">Tap a star, tap it again for a half star. Slide to fine-tune.</p>
         <div class="tags" id="watchTag" role="group" aria-label="Watch type">
           <button class="chip" data-v="first" aria-pressed="false">First time</button>
           <button class="chip" data-v="rewatch" aria-pressed="false">Rewatch</button>
@@ -377,7 +395,7 @@ footer { padding-left: 0; }
         </div>
         <textarea id="take" rows="2" placeholder="What did you think? (optional)" aria-label="What you thought"></textarea>
         <details class="more">
-          <summary>Date, friends, score on/off</summary>
+          <summary>More: date, who with, score on/off</summary>
           <div class="row">
             <label>Watched on <input type="date" id="watchedOn"></label>
             <label>Watched with <input type="text" id="watchedWith" placeholder="Sarah, Tom"></label>
@@ -386,8 +404,14 @@ footer { padding-left: 0; }
         </details>
       </section>
 
-      <details class="section fold s-info v-make">
-        <summary>What's on the post</summary>
+      <details class="section fold s-opts v-make">
+        <summary>Customise</summary>
+        <div class="seg opt-tabs" id="optTabs" role="tablist">
+          <button data-pane="info" aria-pressed="true">Details</button>
+          <button data-pane="pic" aria-pressed="false">Picture &amp; colour</button>
+          <button data-pane="cap" aria-pressed="false">Caption</button>
+        </div>
+        <div class="pane" data-pane="info">
         <div class="info-head"><b id="infoTitle"></b><small id="infoKind"></small></div>
         <div class="ep" id="epRow" hidden>
           <b>Episode you're watching</b>
@@ -398,10 +422,8 @@ footer { padding-left: 0; }
           <small>Shows as “Watching S2 E5” on the post. It doesn't change the picture.</small>
         </div>
         <div class="info" id="info"></div>
-      </details>
-
-      <details class="section fold s-pic v-make">
-        <summary>Own picture and colour</summary>
+        </div>
+        <div class="pane" data-pane="pic" hidden>
         <div class="drop" id="drop">
           <span class="thumb" id="thumb"></span>
           <div>
@@ -417,12 +439,11 @@ footer { padding-left: 0; }
           <input type="range" id="pos" min="0" max="100" value="50">
         </label>
         <div class="swatches" id="colors" aria-label="Color"></div>
-      </details>
-
-      <details class="section fold caption s-cap v-make">
-        <summary>Caption and hashtags</summary>
+        </div>
+        <div class="pane caption" data-pane="cap" hidden>
         <textarea id="caption" aria-label="Instagram caption"></textarea>
         <div class="actions"><button id="copyCap">Copy caption</button></div>
+        </div>
       </details>
 
       <section class="section s-wl v-watchlist">
@@ -445,7 +466,7 @@ footer { padding-left: 0; }
       <section class="section s-top v-top">
         <h2>Top 3 / Versus <small id="topCount"></small></h2>
         <div class="mini" id="top"></div>
-        <p class="hint" id="topEmpty">Add 2 titles for a Versus poster, or 3 for a Top 3. Use “+ Top 3 / Versus” after a search.</p>
+        <p class="hint" id="topEmpty">Add 2 titles for a Versus poster, or 3 for a Top 3. Use “+ Top 3” after a search.</p>
         <div class="row-btns"><button class="primary" id="topMake" disabled>Make the poster</button><button class="link" id="topClear" hidden>Clear</button></div>
       </section>
 
@@ -474,6 +495,7 @@ footer { padding-left: 0; }
 
       <section class="section s-set v-settings">
         <h2>Settings</h2>
+        <button class="primary" id="invite">Invite friends to Marquee</button>
         <label>Your Instagram handle (shown on posts) <input type="text" id="handle" placeholder="@yourname"></label>
         <label>My own hashtags (added to every caption) <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
         <div class="imp">
@@ -492,7 +514,6 @@ footer { padding-left: 0; }
     <div class="stage v-make">
       <div class="canvas-box s-canvas" id="canvasBox"><canvas id="preview" width="1080" height="1350" aria-label="Post preview"></canvas></div>
       <div class="multibar s-multi" id="multiBar" hidden><span id="multiLabel"></span><button id="multiExit">Back to my post</button></div>
-      <div class="pics s-pics" id="picsBox" hidden><small>Picture</small><div class="choices" id="choices"></div></div>
       <p class="example s-example" id="exampleNote">This is an example. Search a title to make your own.</p>
       <div class="seg s-tpl" id="tpl" role="group" aria-label="Design">
         <button data-v="poster" aria-pressed="true">Poster</button>
@@ -507,6 +528,7 @@ footer { padding-left: 0; }
         <button data-v="square" aria-pressed="false">Square</button>
         <button data-v="story" aria-pressed="false">Story</button>
       </div>
+      <div class="pics s-pics" id="picsBox" hidden><small>Picture</small><div class="choices" id="choices"></div></div>
       <div class="actions s-actions">
         <button class="primary" id="share" hidden>Share</button>
         <button class="primary" id="download">Save image</button>
@@ -567,17 +589,27 @@ footer { padding-left: 0; }
   }
 
   // ---------- views (left menu) ----------
-  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Top 3 / Versus", past: "Past posts", news: "Movie news", friends: "Friends", club: "Movie club", settings: "Settings" };
+  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Library", past: "Library", news: "Movie news", friends: "Friends", club: "Friends", settings: "Settings" };
   function setView(v) {
     if (!(v in VIEW_TITLES)) v = "make";
     document.body.dataset.view = v;
-    document.querySelectorAll("#nav [data-view]").forEach(b => b.toggleAttribute("aria-current", b.dataset.view === v));
+    document.querySelectorAll("#nav [data-view]").forEach(b => b.toggleAttribute("aria-current", (b.dataset.group || b.dataset.view).split(" ").includes(v)));
+    document.querySelectorAll(".subtabs [data-view]").forEach(b => b.toggleAttribute("aria-current", b.dataset.view === v));
     $("viewTitle").textContent = VIEW_TITLES[v];
     try { sessionStorage.setItem("marqueeView", v); } catch {}
     if (v === "news" && typeof loadNews === "function") loadNews();
     window.scrollTo({ top: 0 });
   }
   $("nav").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); });
+  document.querySelectorAll(".subtabs").forEach(t => t.addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); }));
+  $("optTabs").addEventListener("click", e => {
+    const b = e.target.closest("[data-pane]"); if (!b) return;
+    $("optTabs").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    document.querySelectorAll(".s-opts .pane").forEach(p => p.hidden = p.dataset.pane !== b.dataset.pane);
+  });
+  // The Movie club has its own unread count; show it as a dot on the Friends menu item.
+  new MutationObserver(() => { const cb = $("clubBadge"); document.querySelector('#nav [data-view=friends]').classList.toggle("dot", !cb.hidden && $("navBadge").hidden); })
+    .observe($("clubBadge"), { attributes: true, childList: true, characterData: true, subtree: true });
   { let v = "make"; try { v = sessionStorage.getItem("marqueeView") || "make"; } catch {} document.body.dataset.view = v; }
 
   // ---------- remembered preferences ----------
@@ -1477,7 +1509,7 @@ footer { padding-left: 0; }
     $("wlAdd").setAttribute("aria-pressed", inWl);
     const top = LS.get("marqueeTop", []);
     const inTop = top.some(x => keyOf(x) === k && (x.season || "") === state.season);
-    $("topAdd").textContent = inTop ? "✓ In Top 3" : top.length >= 3 ? "Top 3 is full" : "+ Top 3 / Versus";
+    $("topAdd").textContent = inTop ? "✓ In Top 3" : top.length >= 3 ? "Top 3 is full" : "+ Top 3";
     $("topAdd").setAttribute("aria-pressed", inTop);
   }
   function miniRow(box, x, i, onGo, onX, rank) {
