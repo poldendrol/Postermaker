@@ -1,6 +1,6 @@
 // Network first so updates show up right away; falls back to the cached copy when offline.
-const CACHE = "marquee-v3";
-const SHELL = ["./", "index.html", "friends.js", "lite.js", "firebase-config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
+const CACHE = "marquee-v4";
+const SHELL = ["./", "index.html", "friends.js", "lite.js", "club.js", "firebase-config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {

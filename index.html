@@ -227,7 +227,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
 .news b { font-size: 14px; line-height: 1.3; }
 .news small { color: var(--muted); font-size: 12px; line-height: 1.4; }
 body:not([data-view=make]) .v-make, body:not([data-view=watchlist]) .v-watchlist, body:not([data-view=top]) .v-top,
-body:not([data-view=past]) .v-past, body:not([data-view=news]) .v-news, body:not([data-view=friends]) .v-friends, body:not([data-view=settings]) .v-settings { display: none !important; }
+body:not([data-view=past]) .v-past, body:not([data-view=news]) .v-news, body:not([data-view=friends]) .v-friends, body:not([data-view=club]) .v-club, body:not([data-view=settings]) .v-settings { display: none !important; }
 body:not([data-view=make]) .app { grid-template-columns: minmax(0, 640px); }
 .section h2 small { margin-left: 6px; font-weight: 600; letter-spacing: 0; background: var(--field); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
 .section h2 small:empty { display: none; }
@@ -259,6 +259,46 @@ footer { padding-left: 0; }
 .fr-card h3 small { font-weight: 600; color: var(--muted); }
 .fr-row { display: flex; gap: 10px; align-items: center; }
 .fr-row input { flex: 1; }
+/* ---- movie club ---- */
+.club-hero { display: flex; gap: 14px; align-items: flex-start; }
+.club-hero img, .club-hero i.ph { width: 96px; height: 142px; object-fit: cover; border-radius: 10px; background: var(--line); flex: none; }
+.club-hero .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.club-hero .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.club-hero b.t { font-size: 20px; line-height: 1.2; }
+.club-hero .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.club-hero .acts button { padding: 6px 10px; font-size: 12px; }
+.faces { display: flex; flex-wrap: wrap; gap: 6px; }
+.faces .avatar { width: 28px; height: 28px; font-size: 12px; }
+.faces .avatar.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.cand { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.cand:first-of-type { border-top: none; }
+.cand img, .cand i.ph { width: 40px; height: 60px; object-fit: cover; border-radius: 6px; background: var(--line); flex: none; }
+.cand .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cand .body small { color: var(--muted); }
+.cand .bar { height: 5px; border-radius: 3px; background: var(--field); overflow: hidden; }
+.cand .bar i { display: block; height: 100%; background: var(--accent); }
+.cand button.vote { padding: 6px 12px; font-size: 12px; flex: none; }
+.cand button.vote.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.chat { display: flex; flex-direction: column; gap: 10px; }
+.msg { display: flex; gap: 8px; align-items: flex-start; }
+.msg .avatar { width: 28px; height: 28px; font-size: 12px; }
+.msg .bub { background: var(--field); border: 1px solid var(--line); border-radius: 4px 14px 14px 14px; padding: 7px 11px; min-width: 0; overflow-wrap: anywhere; }
+.msg.mine { flex-direction: row-reverse; }
+.msg.mine .bub { border-radius: 14px 4px 14px 14px; background: color-mix(in srgb, var(--accent) 14%, var(--field)); }
+.msg .bub small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+.chat.hidden-spoilers .bub span { filter: blur(6px); user-select: none; }
+.prompts { display: flex; gap: 6px; flex-wrap: wrap; }
+.prompts button { padding: 5px 10px; font-size: 12px; border-radius: 99px; }
+.say { display: flex; gap: 8px; }
+.say input { flex: 1; }
+.past { list-style: none; display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.past img, .past i.ph { width: 34px; height: 50px; object-fit: cover; border-radius: 5px; background: var(--line); flex: none; }
+.past .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.past small { color: var(--muted); }
+.past::-webkit-details-marker { display: none; }
+.results { display: flex; flex-direction: column; max-height: 50vh; overflow: auto; }
+.results button { display: flex; gap: 10px; align-items: center; text-align: left; border: none; border-top: 1px solid var(--line); border-radius: 0; background: none; padding: 8px 4px; }
+.results img, .results i.ph { width: 34px; height: 50px; object-fit: cover; border-radius: 5px; background: var(--line); flex: none; }
 .fr-code { font-family: var(--display); font-size: 28px; letter-spacing: .12em; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--field); border: 1px solid var(--line); display: grid; place-items: center; font-weight: 700; flex: none; overflow: hidden; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -295,6 +335,7 @@ footer { padding-left: 0; }
     <button data-view="past"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Past posts</span></button>
     <button data-view="news"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/></svg><span>News</span></button>
     <button data-view="friends" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5a4.5 4.5 0 0 1 4.5 4.5"/></svg><span>Friends</span><b class="nbadge" id="navBadge" hidden></b></button>
+    <button data-view="club" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 11 3.3 7.6a1 1 0 0 1 .8-1.2l14-2.9a1 1 0 0 1 1.2.8L20 7.5"/><path d="m8 5.6 2.5 3.5M13 4.5l2.5 3.6"/></svg><span>Movie club</span><b class="nbadge" id="clubBadge" hidden></b></button>
     <button data-view="settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
     <button id="invite" class="nav-invite"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg><span>Invite</span></button>
   </nav>
@@ -429,6 +470,8 @@ footer { padding-left: 0; }
 
       <section class="section s-friends v-friends" id="friendsView"><p class="hint">Loading…</p></section>
 
+      <section class="section s-club v-club" id="clubView"><p class="hint">Loading…</p></section>
+
       <section class="section s-set v-settings">
         <h2>Settings</h2>
         <label>Your Instagram handle (shown on posts) <input type="text" id="handle" placeholder="@yourname"></label>
@@ -524,7 +567,7 @@ footer { padding-left: 0; }
   }
 
   // ---------- views (left menu) ----------
-  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Top 3 / Versus", past: "Past posts", news: "Movie news", friends: "Friends", settings: "Settings" };
+  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Top 3 / Versus", past: "Past posts", news: "Movie news", friends: "Friends", club: "Movie club", settings: "Settings" };
   function setView(v) {
     if (!(v in VIEW_TITLES)) v = "make";
     document.body.dataset.view = v;
@@ -1782,7 +1825,7 @@ footer { padding-left: 0; }
   window.Marquee = {
     current: () => current && !state.example ? { type: current.type, id: current.id, title: state.title, year: state.year, poster: current.poster || "" } : null,
     open: async (type, id, title) => { setView("make"); $("q").value = title; try { await pick({ media_type: type, id, title }); } catch (e) { handleErr(e); } },
-    setView, toast, IMG
+    setView, toast, IMG, tm
   };
   buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderWl(); renderTop(); tmdbReturn();
   render();
@@ -1794,5 +1837,6 @@ footer { padding-left: 0; }
 </script>
 <script src="firebase-config.js"></script>
 <script type="module" src="friends.js"></script>
+<script type="module" src="club.js"></script>
 </body>
 </html>
