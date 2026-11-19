@@ -363,6 +363,8 @@ function scoreChart(scores) {
   return `<div class="schart" role="img" aria-label="Scores from the group">${counts.map((c, i) => `<div class="col"><span class="v">${c || ""}</span><i style="height:${Math.round(c / max * 100)}%"></i><small>${i + 1}★</small></div>`).join("")}</div>`;
 }
 
+const CH_WORDS = ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
+const chapterWord = n => CH_WORDS[n - 1] || String(n);
 function renderClub() {
   const c = active(), s = derive(c.id);
   if (s.name !== c.name || s.day !== c.day) { const l = clubs(); const x = l.find(y => y.id === c.id); x.name = s.name || x.name; x.day = s.day; LS.set("marqueeClubs", l); }
@@ -386,9 +388,9 @@ function renderClub() {
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
 
-    ${movie ? `<div class="fr-card">
+    ${movie ? `<div class="fr-card pulp">
+      <div class="pulp-head"><span class="chapter">Chapter ${chapterWord(cur + 1)}</span><h2 class="bang">This week</h2></div>
       <div class="club-hero">${poster(movie.p, "w185")}<div class="body">
-        <span class="eyebrow">This week${cur > 0 ? ` · Week ${cur + 1}` : ""}</span>
         <b class="t">${esc(movie.n)}${movie.y ? ` <small class="hint">(${esc(movie.y)})</small>` : ""}</b>
         <small class="hint">Watch it before ${esc(nightLabel(night))}</small>
         <small class="hint">${rd.seen.size ? `${rd.seen.size} of ${members.length} watched${avg ? ` · ${avg.toFixed(1)} ★ average` : ""}` : "Nobody has watched it yet"}</small>
