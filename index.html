@@ -230,7 +230,7 @@ body:not([data-view=make]) .v-make, body:not([data-view=watchlist]) .v-watchlist
 body:not([data-view=past]) .v-past, body:not([data-view=news]) .v-news, body:not([data-view=friends]) .v-friends, body:not([data-view=club]) .v-club, body:not([data-view=settings]) .v-settings { display: none !important; }
 body:not([data-view=make]) .app { grid-template-columns: minmax(0, 640px); }
 .subtabs { display: none; gap: 6px; max-width: 640px; }
-body[data-view=past] .subtabs.v-past, body[data-view=top] .subtabs.v-past, body[data-view=friends] .subtabs.v-friends, body[data-view=club] .subtabs.v-friends { display: flex !important; }
+body[data-view=past] .subtabs.v-past, body[data-view=top] .subtabs.v-past { display: flex !important; }
 .subtabs button { flex: 1; border-radius: 99px; padding: 9px 12px; position: relative; }
 .subtabs button[aria-current] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .nbadge.inline { position: static; display: inline-block; margin-left: 4px; vertical-align: 1px; }
@@ -291,7 +291,7 @@ footer { padding-left: 0; }
 .cand img, .cand i.ph { width: 40px; height: 60px; object-fit: cover; border-radius: 6px; background: var(--line); flex: none; }
 .cand .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .cand .body small { color: var(--muted); }
-.cand .bar { height: 5px; border-radius: 3px; background: var(--field); overflow: hidden; }
+.cand .bar { height: 8px; border-radius: 3px; background: var(--field); overflow: hidden; }
 .cand .bar i { display: block; height: 100%; background: var(--accent); }
 .cand button.vote { padding: 6px 12px; font-size: 12px; flex: none; }
 .cand button.vote.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -303,8 +303,20 @@ footer { padding-left: 0; }
 .msg.mine .bub { border-radius: 14px 4px 14px 14px; background: color-mix(in srgb, var(--accent) 14%, var(--field)); }
 .msg .bub small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 2px; }
 .chat.hidden-spoilers .bub span { filter: blur(6px); user-select: none; }
-.prompts { display: flex; gap: 6px; flex-wrap: wrap; }
-.prompts button { padding: 5px 10px; font-size: 12px; border-radius: 99px; }
+.vchart { display: flex; gap: 16px; align-items: center; padding: 4px 0 8px; }
+.donut { width: 120px; height: 120px; flex: none; }
+.donut .dn { font: 700 28px var(--display); fill: var(--fg); }
+.donut .dl { font: 600 11px var(--body); fill: var(--muted); }
+.legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.legend div { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.legend span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend b { font-variant-numeric: tabular-nums; }
+.schart { display: flex; gap: 6px; align-items: flex-end; height: 70px; max-width: 220px; margin: 2px 0; }
+.schart .col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.schart i { width: 100%; min-height: 3px; background: var(--accent); border-radius: 4px 4px 0 0; }
+.schart small { font-size: 10px; color: var(--muted); }
+.schart .v { font-size: 10px; font-weight: 700; }
 .say { display: flex; gap: 8px; }
 .say input { flex: 1; }
 .past { list-style: none; display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
@@ -345,11 +357,12 @@ footer { padding-left: 0; }
 
   <nav class="sidenav" id="nav" aria-label="Main">
     <a class="brand" href="./" aria-label="Marquee home">M</a>
-    <button data-view="make" aria-current="page"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Make</span></button>
+    <button data-view="club" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 11 3.3 7.6a1 1 0 0 1 .8-1.2l14-2.9a1 1 0 0 1 1.2.8L20 7.5"/><path d="m8 5.6 2.5 3.5M13 4.5l2.5 3.6"/></svg><span>Club</span><b class="nbadge" id="clubBadge" hidden></b></button>
+    <button data-view="make"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Make</span></button>
     <button data-view="watchlist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Watchlist</span></button>
     <button data-view="past" data-group="past top"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Library</span></button>
     <button data-view="news"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/></svg><span>News</span></button>
-    <button data-view="friends" data-group="friends club" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5a4.5 4.5 0 0 1 4.5 4.5"/></svg><span>Friends</span><b class="nbadge" id="navBadge" hidden></b></button>
+    <button data-view="friends" class="has-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5a4.5 4.5 0 0 1 4.5 4.5"/></svg><span>Friends</span><b class="nbadge" id="navBadge" hidden></b></button>
     <button data-view="settings" class="nav-bottom"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
   </nav>
 <div class="wrap">
@@ -360,9 +373,6 @@ footer { padding-left: 0; }
 
   <div class="subtabs v-past v-top" role="tablist" aria-label="Library">
     <button data-view="past">Past posts</button><button data-view="top">Top 3 / Versus</button>
-  </div>
-  <div class="subtabs v-friends v-club" role="tablist" aria-label="Friends">
-    <button data-view="friends">Suggestions</button><button data-view="club">Movie club <b class="nbadge inline" id="clubBadge" hidden></b></button>
   </div>
   <div class="app">
     <div class="controls">
@@ -589,7 +599,7 @@ footer { padding-left: 0; }
   }
 
   // ---------- views (left menu) ----------
-  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Library", past: "Library", news: "Movie news", friends: "Friends", club: "Friends", settings: "Settings" };
+  const VIEW_TITLES = { make: "", watchlist: "Watchlist", top: "Library", past: "Library", news: "Movie news", friends: "Friends", club: "Movie club", settings: "Settings" };
   function setView(v) {
     if (!(v in VIEW_TITLES)) v = "make";
     document.body.dataset.view = v;
@@ -607,10 +617,8 @@ footer { padding-left: 0; }
     $("optTabs").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
     document.querySelectorAll(".s-opts .pane").forEach(p => p.hidden = p.dataset.pane !== b.dataset.pane);
   });
-  // The Movie club has its own unread count; show it as a dot on the Friends menu item.
-  new MutationObserver(() => { const cb = $("clubBadge"); document.querySelector('#nav [data-view=friends]').classList.toggle("dot", !cb.hidden && $("navBadge").hidden); })
-    .observe($("clubBadge"), { attributes: true, childList: true, characterData: true, subtree: true });
-  { let v = "make"; try { v = sessionStorage.getItem("marqueeView") || "make"; } catch {} document.body.dataset.view = v; }
+
+  { let v = "club"; try { v = sessionStorage.getItem("marqueeView") || "club"; } catch {} document.body.dataset.view = v; }
 
   // ---------- remembered preferences ----------
   const PREF_KEYS = ["tpl", "fmt", "color", "show", "showRating", "showWatch", "myTags", "handle"];

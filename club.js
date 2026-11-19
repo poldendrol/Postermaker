@@ -10,7 +10,6 @@ const APP_URL = location.origin + location.pathname;
 const NTFY = window.MARQUEE_NTFY || "https://ntfy.sh";
 const TAG = "mqc1:";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const PROMPTS = ["Favourite scene?", "Did the ending work for you?", "Who was the standout performance?", "Would you rewatch it?", "What would you have changed?"];
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const el = html => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
@@ -332,8 +331,7 @@ function chatHtml(s, r, locked) {
   </div>`;
 }
 function sayBox(r) {
-  return `<div class="prompts">${PROMPTS.map(p => `<button data-prompt="${esc(p)}" data-r="${r}">${esc(p)}</button>`).join("")}</div>
-    <div class="say"><input type="text" id="say_${r}" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" data-say="${r}">Send</button></div>`;
+  return `<div class="say"><input type="text" id="say_${r}" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" data-say="${r}">Send</button></div>`;
 }
 
 function render() {
@@ -341,6 +339,28 @@ function render() {
   if (showStart || !me || !clubs().length || pendingInvite && !clubs().some(c => c.id === pendingInvite.id)) { renderStart(); return; }
   if (pendingInvite) { activeId = pendingInvite.id; LS.set("marqueeClubActive", activeId); pendingInvite = null; }
   keepInputs(renderClub);
+}
+
+// ---------- charts ----------
+const CHART = ["var(--accent)", "#2f7fd6", "#f2a541", "#2fa36b", "#7a4be0", "#d6487f", "#3fb6c6", "#8a8494"];
+function donut(parts, total, label) {
+  const R = 54, C = 2 * Math.PI * R; let off = 0;
+  const segs = total ? parts.filter(p => p.v).map(p => { const len = p.v / total * C; const seg = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${p.c}" stroke-width="22" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}"><title>${esc(p.n)}: ${p.v}</title></circle>`; off += len; return seg; }).join("") : "";
+  return `<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="${esc(label)}">
+    <circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--field)" stroke-width="22"/>
+    <g transform="rotate(-90 70 70)">${segs}</g>
+    <text x="70" y="68" text-anchor="middle" class="dn">${total}</text><text x="70" y="88" text-anchor="middle" class="dl">${total === 1 ? "vote" : "votes"}</text></svg>`;
+}
+function voteChart(cands, total, members) {
+  const parts = cands.map((x, i) => ({ n: x.m.n, v: x.votes, c: CHART[i % CHART.length] }));
+  const pct = v => total ? Math.round(v / total * 100) : 0;
+  return `<div class="vchart">${donut(parts, total, "Votes so far")}
+    <div class="legend">${parts.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.n)}</span><b>${pct(p.v)}%</b></div>`).join("")}
+      <small class="hint">${total} of ${members} member${members === 1 ? "" : "s"} voted</small></div></div>`;
+}
+function scoreChart(scores) {
+  const counts = [1, 2, 3, 4, 5].map(n => scores.filter(x => x === n).length), max = Math.max(1, ...counts);
+  return `<div class="schart" role="img" aria-label="Scores from the group">${counts.map((c, i) => `<div class="col"><span class="v">${c || ""}</span><i style="height:${Math.round(c / max * 100)}%"></i><small>${i + 1}★</small></div>`).join("")}</div>`;
 }
 
 function renderClub() {
@@ -372,6 +392,7 @@ function renderClub() {
         <b class="t">${esc(movie.n)}${movie.y ? ` <small class="hint">(${esc(movie.y)})</small>` : ""}</b>
         <small class="hint">Watch it before ${esc(nightLabel(night))}</small>
         <small class="hint">${rd.seen.size ? `${rd.seen.size} of ${members.length} watched${avg ? ` · ${avg.toFixed(1)} ★ average` : ""}` : "Nobody has watched it yet"}</small>
+        ${scores.length ? scoreChart(scores) : ""}
         <div class="acts" id="seenActs">
           ${seenMine ? `<span class="done">✓ You watched it${seenMine.s ? " · " + stars(seenMine.s) : ""}</span><button class="link" id="cbUnsee">Change</button>`
             : `<button class="primary" id="cbSeen">I watched it</button>`}
@@ -393,10 +414,11 @@ function renderClub() {
 
     <div class="fr-card">
       <h3>${movie ? "Vote for next week" : "Vote for the first movie"} <small>${totalVotes ? totalVotes + " vote" + (totalVotes === 1 ? "" : "s") : ""}</small></h3>
-      ${cands.length ? cands.map(x => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
+      ${cands.length && totalVotes ? voteChart(cands, totalVotes, members.length) : ""}
+      ${cands.length ? cands.map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
           <b>${esc(x.m.n)}${x.m.y ? ` <small>(${esc(x.m.y)})</small>` : ""}</b>
           <small>Nominated by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"}${x.a === me.id && !x.votes ? ` · <button class="link" data-drop="${esc(key(x.m))}">remove</button>` : ""}</small>
-          <div class="bar"><i style="width:${totalVotes ? Math.round(x.votes / totalVotes * 100) : 0}%"></i></div>
+          <div class="bar"><i style="width:${totalVotes ? Math.round(x.votes / totalVotes * 100) : 0}%;background:${CHART[i % CHART.length]}"></i></div>
         </div><button class="vote${myVote === key(x.m) ? " on" : ""}" data-vote="${esc(key(x.m))}">${myVote === key(x.m) ? "✓ Voted" : "Vote"}</button></div>`).join("")
         : `<p class="hint">No nominations yet. Add a movie you'd like the group to watch${movie ? " next" : ""}.</p>`}
       <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">
@@ -463,7 +485,6 @@ function bind(c, s, cands, movie) {
   $("cbPeek")?.addEventListener("click", () => { peek[cur] = true; render(); });
   $("cbUnsee")?.addEventListener("click", () => openSeen(s, movie));
   $("cbSeen")?.addEventListener("click", () => openSeen(s, movie));
-  view.querySelectorAll("[data-prompt]").forEach(b => b.onclick = () => { const i = $("say_" + b.dataset.r); i.value = b.dataset.prompt + " "; i.focus(); });
   const sendSay = r => {
     const i = $("say_" + r), x = i.value.trim(); if (!x) return;
     i.value = "";
