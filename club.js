@@ -237,7 +237,7 @@ function nightAfter(t, day) {
 const nightLabel = d => d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
 
 // ---------- search sheet ----------
-function openSearch(title, onPick) {
+function openSearch(title, onPick, initial = "") {
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="${esc(title)}">
     <h3>${esc(title)}</h3>
     <input type="search" id="clubQ" placeholder="Search a movie or series" autocomplete="off">
@@ -264,6 +264,7 @@ function openSearch(title, onPick) {
     }, 300);
   });
   res.addEventListener("click", e => { const b = e.target.closest("[data-i]"); if (b) { close(); onPick(items[+b.dataset.i]); } });
+  if (initial) { q.value = initial; q.dispatchEvent(new Event("input")); }
   setTimeout(() => q.focus(), 50);
 }
 
@@ -369,7 +370,33 @@ function scoreChart(scores) {
 }
 
 // ---------- calendar ----------
-let calOff = 0, calSel = null;
+let calOff = 0, calSel = null, calNominate = () => {};
+// Ghent cinema listings: screenings.json is refreshed daily by a GitHub Action (scripts/cinemas.mjs).
+const CINEMAS = ["KASKcinema", "Sphinx", "Studio Skoop"];
+let cine = null, cineByDay = {};
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const cineOff = () => new Set(LS.get("marqueeCinemasOff", []));
+function indexCine() {
+  const off = cineOff(); cineByDay = {};
+  for (const x of cine?.screenings || []) if (!off.has(x.c)) (cineByDay[x.d] ||= []).push(x);
+}
+async function loadCine() {
+  for (const u of ["https://raw.githubusercontent.com/poldendrol/Postermaker/main/screenings.json", "screenings.json"]) {
+    try { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) continue; cine = await r.json(); indexCine(); const box = $("cbCal"); if (box && box._redraw) box._redraw(); return; } catch {}
+  }
+}
+function cineHtml(dayIso) {
+  if (!cine) return "";
+  const off = cineOff();
+  const chips = `<div class="cine-chips">${CINEMAS.map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>`;
+  const list = cineByDay[dayIso] || [];
+  if (!list.length) return `<div class="cine"><b class="cine-h">In Ghent cinemas</b>${chips}<small class="hint">No screenings listed for this day.</small></div>`;
+  const by = {};
+  for (const x of list) { const f = ((by[x.c] ||= {})[x.t] ||= { t: x.t, u: x.u, h: [] }); if (x.h && !f.h.includes(x.h)) f.h.push(x.h); }
+  return `<div class="cine"><b class="cine-h">In Ghent cinemas</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
+    ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><button class="link" data-nomt="${esc(f.t)}" title="Nominate for the club">+ Vote</button></div>`).join("")}</div>`).join("")}
+    <small class="hint">Listings from the cinemas' own sites, updated daily.</small></div>`;
+}
 const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 function calEvents(s, cands, movie) {
   const ev = {};
@@ -386,18 +413,20 @@ function calHtml(s, ev) {
   const start = new Date(); start.setHours(12, 0, 0, 0); start.setDate(start.getDate() - (start.getDay() + 6) % 7 - 21 + calOff * 28);
   const end = new Date(start); end.setDate(end.getDate() + 41);
   const today = ymd(new Date());
-  if (!calSel || !ev[calSel]) calSel = Object.keys(ev).find(k => ev[k].k === "vote");
+  if (!calSel) calSel = Object.keys(ev).find(k => ev[k].k === "vote");
   let cells = "";
   for (let i = 0; i < 42; i++) {
     const day = new Date(start); day.setDate(start.getDate() + i);
     const d = day.getDate(), k = ymd(day), e = ev[k], cls = `${k === today ? " today" : ""}${k === calSel ? " sel" : ""}`;
     const lbl = d === 1 || i === 0 ? day.toLocaleDateString(undefined, { month: "short" }) + " " + d : d;
-    if (!e) { cells += `<span class="cal-d${cls}"><em>${lbl}</em></span>`; continue; }
+    const nc = (cineByDay[iso(day)] || []).length, cnt = nc ? `<i class="cnt" title="${nc} screenings in Ghent">${nc}</i>` : "";
+    if (!e) { cells += nc ? `<button class="cal-d cn${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}, ${nc} screenings"><em>${lbl}</em>${cnt}</button>` : `<span class="cal-d${cls}"><em>${lbl}</em></span>`; continue; }
     const thumbs = e.k === "vote" ? (e.list.length ? e.list.slice(0, 2).map(x => poster(x.m.p, "w92")).join("") + (e.list.length > 1 ? `<b class="vs">VS</b>` : "") : `<i class="q">?</i>`) : poster(e.m.p, "w92");
-    cells += `<button class="cal-d ev ${e.k}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(e.d))}"><em>${lbl}</em><span class="th">${thumbs}</span></button>`;
+    cells += `<button class="cal-d ev ${e.k}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(e.d))}"><em>${lbl}</em><span class="th">${thumbs}</span>${cnt}</button>`;
   }
   const fmt = d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
   const e = ev[calSel]; let info = "";
+  const [sy, sm, sd] = (calSel || "").split("-").map(Number), selDay = calSel ? new Date(sy, sm - 1, sd, 12) : null;
   if (e) {
     const when = esc(nightLabel(e.d));
     if (e.k === "vote") info = `<b>${when} · Chapter ${chapterWord(e.r + 1)} · up for vote</b>` + (e.list.length
@@ -411,12 +440,14 @@ function calHtml(s, ev) {
   }
   return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
-    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>This week</span><span><i class="k vote"></i>Up for vote</span></div>
-    ${info ? `<div class="cal-info">${info}</div>` : ""}`;
+    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>This week</span><span><i class="k vote"></i>Up for vote</span>${cine ? `<span><i class="k cnt">3</i>Screenings in Ghent</span>` : ""}</div>
+    ${info || (selDay && cine) ? `<div class="cal-info">${info || `<b>${esc(nightLabel(selDay))}</b>`}${selDay ? cineHtml(iso(selDay)) : ""}</div>` : ""}`;
 }
 function bindCal(s, ev) {
   const box = $("cbCal"); if (!box) return;
-  const redraw = () => { box.innerHTML = calHtml(s, ev); bindCal(s, ev); };
+  const redraw = box._redraw = () => { box.innerHTML = calHtml(s, ev); bindCal(s, ev); };
+  box.querySelectorAll("[data-cine]").forEach(b => b.onclick = () => { const off = cineOff(), c = b.dataset.cine; off.has(c) ? off.delete(c) : off.add(c); LS.set("marqueeCinemasOff", [...off]); indexCine(); redraw(); });
+  box.querySelectorAll("[data-nomt]").forEach(b => b.onclick = () => calNominate(b.dataset.nomt.replace(/\s*\(\d{4}\)\s*$/, "")));
   box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { calOff += +b.dataset.cm; redraw(); });
   box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { calSel = b.dataset.cal; redraw(); });
 }
@@ -571,12 +602,13 @@ function bind(c, s, cands, movie) {
   const cur = s.cur;
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first movie", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
-  $("cbNom").onclick = () => openSearch(movie ? "Nominate for next week" : "Nominate the first movie", m => {
+  calNominate = (initial = "") => openSearch(movie ? "Nominate for next week" : "Nominate the first movie", m => {
     const rd = s.round(cur);
     if (tally(rd).some(x => key(x.m) === key(m))) { M.toast(`${m.n} is already nominated.`); return; }
     act("nom", { m }, { title: `${me.name} nominated ${m.n}`, body: "Open the club to vote." });
     if (!s.round(cur).votes.get(me.id)) setTimeout(() => act("vote", { v: key(m) }), 50);
-  });
+  }, initial);
+  $("cbNom").onclick = () => calNominate();
   $("cbAskVote")?.addEventListener("click", () => {
     const list = cands.map(x => `• ${x.m.n} (${x.votes})`).join("\n");
     shareText(`Vote for ${movie ? "next week's" : "our first"} movie club pick:\n${list}\nVote here:`, APP_URL + "?view=club");
@@ -647,6 +679,7 @@ async function refresh() { const c = active(); if (!me || !c) return; const fres
 render();
 live();
 refresh();
+loadCine();
 // Quietly keep the other clubs topped up too.
 clubs().filter(c => c.id !== active()?.id).forEach(c => pull(c.id));
 setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 120000);

@@ -344,6 +344,20 @@ footer { padding-left: 0; }
 .cal-info { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--field); font-size: 14px; }
 .cal-info ol { margin: 0; padding-left: 20px; }
 .cal-info ol small { color: var(--muted); }
+.cal-d .cnt { position: absolute; right: 2px; bottom: 2px; z-index: 2; font: 700 9px/1 Inter, sans-serif; font-style: normal; background: #111; color: #ffd400; border-radius: 99px; padding: 2px 4px; }
+.cal-d.cn { cursor: pointer; }
+.cal-key .k.cnt { width: auto; height: auto; border: 0; background: #111; color: #ffd400; font: 700 9px/1 Inter, sans-serif; font-style: normal; padding: 2px 4px; border-radius: 99px; }
+.cine { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.cine-h { font: 400 16px/1 var(--display, Impact), sans-serif; text-transform: uppercase; letter-spacing: .03em; }
+.cine-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.cine-chips .chip { font-size: 12px; padding: 4px 9px; opacity: .55; }
+.cine-chips .chip.on { opacity: 1; background: #111; color: #ffd400; border-color: #111; }
+.cine-c { display: flex; flex-direction: column; gap: 3px; }
+.cine-name { align-self: flex-start; background: #ffd400; color: #111; font: 400 11px/1 var(--display, Impact), sans-serif; letter-spacing: .12em; text-transform: uppercase; padding: 4px 7px; transform: rotate(-1.5deg); margin-bottom: 2px; }
+.cine-f { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; }
+.cine-f .ct { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; max-width: 7.5em; }
+.cine-f a { color: inherit; overflow-wrap: anywhere; }
+.cine-f .link { font-size: 12px; white-space: nowrap; }
 /* history */
 .hstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: center; }
 .hstats div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
