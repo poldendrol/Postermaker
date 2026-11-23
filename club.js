@@ -363,6 +363,67 @@ function scoreChart(scores) {
   return `<div class="schart" role="img" aria-label="Scores from the group">${counts.map((c, i) => `<div class="col"><span class="v">${c || ""}</span><i style="height:${Math.round(c / max * 100)}%"></i><small>${i + 1}★</small></div>`).join("")}</div>`;
 }
 
+// ---------- calendar ----------
+let calOff = 0, calSel = null;
+const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+function calEvents(s, cands, movie) {
+  const ev = {};
+  for (const r of Object.keys(s.picks).map(Number).sort((a, b) => a - b)) {
+    const m = s.picks[r], d = nightAfter(m.at, s.day);
+    ev[ymd(d)] = { k: r < s.cur ? "past" : "now", m, r, d };
+  }
+  const vd = movie ? nightAfter(nightAfter(movie.at, s.day).getTime(), s.day) : nightAfter(now(), s.day);
+  ev[ymd(vd)] = { k: "vote", list: cands, d: vd, r: s.cur + 1 };
+  return ev;
+}
+function calHtml(s, ev) {
+  // Six weeks: three back, this week, two ahead (so next week's vote night is always in view). Arrows move four weeks.
+  const start = new Date(); start.setHours(12, 0, 0, 0); start.setDate(start.getDate() - (start.getDay() + 6) % 7 - 21 + calOff * 28);
+  const end = new Date(start); end.setDate(end.getDate() + 41);
+  const today = ymd(new Date());
+  if (!calSel || !ev[calSel]) calSel = Object.keys(ev).find(k => ev[k].k === "vote");
+  let cells = "";
+  for (let i = 0; i < 42; i++) {
+    const day = new Date(start); day.setDate(start.getDate() + i);
+    const d = day.getDate(), k = ymd(day), e = ev[k], cls = `${k === today ? " today" : ""}${k === calSel ? " sel" : ""}`;
+    const lbl = d === 1 || i === 0 ? day.toLocaleDateString(undefined, { month: "short" }) + " " + d : d;
+    if (!e) { cells += `<span class="cal-d${cls}"><em>${lbl}</em></span>`; continue; }
+    const thumbs = e.k === "vote" ? (e.list.length ? e.list.slice(0, 2).map(x => poster(x.m.p, "w92")).join("") + (e.list.length > 1 ? `<b class="vs">VS</b>` : "") : `<i class="q">?</i>`) : poster(e.m.p, "w92");
+    cells += `<button class="cal-d ev ${e.k}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(e.d))}"><em>${lbl}</em><span class="th">${thumbs}</span></button>`;
+  }
+  const fmt = d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const e = ev[calSel]; let info = "";
+  if (e) {
+    const when = esc(nightLabel(e.d));
+    if (e.k === "vote") info = `<b>${when} · Chapter ${chapterWord(e.r + 1)} · up for vote</b>` + (e.list.length
+      ? `<ol>${e.list.map(x => `<li>${esc(x.m.n)}${x.m.y ? ` (${esc(x.m.y)})` : ""} <small>${x.votes} vote${x.votes === 1 ? "" : "s"}</small></li>`).join("")}</ol>`
+      : `<small class="hint">Nothing nominated yet.</small>`);
+    else {
+      const sc = [...s.round(e.r).seen.values()].map(x => x.s).filter(Boolean);
+      const a = sc.length ? ` · ${(sc.reduce((p, q) => p + q, 0) / sc.length).toFixed(1)} ★` : "";
+      info = `<b>${when} · Chapter ${chapterWord(e.r + 1)}</b><span>${e.k === "now" ? "This week: " : ""}${esc(e.m.n)}${e.m.y ? ` (${esc(e.m.y)})` : ""}<small class="hint"> · ${s.round(e.r).seen.size} watched${a}</small></span>`;
+    }
+  }
+  return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
+    <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
+    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>This week</span><span><i class="k vote"></i>Up for vote</span></div>
+    ${info ? `<div class="cal-info">${info}</div>` : ""}`;
+}
+function bindCal(s, ev) {
+  const box = $("cbCal"); if (!box) return;
+  const redraw = () => { box.innerHTML = calHtml(s, ev); bindCal(s, ev); };
+  box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { calOff += +b.dataset.cm; redraw(); });
+  box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { calSel = b.dataset.cal; redraw(); });
+}
+
+// ---------- face-off ----------
+const vsSeen = new Set();
+function faceoff(a, b, myVote) {
+  const side = (x, cls) => `<div class="fo-side ${cls}">${poster(x.m.p, "w185")}<b>${esc(x.m.n)}</b><small>${x.votes} vote${x.votes === 1 ? "" : "s"}</small>
+    <button class="vote${myVote === key(x.m) ? " on" : ""}" data-vote="${esc(key(x.m))}">${myVote === key(x.m) ? "✓ Voted" : "Vote"}</button></div>`;
+  return `<div class="faceoff">${side(a, "l")}<div class="fo-vs"><span>VS</span></div>${side(b, "r")}</div>`;
+}
+
 const CH_WORDS = ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const chapterWord = n => CH_WORDS[n - 1] || String(n);
 function renderClub() {
@@ -379,6 +440,10 @@ function renderClub() {
   const locked = movie && !seenMine && !peek[cur];
   const past = Object.keys(s.picks).map(Number).filter(r => r < cur).sort((a, b) => b - a);
   const others = clubs().filter(x => x.id !== c.id);
+  const vs = cands.length >= 2, vsKey = vs ? `${c.id}:${cur}:${key(cands[0].m)}:${key(cands[1].m)}` : "";
+  const vsStill = !vs || vsSeen.has(vsKey) || !!myVote;
+  if (vs) vsSeen.add(vsKey);
+  const calEv = calEvents(s, cands, movie);
 
   view.innerHTML = `
     <div class="fr-card">
@@ -414,21 +479,30 @@ function renderClub() {
       <button class="primary" id="cbFirst">Choose the first movie</button>
     </div>`}
 
-    <div class="fr-card">
-      <h3>${movie ? "Vote for next week" : "Vote for the first movie"} <small>${totalVotes ? totalVotes + " vote" + (totalVotes === 1 ? "" : "s") : ""}</small></h3>
+    <div class="fr-card pulp${vsStill ? " vs-still" : ""}">
+      <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Next week" : "Opening night"}</h2></div>
+      ${vs ? faceoff(cands[0], cands[1], myVote) : ""}
+      <div class="vote-rest">
       ${cands.length && totalVotes ? voteChart(cands, totalVotes, members.length) : ""}
-      ${cands.length ? cands.map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
+      ${vs && cands.length > 2 ? `<p class="hint">Also in the running:</p>` : ""}
+      ${cands.length ? cands.slice(vs ? 2 : 0).map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
           <b>${esc(x.m.n)}${x.m.y ? ` <small>(${esc(x.m.y)})</small>` : ""}</b>
           <small>Nominated by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"}${x.a === me.id && !x.votes ? ` · <button class="link" data-drop="${esc(key(x.m))}">remove</button>` : ""}</small>
-          <div class="bar"><i style="width:${totalVotes ? Math.round(x.votes / totalVotes * 100) : 0}%;background:${CHART[i % CHART.length]}"></i></div>
+          <div class="bar"><i style="width:${totalVotes ? Math.round(x.votes / totalVotes * 100) : 0}%;background:${CHART[(i + (vs ? 2 : 0)) % CHART.length]}"></i></div>
         </div><button class="vote${myVote === key(x.m) ? " on" : ""}" data-vote="${esc(key(x.m))}">${myVote === key(x.m) ? "✓ Voted" : "Vote"}</button></div>`).join("")
         : `<p class="hint">No nominations yet. Add a movie you'd like the group to watch${movie ? " next" : ""}.</p>`}
       <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">
         <button id="cbNom">+ Nominate a movie</button>
         ${cands.length ? `<button id="cbAskVote">Ask the group to vote</button>` : ""}
       </div>
+      </div>
       ${cands.length ? `<button class="primary" id="cbLock">Lock in ${esc(cands[0].m.n)}${movie ? " for next week" : ""}</button>
         <p class="hint">Do this on movie night once everyone has voted. Most votes wins; a tie goes to whatever was nominated first.</p>` : ""}
+    </div>
+
+    <div class="fr-card">
+      <h3>Calendar</h3>
+      <div id="cbCal">${calHtml(s, calEv)}</div>
     </div>
 
     ${past.length ? `<div class="fr-card">
@@ -459,6 +533,7 @@ function renderClub() {
     </div>`;
 
   bind(c, s, cands, movie);
+  bindCal(s, calEv);
 }
 
 function bind(c, s, cands, movie) {
