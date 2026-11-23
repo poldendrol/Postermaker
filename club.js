@@ -5,7 +5,7 @@
 // missing. That way the club's state survives as long as any member still has it.
 const M = window.Marquee;
 const $ = id => document.getElementById(id);
-const view = $("clubView");
+const view = $("clubView"), hist = $("histView");
 const APP_URL = location.origin + location.pathname;
 const NTFY = window.MARQUEE_NTFY || "https://ntfy.sh";
 const TAG = "mqc1:";
@@ -274,7 +274,7 @@ let peek = {};
 
 function keepInputs(fn) {
   // Live updates re-draw the page; don't lose what someone is typing.
-  const vals = {}; view.querySelectorAll("input[id], textarea[id]").forEach(i => vals[i.id] = i.value);
+  const vals = {}; document.querySelectorAll("#clubView input[id], #histView input[id]").forEach(i => vals[i.id] = i.value);
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   fn();
   Object.entries(vals).forEach(([id, v]) => { const i = $(id); if (i && i.type !== "checkbox" && v) i.value = v; });
@@ -336,7 +336,12 @@ function sayBox(r) {
 
 function render() {
   badge();
-  if (showStart || !me || !clubs().length || pendingInvite && !clubs().some(c => c.id === pendingInvite.id)) { renderStart(); return; }
+  if (showStart || !me || !clubs().length || pendingInvite && !clubs().some(c => c.id === pendingInvite.id)) {
+    renderStart();
+    hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
+    $("hsGo").onclick = () => M.setView("club");
+    return;
+  }
   if (pendingInvite) { activeId = pendingInvite.id; LS.set("marqueeClubActive", activeId); pendingInvite = null; }
   keepInputs(renderClub);
 }
@@ -424,6 +429,40 @@ function faceoff(a, b, myVote) {
   return `<div class="faceoff">${side(a, "l")}<div class="fo-vs"><span>VS</span></div>${side(b, "r")}</div>`;
 }
 
+// ---------- history ----------
+function historyHtml(s) {
+  const rounds = Object.keys(s.picks).map(Number).sort((a, b) => b - a);
+  const avgOf = r => { const sc = [...s.round(r).seen.values()].map(x => x.s).filter(Boolean); return sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : 0; };
+  const totalVotes = rounds.reduce((n, r) => n + (r > 0 ? [...s.round(r - 1).votes.values()].filter(Boolean).length : 0), 0);
+  const rated = rounds.filter(r => r < s.cur && avgOf(r)).sort((a, b) => avgOf(b) - avgOf(a));
+  const best = rated[0] != null ? s.picks[rated[0]] : null;
+  const head = `<div class="fr-card pulp">
+    <div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">The story so far</h2></div>
+    <div class="hstats"><div><b>${rounds.length}</b><small>chapter${rounds.length === 1 ? "" : "s"}</small></div><div><b>${totalVotes}</b><small>vote${totalVotes === 1 ? "" : "s"} cast</small></div><div><b>${best ? avgOf(rated[0]).toFixed(1) + "★" : "–"}</b><small>${best ? "best: " + esc(best.n) : "best rated"}</small></div></div>
+  </div>`;
+  if (!rounds.length) return head + `<div class="fr-card"><p class="hint">No movies yet. Once the group locks in its first pick, it lands here with how the vote went.</p></div>`;
+  return head + rounds.map(r => {
+    const m = s.picks[r], rd = s.round(r), a = avgOf(r), isNow = r === s.cur;
+    const field = r > 0 ? tally(s.round(r - 1)) : [];
+    const tv = field.reduce((n, x) => n + x.votes, 0);
+    const win = field.find(x => key(x.m) === key(m));
+    const rivals = field.filter(x => key(x.m) !== key(m));
+    const how = r === 0 && !field.length ? `Picked by ${esc(m.by || "the club")}` : win ? `Won with ${win.votes} of ${tv} vote${tv === 1 ? "" : "s"}` : `Picked by ${esc(m.by || "the club")}`;
+    const bars = field.length > 1 ? `<div class="hbars">${field.map((x, i) => `<div class="hb${key(x.m) === key(m) ? " win" : ""}"><span>${esc(x.m.n)}</span><i><em style="width:${tv ? Math.round(x.votes / tv * 100) : 0}%;background:${CHART[i % CHART.length]}"></em></i><b>${x.votes}</b></div>`).join("")}</div>` : "";
+    return `<div class="fr-card hcard${isNow ? " now" : ""}">
+      <div class="hrow">${poster(m.p, "w154")}<div class="body">
+        <span class="chapter-tag">Chapter ${chapterWord(r + 1)}${isNow ? " · now showing" : ""}</span>
+        <b class="t">${esc(m.n)}${m.y ? ` <small class="hint">(${esc(m.y)})</small>` : ""}</b>
+        <small class="hint">${esc(nightLabel(nightAfter(m.at, s.day)))}</small>
+        <small>${how}${rivals.length ? ` · beat ${rivals.map(x => esc(x.m.n)).join(", ")}` : ""}</small>
+        <small class="hint">${rd.seen.size} watched${a ? ` · ${a.toFixed(1)} ★ from the group` : ""}</small>
+      </div></div>
+      ${bars}
+      ${isNow ? "" : `<details data-past="${r}"${openPast.has(r) ? " open" : ""}><summary class="link">Discussion · ${rd.says.length} comment${rd.says.length === 1 ? "" : "s"}</summary>${chatHtml(s, r, false)}${sayBox(r)}</details>`}
+    </div>`;
+  }).join("");
+}
+
 const CH_WORDS = ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const chapterWord = n => CH_WORDS[n - 1] || String(n);
 function renderClub() {
@@ -505,15 +544,6 @@ function renderClub() {
       <div id="cbCal">${calHtml(s, calEv)}</div>
     </div>
 
-    ${past.length ? `<div class="fr-card">
-      <h3>Past movies <small>${past.length}</small></h3>
-      ${past.map(r => {
-        const m = s.picks[r], prd = s.round(r), sc = [...prd.seen.values()].map(x => x.s).filter(Boolean);
-        const a = sc.length ? (sc.reduce((x, y) => x + y, 0) / sc.length).toFixed(1) + " ★" : "";
-        return `<details data-past="${r}"${openPast.has(r) ? " open" : ""}><summary class="past">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}</b><small>Week ${r + 1} · ${prd.seen.size} watched${a ? " · " + a : ""} · ${prd.says.length} comment${prd.says.length === 1 ? "" : "s"}</small></span></summary>
-          ${chatHtml(s, r, false)}${sayBox(r)}</details>`;
-      }).join("")}
-    </div>` : ""}
 
     <div class="fr-card">
       <details class="more"><summary>Club settings</summary>
@@ -532,6 +562,7 @@ function renderClub() {
       </details>
     </div>`;
 
+  hist.innerHTML = historyHtml(s);
   bind(c, s, cands, movie);
   bindCal(s, calEv);
 }
@@ -568,9 +599,9 @@ function bind(c, s, cands, movie) {
     const m = s.picks[r];
     act("say", { r, x }, { title: `${me.name} on ${m?.n || "the movie"}`, body: x.slice(0, 200) });
   };
-  view.querySelectorAll("[data-say]").forEach(b => b.onclick = () => sendSay(+b.dataset.say));
-  view.querySelectorAll(".say input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) sendSay(+i.id.slice(4)); }));
-  view.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
+  document.querySelectorAll("#clubView [data-say], #histView [data-say]").forEach(b => b.onclick = () => sendSay(+b.dataset.say));
+  document.querySelectorAll("#clubView .say input, #histView .say input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) sendSay(+i.id.slice(4)); }));
+  hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbSaveSet").onclick = () => {
     const n = $("cbMe").value.trim(), cn = $("cbRename").value.trim(), day = +$("cbNight").value;
     if (n && n !== me.name) ensureMe(n.slice(0, 40));
