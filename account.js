@@ -35,7 +35,11 @@ function mergeVal(k, local, remote) {
     const seen = new Set(a.map(idOf));
     return JSON.stringify([...a, ...b.filter(x => !seen.has(idOf(x)))]);
   }
-  if (a && b && typeof a === "object" && typeof b === "object") return JSON.stringify({ ...b, ...a }); // events by id; settings: this device wins
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const o = { ...b, ...a }; // events by id; settings: this device wins
+    if (k.startsWith("marqueeClubEv_")) for (const i in b) if (b[i]?.gone && !o[i]?.gone) o[i] = b[i]; // removed events stay removed
+    return JSON.stringify(o);
+  }
   return local;
 }
 

@@ -62,7 +62,9 @@ const evKey = id => "marqueeClubEv_" + id;
 const store = {};                                         // club id -> { event id: event }
 const evs = id => (store[id] ||= LS.get(evKey(id), {}));
 // Merge what's already stored before writing, so events another tab or the account sync just wrote are never overwritten.
-const save = id => { const m = store[id] ||= {}, cur = LS.get(evKey(id), {}); for (const k in cur) if (!(k in m)) m[k] = cur[k]; LS.set(evKey(id), m); };
+// Removed events stay as tombstones ({...e, gone}) so no device or sync brings them back; a tombstone always wins.
+const foldIn = (m, cur) => { for (const k in cur) if (!(k in m) || (cur[k]?.gone && !m[k]?.gone)) m[k] = cur[k]; return m; };
+const save = id => { const m = foldIn(store[id] ||= {}, LS.get(evKey(id), {})); LS.set(evKey(id), m); };
 const active = () => clubs().find(c => c.id === activeId) || clubs()[0] || null;
 
 function addClub(c) {
@@ -120,7 +122,7 @@ function merge(clubId, list) {
 }
 
 function derive(clubId) {
-  const E = Object.values(evs(clubId)).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
+  const E = Object.values(evs(clubId)).filter(e => !e.gone).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
   const club = clubs().find(c => c.id === clubId) || {};
   const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
@@ -242,7 +244,7 @@ async function pull(clubId) {
 // current and previous week. Older chat stays on members' devices.
 async function reseed(clubId, inWindow) {
   const s = derive(clubId), keepFrom = s.cur - 1;
-  const all = Object.values(evs(clubId));
+  const all = Object.values(evs(clubId)).filter(e => !e.gone);
   const latestMeta = all.filter(e => e.k === "meta").sort((a, b) => b.t - a.t)[0];
   const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
@@ -1084,7 +1086,7 @@ const DEMO = [
   { id: "demo_jonas", n: "Jonas", wl: ["Dune: Part Two", "The Bear", "Oppenheimer"], saw: ["Oppenheimer"] },
   { id: "demo_emma", n: "Emma", wl: ["Poor Things", "Fallen Leaves", "Shōgun"], saw: ["Fallen Leaves"] },
 ];
-const hasDemo = clubId => Object.values(evs(clubId)).some(e => e.demo);
+const hasDemo = clubId => Object.values(evs(clubId)).some(e => e.demo && !e.gone);
 async function addDemo() {
   const c = active(); if (!c || !me) return;
   M.toast("Adding test friends…");
@@ -1108,8 +1110,29 @@ async function addDemo() {
 }
 function removeDemo() {
   const c = active(); if (!c) return;
-  const map = evs(c.id); for (const [i, e] of Object.entries(map)) if (e.demo) delete map[i];
+  const map = evs(c.id); for (const [i, e] of Object.entries(map)) if (e.demo && !e.gone) map[i] = { ...e, gone: "demo" };
   save(c.id); render(); M.toast("Test friends removed.");
+}
+// Back to right after the list imports: keeps imported watched titles and bulk-imported watchlists (and real friends' activity);
+// removes test friends and everything else you did since. Reversible with Undo (the events are kept as tombstones).
+function resetToImports() {
+  const c = active(); if (!c) return;
+  const map = evs(c.id), mine = Object.values(map).filter(e => e.a === me.id && !e.gone && !e.demo);
+  const keep = new Set(mine.filter(e => e.k === "meta" || (e.k === "saw" && e.imp)).map(e => e.i));
+  const wl = mine.filter(e => e.k === "wl").sort((a, b) => a.t - b.t); let run = [];
+  const flush = () => { if (run.length >= 5) run.forEach(e => keep.add(e.i)); run = []; };
+  for (const e of wl) { if (run.length && e.t - run[run.length - 1].t > 5) flush(); run.push(e); } flush();
+  const tag = "reset" + now(); let n = 0;
+  for (const [i, e] of Object.entries(map)) if (!e.gone && (e.demo || (e.a === me.id && !keep.has(i)))) { map[i] = { ...e, gone: tag }; n++; }
+  LS.set("marqueeLastReset_" + c.id, tag); save(c.id); render();
+  M.toast(`Reset: ${n} later change${n === 1 ? "" : "s"} removed. You can undo this in club settings.`);
+}
+function undoReset() {
+  const c = active(); if (!c) return; const tag = LS.get("marqueeLastReset_" + c.id, ""); if (!tag) return;
+  const map = evs(c.id); for (const [i, e] of Object.entries(map)) if (e.gone === tag) { const { gone, ...x } = e; map[i] = { ...x, back: 1 }; }
+  // A restored event must beat its own tombstone everywhere, so it comes back under a new id.
+  for (const [i, e] of Object.entries(map)) if (e.back) { const { back, ...x } = e; map[i] = { ...e, gone: tag }; const ni = "u" + rand(9); map[ni] = { ...x, i: ni }; }
+  LS.set("marqueeLastReset_" + c.id, ""); save(c.id); render(); M.toast("Reset undone.");
 }
 
 function bindWl(s, cands) {
@@ -1459,6 +1482,7 @@ function renderClub() {
           ${others.length ? `<p class="hint">Your other clubs:</p>${others.map(o => `<button data-switch="${esc(o.id)}">Switch to ${esc(o.name)}</button>`).join("")}` : ""}
           <button id="cbNew">Start or join another club</button>
           ${hasDemo(c.id) ? `<button id="cbDemoOff">Remove test friends</button>` : `<button id="cbDemo">Add test friends (only you see them)</button>`}
+          ${LS.get("marqueeLastReset_" + c.id, "") ? `<button id="cbUndoReset">Undo the reset</button>` : `<button id="cbReset">Reset to just after my list imports</button>`}
           <button class="link" id="cbLeave">Leave this club on this device</button>
         </div>
       </details>
@@ -1520,6 +1544,8 @@ function bind(c, s, cands, movie) {
   $("revRead")?.addEventListener("click", () => { LS.set(revReadKey(c.id), now()); render(); });
   view.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { b.disabled = true; addDemo(); });
   $("cbDemoOff")?.addEventListener("click", removeDemo);
+  $("cbReset")?.addEventListener("click", () => { if (confirm("Go back to right after your IMDb/Letterboxd imports? Test friends and everything you did after the imports (ratings, logs, suggestions, single adds) is removed. You can undo it.")) resetToImports(); });
+  $("cbUndoReset")?.addEventListener("click", undoReset);
   $("cbSaveSet").onclick = () => {
     const n = $("cbMe").value.trim(), cn = $("cbRename").value.trim(), day = s.day;
     if (n && n !== me.name) ensureMe(n.slice(0, 40));
@@ -1692,7 +1718,7 @@ addEventListener("marquee-synced", e => {
   const keys = e.detail || [];
   if (keys.includes("marqueeClubMe")) me = LS.get("marqueeClubMe", me);
   if (keys.includes("marqueeClubActive") || !active()) activeId = LS.get("marqueeClubActive", activeId);
-  for (const k of keys) if (k.startsWith("marqueeClubEv_")) { const id = k.slice(evKey("").length), m = store[id] ||= {}, cur = LS.get(k, {}); for (const i in cur) if (!(i in m)) m[i] = cur[i]; }
+  for (const k of keys) if (k.startsWith("marqueeClubEv_")) { foldIn(store[k.slice(evKey("").length)] ||= {}, LS.get(k, {})); }
   live(); render();
 });
 $("nav").addEventListener("click", e => { if (e.target.closest("[data-view=club]")) { markRead(); render(); } });
