@@ -15,4 +15,4 @@ window.MARQUEE_ACCOUNT = {
 };
 
 // Push notifications: the public "Web Push certificate" key from Firebase console → Project settings → Cloud Messaging. Leave null to keep them off.
-window.MARQUEE_VAPID = null;
+window.MARQUEE_VAPID = "BGQEBt88ssXSQe_0E58Cc0xCFINgv-9RdBbcv6PnYEG-Fi1INxaChp4_FYzM_AHU6xV0YGQQoGKXYItlrHKvPzE";
