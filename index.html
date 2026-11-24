@@ -642,6 +642,19 @@ footer { padding-left: 0; }
 .out-i .body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .out-i .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 .out-i .acts button { padding: 7px 12px; }
+#nav [data-view="friends"] { display: none !important; }
+/* slimmer comic banners */
+#clubView .pulp-head, #histView .pulp-head { padding: 8px 14px 10px; }
+#clubView .pulp-head .bang, #histView .pulp-head .bang { font-size: clamp(26px, 7vw, 38px); line-height: 1; }
+#clubView .pulp-head .chapter, #histView .pulp-head .chapter { font-size: 10px; padding: 2px 6px; }
+.hrow[data-open] { cursor: pointer; }
+.hrev { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.hrev p { margin: 0; font-size: 13px; }
+.post-offer { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 80; background: var(--panel); color: var(--fg); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.25); padding: 10px 12px; display: flex; gap: 10px; align-items: center; width: min(420px, calc(100% - 32px)); font-size: 14px; }
+.post-offer span { flex: 1; }
+.post-offer .primary { padding: 7px 12px; }
+#histView .hrow > img, #histView .hrow > .ph { width: 72px !important; height: 108px !important; flex: none; }
+#histView .hrow .t { font-size: 18px; }
 </style>
 </head>
 <body>
@@ -675,7 +688,7 @@ footer { padding-left: 0; }
         <div class="row-btns" id="titleBtns" hidden>
           <button class="chip" id="wlAdd" style="display:none">+ Watchlist</button>
           <button class="chip" id="topAdd" style="display:none">+ Top 3</button>
-          <button class="chip" id="suggestBtn">Suggest</button>
+          <button class="chip" id="suggestBtn" hidden>Suggest</button>
         </div>
       </section>
 
@@ -893,7 +906,7 @@ footer { padding-left: 0; }
   const VIEW_TITLES = { ghent: "In Ghent", history: "History", make: "", watchlist: "Watchlist", top: "Library", past: "Library", news: "Movie news", friends: "Friends", club: "Movie club", settings: "Settings" };
   function setView(v) {
     if (v === "watchlist" || v === "past" || v === "top") v = "history"; // Watchlist and Library were folded into History
-    if (v === "news" || v === "ghent") v = "club"; // Movie news and the In Ghent tab were removed
+    if (v === "news" || v === "ghent" || v === "friends") v = "club"; // Friends lives in the club now (members and invites) // Movie news and the In Ghent tab were removed
     if (!(v in VIEW_TITLES)) v = "make";
     document.body.dataset.view = v;
     document.querySelectorAll("#nav [data-view]").forEach(b => b.toggleAttribute("aria-current", (b.dataset.group || b.dataset.view).split(" ").includes(v)));
@@ -2170,7 +2183,12 @@ footer { padding-left: 0; }
   setView(document.body.dataset.view);
   window.Marquee = {
     current: () => current && !state.example ? { type: current.type, id: current.id, title: state.title, year: state.year, poster: current.poster || "" } : null,
-    open: async (type, id, title) => { setView("make"); $("q").value = title; try { await pick({ media_type: type, id, title }); } catch (e) { handleErr(e); } },
+    open: async (type, id, title, opts = {}) => {
+      setView("make"); $("q").value = title;
+      try { await pick({ media_type: type, id, title }); } catch (e) { handleErr(e); return; }
+      if (opts.rating) setRating(opts.rating);
+      if (opts.take) { $("take").value = opts.take; $("take").dispatchEvent(new Event("input", { bubbles: true })); }
+    },
     setView, toast, IMG, tm
   };
   buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderWl(); renderTop(); tmdbReturn();
