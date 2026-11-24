@@ -883,7 +883,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     <div class="wl-pick" role="tablist">${[["mine", `${mineN} to watch`, "Personal list"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
-    ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
+    ${location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
     ${`
     ${wlMode === "club" && friends.length ? `<div class="wl-views">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
@@ -1504,7 +1504,7 @@ function renderClub() {
           <button id="cbSaveSet">Save</button>
           ${others.length ? `<p class="hint">Your other clubs:</p>${others.map(o => `<button data-switch="${esc(o.id)}">Switch to ${esc(o.name)}</button>`).join("")}` : ""}
           <button id="cbNew">Start or join another club</button>
-          ${hasDemo(c.id) ? `<button id="cbDemoOff">Remove test friends</button>` : `<button id="cbDemo">Add test friends (only you see them)</button>`}
+          ${hasDemo(c.id) ? `<button id="cbDemoOff">Remove test friends</button>` : ""}
           ${LS.get("marqueeLastReset_" + c.id, "") ? `<button id="cbUndoReset">Undo the reset</button>` : `<button id="cbReset">Reset to just after my list imports</button>`}
           <button class="link" id="cbLeave">Leave this club</button>
         </div>
