@@ -47,7 +47,12 @@ const monthName = r => new Date(Math.floor(r / 12), r % 12, 1, 12).toLocaleDateS
 const imdbUrl = m => /^tt\d+$/.test(m.im || "") ? `https://www.imdb.com/title/${m.im}/` : `https://www.imdb.com/find/?q=${encodeURIComponent(m.n + (m.y ? " " + m.y : ""))}&s=tt`;
 const imdbLink = m => `<a class="link imdb-l" href="${esc(imdbUrl(m))}" target="_blank" rel="noopener" title="Open on IMDb to mark it there">IMDb ↗</a>`;
 const scLabel = sc => { if (!sc || !sc.d) return sc?.c || ""; const [y, m, d] = sc.d.split("-").map(Number); return `${sc.c} · ${new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}${sc.h ? " " + sc.h : ""}`; };
-const stars = n => n ? "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n)) : "";
+// Stars in half steps: ★★★½☆ (pass bare = true to leave out the empty ones).
+const starStr = (n, bare) => { const v = Math.round((+n || 0) * 2) / 2, f = Math.floor(v), h = v - f >= .5; return "★".repeat(f) + (h ? "½" : "") + (bare ? "" : "☆".repeat(5 - f - (h ? 1 : 0))); };
+const stars = n => n ? starStr(n) : ""
+// Star picker: tap a star for a full score, tap the same star again for half (3 → 2½ → 3).
+const halfTap = (cur, n) => cur === n ? n - .5 : n;
+const paintStars = (root, v) => root.querySelectorAll(".mstars button").forEach(o => { const n = +o.dataset.s; o.classList.toggle("on", n <= v); o.classList.toggle("half", n - .5 === v); });;
 
 // ---------- local data ----------
 let me = LS.get("marqueeClubMe", null);                 // { id, name }
@@ -157,7 +162,7 @@ function derive(clubId) {
       case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
       case "wl": if (e.m) { const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
       case "wldrop": if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
-      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
+      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
@@ -963,7 +968,7 @@ function forYouCard(s) {
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
     <div class="pulp-head"><span class="chapter">${fresh.length ? `${fresh.length} new` : mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
-    ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
+    ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
     <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
     ${due.length ? `<h4 class="wl-sec">Accepted <i>${due.length}</i></h4><div class="wl-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
@@ -1008,7 +1013,7 @@ function openTitle(s, m, focusSuggest) {
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button></div>` : ""}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
     ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
-      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev"><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${"★".repeat(x.s)}${"☆".repeat(5 - x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
+      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev"><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     <button id="tsClose">Close</button></div></div>`);
   document.body.appendChild(bg); titleSheet = bg;
@@ -1129,7 +1134,7 @@ function bindWl(s, cands) {
   };
   const fromImdbRows = async rows => {
     const head = rows[0].map(h => h.trim().toLowerCase()), ci = head.indexOf("const"), ri = head.indexOf("your rating"), di = head.indexOf("date rated");
-    const seen = new Map(), dates = new Map(); for (const r of rows.slice(1)) { const tt = (r[ci] || "").trim(); if (/^tt\d+$/.test(tt) && !seen.has(tt)) { seen.set(tt, ri >= 0 ? Math.round((+r[ri] || 0) / 2) : 0); if (di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "")) dates.set(tt, r[di].slice(0, 10)); } }
+    const seen = new Map(), dates = new Map(); for (const r of rows.slice(1)) { const tt = (r[ci] || "").trim(); if (/^tt\d+$/.test(tt) && !seen.has(tt)) { seen.set(tt, ri >= 0 ? Math.round(+r[ri] || 0) / 2 : 0); if (di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "")) dates.set(tt, r[di].slice(0, 10)); } }
     const { out, missed } = await pool([...seen.keys()], async tt => {
       const f = await M.tm("/find/" + tt, { external_source: "imdb_id" }), x = (f.movie_results || [])[0] || (f.tv_results || [])[0];
       return x ? { t: x.title ? "movie" : "tv", i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "", im: tt, _s: seen.get(tt) || 0, _d: dates.get(tt) || "" } : null;
@@ -1139,7 +1144,7 @@ function bindWl(s, cands) {
   const fromLbRows = async (rows, kind) => {
     const head = rows[0].map(h => h.trim().toLowerCase()), ni = head.indexOf("name"), yi = head.indexOf("year"), ri = head.indexOf("rating"), di = head.indexOf("watched date") >= 0 ? head.indexOf("watched date") : head.indexOf("date");
     const seenIt = kind === "seen" || ri >= 0, films = new Map();
-    for (const r of rows.slice(1)) { const n = (r[ni] || "").trim(); if (!n) continue; const k = n + "|" + (r[yi] || ""); const sc = ri >= 0 ? Math.round(+r[ri] || 0) : 0; const d = di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "") ? r[di].slice(0, 10) : ""; if (!films.has(k) || sc) films.set(k, { n, y: (r[yi] || "").trim(), s: sc, d }); }
+    for (const r of rows.slice(1)) { const n = (r[ni] || "").trim(); if (!n) continue; const k = n + "|" + (r[yi] || ""); const sc = ri >= 0 ? Math.round((+r[ri] || 0) * 2) / 2 : 0; const d = di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "") ? r[di].slice(0, 10) : ""; if (!films.has(k) || sc) films.set(k, { n, y: (r[yi] || "").trim(), s: sc, d }); }
     const { out, missed } = await pool([...films.values()], async f => {
       let j = await M.tm("/search/movie", { query: f.n, ...(f.y ? { year: f.y } : {}) });
       if (!(j.results || []).length && f.y) j = await M.tm("/search/movie", { query: f.n });
@@ -1331,8 +1336,8 @@ function historyHtml(s) {
   </div>`;
   const card = it => `<div class="fr-card hcard"><div class="hrow" data-open="${esc(key(it.m))}">${poster(it.m.p, "w154")}<div class="body">
       <b class="t">${esc(it.m.n)}${it.m.y ? ` <small class="hint">(${esc(it.m.y)})</small>` : ""}${it.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-      ${it.avg ? `<span class="stars">${"★".repeat(Math.round(it.avg))}${"☆".repeat(5 - Math.round(it.avg))}</span><small class="hint">${it.avg.toFixed(1)} from ${it.who.filter(([, x]) => x.s).length}</small>` : ""}
-      <div class="hrev">${it.who.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${"★".repeat(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>
+      ${it.avg ? `<span class="stars">${starStr(it.avg)}</span><small class="hint">${it.avg.toFixed(1)} from ${it.who.filter(([, x]) => x.s).length}</small>` : ""}
+      <div class="hrev">${it.who.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s, true)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>
     </div></div></div>`;
   const yr = new Date().getFullYear(), y0 = new Date(yr, 0, 1).getTime();
   const yItems = items.map(it => ({ ...it, who: it.who.filter(([, x]) => (x.at || 0) >= y0) })).filter(it => it.who.length);
@@ -1359,7 +1364,7 @@ function historyHtml(s) {
 const CH_WORDS = ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const chapterWord = n => CH_WORDS[n - 1] || String(n);
 // The club page is split into tabs so nothing needs a long scroll on a phone.
-let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "monthly", cal: "monthly", mine: "weekly" }[t] || t; })();
+let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "monthly", cal: "monthly" }[t] || t; })();
 function setClubTab(t) { clubTab = t; try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
 function renderClub() {
   const c = active(), s = derive(c.id); lastState = s;
@@ -1389,9 +1394,11 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["weekly", "At home", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
+    <div class="club-tabs" role="tablist">${[["mine", "My watched", false], ["weekly", "At home", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
-    <div class="ccol c1"><h2 class="sec-h">At home <small>suggest, watch, talk</small></h2>
+    <div class="ccol c0"><h2 class="sec-h">My watched <small>what you've seen, by date</small></h2>
+    ${myWatchedCard(s)}
+    </div><div class="ccol c1"><h2 class="sec-h">At home <small>suggest, watch, talk</small></h2>
 
     ${forYouCard(s)}
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
@@ -1419,7 +1426,6 @@ function renderClub() {
 
   hist.innerHTML = historyHtml(s);
   if (lead) { lead.innerHTML = leadersHtml(s); bindLeaders(); }
-  if (mwView) { mwView.innerHTML = myWatchedCard(s); mwView.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.open)); }
   bind(c, s, cands, movie);
   bindCinema(s);
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
@@ -1516,9 +1522,9 @@ function myWatchedCard(s) {
   let lastMo = "";
   const rows = shown.map(w => {
     const mo = w.d.slice(0, 7), head = mo !== lastMo ? `<h5 class="mw-mo">${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { month: "long" }))}</h5>` : ""; lastMo = mo;
-    return `${head}<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d"><b>${+w.d.slice(8)}</b><small>${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { weekday: "short" }))}</small></span>${poster(w.m.p, "w92")}<div class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">${w.ss ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}</b>${w.s ? `<span class="stars">${"★".repeat(w.s)}${"☆".repeat(5 - w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`;
+    return `${head}<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d"><b>${+w.d.slice(8)}</b><small>${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { weekday: "short" }))}</small></span>${poster(w.m.p, "w92")}<div class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">${w.ss ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}</b>${w.s ? `<span class="stars">${starStr(w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`;
   }).join("");
-  return `<div class="fr-card" id="mwCard">
+  return `<div class="fr-card" data-tab="mine" id="mwCard">
     <div class="wl-head"><h3>${whoName ? `${esc(whoName)}'s watched list` : "My watched list"}</h3>${whoName ? "" : `<button class="primary" id="mwLog">+ Log</button>`}</div>
     ${ppl.length ? `<div class="wl-views">${[["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => `<button class="chip${id === mwWho ? " on" : ""}" data-mww="${esc(id)}">${esc(n)}</button>`).join("")}</div>` : ""}
     ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
@@ -1534,6 +1540,7 @@ function openReview(s, sk, m0) {
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
     <h3>${prev ? `Update ${esc(name)}` : `How was ${esc(name)}?`}</h3>
     <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
+    <small class="hint rev-tip">Tap a star twice for a half star.</small>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${isTv ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
     <label class="rev-d">Just watched on <input type="date" id="revD" value="${today}" max="${today}"></label>
@@ -1557,7 +1564,7 @@ function openReview(s, sk, m0) {
     bg.remove();
     const from = prev || old ? [] : s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
     const ss = {}; for (const k of picked) ss[k] = prev?.ss && k in prev.ss ? prev.ss[k] : old ? "" : d;
-    const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
+    const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + starStr(sc, true) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
     act("saw", { sk, v: 1, ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m ? { m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } } : {}) }, news);
     // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
     for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
@@ -1565,7 +1572,7 @@ function openReview(s, sk, m0) {
     if (rec && m) {
       const s2 = derive(active().id), others = realIds(s2).filter(id => id !== me.id && !s2.saw[sk]?.get(id)?.v);
       if (!s2.wl.has(key(m))) act("wl", { m });
-      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 0 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Watched it and says you should too." } : null);
+      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 0 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + starStr(sc, true) : ""}`, body: x || "Watched it and says you should too." } : null);
       M.toast(`Recommended ${m.n} to your friends.`);
     }
     if (m && (sc || x) && !old) {
@@ -1575,10 +1582,10 @@ function openReview(s, sk, m0) {
       t.querySelector(".primary").onclick = () => { bye(); titleSheet?.remove(); M.open(m.t, m.i, m.n, { rating: sc ? sc * 2 : null, take: x }); };
     }
   };
-  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = +b.dataset.s; bg.querySelectorAll(".mstars button").forEach(o => o.classList.toggle("on", +o.dataset.s <= score)); });
+  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
   bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) { old = false; save(true); } });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
-  if (score) bg.querySelectorAll(".mstars button").forEach(o => o.classList.toggle("on", +o.dataset.s <= score));
+  if (score) paintStars(bg, score);
   setTimeout(() => bg.querySelector(".mstars button")?.focus(), 50);
 }
 // Reviews of my suggestions that I haven't looked at yet.
@@ -1596,14 +1603,14 @@ function openSeen(s, movie) {
   let score = s.round(s.cur).seen.get(me.id)?.s || 0;
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
     <h3>How was ${esc(movie.n)}?</h3>
-    <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" class="${n <= score ? "on" : ""}" aria-label="${n} stars">★</button>`).join("")}</div>
+    <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" class="${n <= score ? "on" : n - .5 === score ? "half" : ""}" aria-label="${n} stars">★</button>`).join("")}</div>
     <input type="text" id="seenSay" maxlength="600" placeholder="First thoughts for the group (optional)">
     <button class="primary" id="seenGo">Done</button><button id="seenCancel">Cancel</button></div></div>`);
   document.body.appendChild(bg);
   const close = () => bg.remove();
   bg.addEventListener("click", e => { if (e.target === bg) close(); });
   bg.querySelector("#seenCancel").onclick = close;
-  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = +b.dataset.s; bg.querySelectorAll(".mstars button").forEach(o => o.classList.toggle("on", +o.dataset.s <= score)); });
+  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
   bg.querySelector("#seenGo").onclick = async () => {
     const x = bg.querySelector("#seenSay").value.trim(); close();
     await act("seen", { s: score });
