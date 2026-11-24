@@ -930,7 +930,8 @@ function forYouCard(s) {
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
     <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
-    ${(() => { const seenL = sugForMeSeen(s); return due.length || seenL.length ? `<h4 class="wl-sec">Accepted <i>${due.length || ""}</i></h4><div class="wl-list">${[...due, ...seenL].map(g => row(g, false)).join("")}</div>` : ""; })()}
+    ${due.length ? `<h4 class="wl-sec">Accepted <i>${due.length}</i></h4><div class="wl-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
+    ${(() => { const seenL = sugForMeSeen(s); return seenL.length ? `<h4 class="wl-sec">Watched <i>${seenL.length}</i></h4><div class="wl-list">${seenL.map(g => row(g, false)).join("")}</div>` : ""; })()}
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
