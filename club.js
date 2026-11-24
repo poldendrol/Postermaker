@@ -861,6 +861,21 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${!wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
   </div>`;
 }
+// ---------- general info for the title sheet (genres, length, rating, people, plot, trailer) ----------
+const infoCache = {};
+async function titleInfo(m) {
+  const k = key(m); if (infoCache[k]) return infoCache[k];
+  try {
+    const j = await M.tm(`/${m.t}/${m.i}`, { append_to_response: "credits,videos" });
+    const crew = j.credits?.crew || [];
+    const by = m.t === "tv" ? (j.created_by || []).map(x => x.name).slice(0, 2).join(" & ") : crew.filter(x => x.job === "Director").map(x => x.name).slice(0, 2).join(" & ");
+    const len = m.t === "tv" ? [j.number_of_seasons ? `${j.number_of_seasons} season${j.number_of_seasons === 1 ? "" : "s"}` : "", j.status === "Ended" ? "ended" : j.in_production ? "still running" : ""].filter(Boolean).join(", ")
+      : j.runtime ? `${Math.floor(j.runtime / 60)}h ${String(j.runtime % 60).padStart(2, "0")}m` : "";
+    const yt = (j.videos?.results || []).filter(v => v.site === "YouTube"), tr = yt.find(v => v.type === "Trailer" && v.official) || yt.find(v => v.type === "Trailer") || yt[0];
+    return (infoCache[k] = { genres: (j.genres || []).map(g => g.name).slice(0, 3).join(", "), len, rate: j.vote_count > 20 && j.vote_average ? j.vote_average.toFixed(1) : "",
+      by, cast: (j.credits?.cast || []).slice(0, 4).map(x => x.name).join(", "), plot: j.overview || "", trailer: tr?.key || "" });
+  } catch { return null; }
+}
 // ---------- where to stream (Belgium) ----------
 const PROV_TTL = 3 * 864e5;
 let provCache = LS.get("marqueeProv", {});
@@ -982,6 +997,7 @@ function openTitle(s, m, focusSuggest) {
       <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? `On the list of ${esc([...wl.adders.entries()].map(([a, n]) => a === me.id ? "you" : n).join(", "))}` : ""}</small>
       <small class="hint">${seen.length ? `Watched by ${esc(seen.join(", "))}` : "Nobody has watched it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
+    <div class="ts-info"><small class="hint">Loading info…</small></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
     <h4 class="wl-sec">Suggest it</h4>
@@ -995,6 +1011,17 @@ function openTitle(s, m, focusSuggest) {
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     <button id="tsClose">Close</button></div></div>`);
   document.body.appendChild(bg); titleSheet = bg;
+  titleInfo(m).then(i => {
+    const box = bg.querySelector(".ts-info"); if (!box) return;
+    if (!i) { box.innerHTML = ""; return; }
+    const facts = [i.genres, i.len, i.rate ? `★ ${i.rate}/10 on TMDB` : ""].filter(Boolean).join(" · ");
+    box.innerHTML = `${facts ? `<small class="ts-facts">${esc(facts)}</small>` : ""}
+      ${i.by ? `<small class="hint">${m.t === "tv" ? "Created by" : "Directed by"} <b>${esc(i.by)}</b></small>` : ""}
+      ${i.cast ? `<small class="hint">With ${esc(i.cast)}</small>` : ""}
+      ${i.plot ? `<p class="ts-plot">${esc(i.plot)}</p>` : ""}
+      ${i.trailer ? `<a class="link" href="https://www.youtube.com/watch?v=${esc(i.trailer)}" target="_blank" rel="noopener">▶ Watch the trailer</a>` : ""}`;
+    box.querySelector(".ts-plot")?.addEventListener("click", e => e.currentTarget.classList.toggle("open"));
+  });
   getProv(m).then(pv => {
     const box = bg.querySelector(".ts-prov"); if (!box) return; const mine = myServices();
     box.innerHTML = pv.l.length ? `<span class="provs">${provLogos(pv.l, mine)}</span><small class="hint">${pv.l.some(p => mine.has(p.id)) ? "On your services" : "Streaming in Belgium"}${pv.u ? ` · <a class="link" href="${esc(pv.u)}" target="_blank" rel="noopener">all options ↗</a>` : ""}</small>`

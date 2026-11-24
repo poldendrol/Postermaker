@@ -476,6 +476,11 @@ footer { padding-left: 0; }
 .rev-ss .ss-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
 .ss { border: 1.5px solid var(--line); background: none; border-radius: 99px; padding: 5px 11px; font-weight: 700; font-size: 13px; }
 .ss.on { background: #1e9e4a; border-color: #1e9e4a; color: #fff; }
+.title-sheet > *, .sheet > * { flex-shrink: 0; }
+.ts-info { display: flex; flex-direction: column; gap: 3px; }
+.ts-facts { font-weight: 700; font-size: 13px; }
+.ts-plot { margin: 4px 0 2px; font-size: 14px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.ts-plot.open { -webkit-line-clamp: unset; display: block; }
 .sheet label.rev-rec input { flex: none; width: 20px; height: 20px; accent-color: var(--accent, #e2231a); margin: 0; }
 .mstars button.on { color: var(--accent); }
 
