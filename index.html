@@ -465,6 +465,8 @@ footer { padding-left: 0; }
 .pickf input { width: 20px; height: 20px; accent-color: var(--accent); }
 .mstars { display: flex; gap: 2px; }
 .mstars button { font-size: 28px; border: none; background: none; padding: 0 2px; color: var(--line); line-height: 1; }
+.sheet label.rev-rec { display: flex; flex-direction: row; justify-content: flex-start; text-align: left; color: inherit; font-size: 15px; align-items: center; gap: 10px; font-weight: 600; margin: 4px 0; cursor: pointer; }
+.sheet label.rev-rec input { flex: none; width: 20px; height: 20px; accent-color: var(--accent, #e2231a); margin: 0; }
 .mstars button.on { color: var(--accent); }
 
 /* ---- phone first: bottom tab bar, club tabs, tighter cards ---- */
@@ -659,6 +661,7 @@ footer { padding-left: 0; }
 .provs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 img.prov { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; opacity: .55; }
 img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
+.provs i { font-style: normal; font-size: 12px; color: var(--muted, #888); }
 .ts-prov { display: flex; flex-direction: column; gap: 4px; }
 .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .svc { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 2px solid transparent; border-radius: 12px; background: var(--field); font-size: 11px; font-weight: 700; color: inherit; }
@@ -824,6 +827,8 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
       <section class="section s-set v-settings">
         <h2>Settings</h2>
         <div class="imp acct" id="acct" hidden></div>
+        <div class="imp" id="setStream"></div>
+        <div class="imp" id="setPush"></div>
         <button class="primary" id="invite">Invite friends to Marquee</button>
         <label>Your Instagram handle (shown on posts) <input type="text" id="handle" placeholder="@yourname"></label>
         <label>My own hashtags (added to every caption) <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
@@ -929,6 +934,7 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
     $("viewTitle").textContent = VIEW_TITLES[v];
     try { sessionStorage.setItem("marqueeView", v); } catch {}
     if (v === "news" && typeof loadNews === "function") loadNews();
+    document.dispatchEvent(new CustomEvent("marquee:view", { detail: v }));
     window.scrollTo({ top: 0 });
   }
   $("nav").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); });

@@ -32,6 +32,10 @@ window.MarqueePush = {
       return true;
     } catch (e) { console.error(e); return "Couldn't turn on notifications. Try again in a minute."; }
   },
+  async disable() {
+    try { const { auth, F, db } = await init(); const id = ls.get("marqueePushId"); if (id) await F.deleteDoc(F.doc(db, "tokens", id, "devices", auth.currentUser.uid)); } catch (e) { console.warn(e); }
+    ls.set("marqueePushOn", "0");
+  },
   // { to: [member ids], title, body, at?: ms send time, id?: fixed doc id (replaces an earlier one) }
   async send(p) {
     if (!cfg || !cfg.apiKey) return;

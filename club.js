@@ -423,8 +423,9 @@ function sayBox(r) {
   return `<div class="say"><input type="text" id="say_${r}" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" data-say="${r}">Send</button></div>`;
 }
 
+document.addEventListener("marquee:view", e => { if (e.detail === "settings") renderSettingsExtras(); });
 function render() {
-  badge();
+  badge(); renderSettingsExtras();
   if (showStart || !me || !clubs().length || pendingInvite && !clubs().some(c => c.id === pendingInvite.id)) {
     renderStart();
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
@@ -791,11 +792,12 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   let items = wlView === "common" ? common : wlView === "all" ? base : base.filter(w => w.adders.has(wlView));
   const nTv = items.filter(w => w.m.t === "tv").length, mixed = nTv && nTv < items.length;
   const svc = myServices(), onMine = w => (provCache[key(w.m)]?.l || []).some(p => svc.has(p.id));
-  if (wlStream) { const all = items; setTimeout(() => fillProv(all), 0); }
+  const preStream = items;
   items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || w.m.t === wlType) && (!wlStream || onMine(w)))
     .sort((a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const shown = wlAll || wlQ ? items : items.slice(0, 20);
   const person = wlView !== "common" && wlView !== "all";
+  { const need = wlStream ? preStream : person ? items : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every row automatically
   const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const chip = (k, l, n) => `<button class="chip${wlView === k ? " on" : ""}" data-wlv="${esc(k)}">${esc(l)} <i>${n}</i></button>`;
   const row = w => {
@@ -803,7 +805,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       const sb = seenBy(w.m.n);
       return `<div class="wl-i"><button class="wl-open" data-open="${esc(key(w.m))}" aria-label="Open ${esc(w.m.n)}">${poster(w.m.p, "w92")}</button><div class="body" data-open="${esc(key(w.m))}">
         <b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-        ${wlStream && provCache[key(w.m)]?.l?.length ? `<span class="provs">${provLogos(provCache[key(w.m)].l.filter(p => svc.has(p.id)), svc)}</span>` : ""}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
+        ${(() => { const l = provCache[key(w.m)]?.l || [], m = l.filter(p => svc.has(p.id)), show = (m.length ? m : l).slice(0, 3); return show.length ? `<span class="provs${m.length ? " on-mine" : ""}">${provLogos(show, svc)}${!m.length && l.length > 3 ? `<i>+${l.length - 3}</i>` : ""}</span>` : ""; })()}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
       </div>${seenTag(w.m.n)}</div>`;
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
@@ -811,7 +813,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${base.length ? `<div class="wl-views">${chip("common", "Nobody's seen", common.length)}${chip("all", "Everything", base.length)}${people.map(p => chip(p.id, p.name, p.n)).join("")}</div>` : ""}
-    ${base.length ? `<div class="wl-tools"><button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button><button class="link" id="wlSvc">${svc.size ? `${svc.size} service${svc.size === 1 ? "" : "s"}` : "Pick services"}</button></div>` : ""}
+    ${base.length ? `<div class="wl-tools"><button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button></div>` : ""}
     ${mixed || items.length > 12 || wlQ ? `<div class="wl-tools">${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Filter" value="${esc(wlQ)}" autocomplete="off">` : ""}
       ${mixed ? `<span class="seg">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${wlType === k ? "on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</span>` : ""}</div>` : ""}
     ${person ? (() => {
@@ -856,6 +858,28 @@ async function openServices(done) {
   bg.querySelector("#svcDone").onclick = close;
   bg.addEventListener("click", e => { if (e.target === bg) close(); });
 }
+// Settings: streaming services and notifications live there.
+function renderSettingsExtras() {
+  const st = $("setStream"), pu = $("setPush");
+  if (st) {
+    const n = myServices().size;
+    st.innerHTML = `<b>My streaming services</b><p class="hint">${n ? `${n} picked. Titles on them get marked and you can filter the club watchlist with "📺 On my services".` : "Pick what you pay for to see which titles you can stream right away."}</p><button id="setSvc">${n ? "Change services" : "Pick services"}</button>`;
+    st.querySelector("#setSvc").onclick = () => openServices(() => { renderSettingsExtras(); render(); });
+  }
+  if (pu) {
+    const P = window.MarqueePush;
+    if (!P?.ready) { pu.hidden = true; return; }
+    pu.hidden = false;
+    const on = P.on();
+    pu.innerHTML = `<b>Notifications</b><p class="hint">${on ? "On for this device. You hear about suggestions, reviews and outings, even when Marquee is closed." : me ? "Get told about suggestions, reviews and outings, even when Marquee is closed. Turn it on for each phone or computer." : "Join or start a club first, then turn notifications on here."}</p>${me ? `<button id="setPushBtn">${on ? "Turn off" : "🔔 Turn on notifications"}</button>` : ""}`;
+    pu.querySelector("#setPushBtn")?.addEventListener("click", async e => {
+      e.target.disabled = true;
+      if (on) { await P.disable(); M.toast("Notifications off for this device."); }
+      else { const r = await P.enable(me.id); M.toast(r === true ? "Notifications on. A test one arrives within a few minutes." : r); if (r === true) P.send({ to: [me.id], title: "Marquee notifications work 🎬", body: "You'll hear about suggestions, reviews and outings, even when Marquee is closed." }); }
+      renderSettingsExtras();
+    });
+  }
+}
 let wlStream = false, provBusy = false;
 async function fillProv(items) {
   if (provBusy) return; provBusy = true;
@@ -881,10 +905,8 @@ function forYouCard(s) {
         (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""].filter(Boolean).join(" · ")}</small>
     </div>${out ? "" : seenTag(g.m.n, true)}</div>`;
   };
-  const pushBtn = window.MarqueePush?.ready && !window.MarqueePush.on() ? `<button class="push-on" id="pushOn">🔔 Turn on notifications</button>` : "";
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
     <div class="pulp-head"><span class="chapter">${mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
-    ${pushBtn}
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     ${due.length ? `<div class="sug-due">🔔 <b>Watch today:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}
     <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
@@ -937,9 +959,8 @@ function openTitle(s, m, focusSuggest) {
   document.body.appendChild(bg); titleSheet = bg;
   getProv(m).then(pv => {
     const box = bg.querySelector(".ts-prov"); if (!box) return; const mine = myServices();
-    box.innerHTML = pv.l.length ? `<span class="provs">${provLogos(pv.l, mine)}</span><small class="hint">${pv.l.some(p => mine.has(p.id)) ? "On your services" : "Streaming in Belgium"}${pv.u ? ` · <a class="link" href="${esc(pv.u)}" target="_blank" rel="noopener">all options ↗</a>` : ""} · <button class="link" data-svcs>my services</button></small>`
+    box.innerHTML = pv.l.length ? `<span class="provs">${provLogos(pv.l, mine)}</span><small class="hint">${pv.l.some(p => mine.has(p.id)) ? "On your services" : "Streaming in Belgium"}${pv.u ? ` · <a class="link" href="${esc(pv.u)}" target="_blank" rel="noopener">all options ↗</a>` : ""}</small>`
       : `<small class="hint">Not streaming in Belgium right now${pv.u ? ` · <a class="link" href="${esc(pv.u)}" target="_blank" rel="noopener">rent or buy ↗</a>` : ""}</small>`;
-    box.querySelector("[data-svcs]")?.addEventListener("click", () => openServices(() => { bg.remove(); openTitle(derive(active().id), m); }));
   }).catch(() => { const box = bg.querySelector(".ts-prov"); if (box) box.innerHTML = ""; });
   const to = new Set();
   const go = bg.querySelector("#tsGo");
@@ -1091,8 +1112,7 @@ function bindWl(s, cands) {
   $("wlQ")?.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   view.querySelectorAll("[data-wlv]").forEach(x => x.onclick = () => { wlView = x.dataset.wlv; wlAll = false; render(); });
   $("wlMore")?.addEventListener("click", () => { wlAll = true; render(); });
-  $("wlStream")?.addEventListener("click", () => { if (!myServices().size) return openServices(() => { if (myServices().size) { wlStream = true; render(); } }); wlStream = !wlStream; render(); });
-  $("wlSvc")?.addEventListener("click", () => openServices(render));
+  $("wlStream")?.addEventListener("click", () => { if (!myServices().size) { M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = !wlStream; render(); });
   view.querySelectorAll("[data-wldrop]").forEach(b => b.onclick = () => { const w = s.wl.get(b.dataset.wldrop); if (w) act("wldrop", { m: w.m }); });
   view.querySelectorAll("[data-sug]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.sug, true));
   view.querySelectorAll("#clubView [data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-wldrop], [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
@@ -1292,7 +1312,6 @@ function bind(c, s, cands, movie) {
   hist.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
   hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbDemo")?.addEventListener("click", addDemo);
-  $("pushOn")?.addEventListener("click", async () => { const r = await window.MarqueePush.enable(me.id); M.toast(r === true ? "Notifications on. A test one arrives within a few minutes." : r); if (r === true) window.MarqueePush.send({ to: [me.id], title: "Marquee notifications work 🎬", body: "You'll hear about suggestions, reviews and outings, even when Marquee is closed." }); render(); });
   $("revRead")?.addEventListener("click", () => { LS.set(revReadKey(c.id), now()); render(); });
   view.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { b.disabled = true; addDemo(); });
   $("cbDemoOff")?.addEventListener("click", removeDemo);
@@ -1329,14 +1348,23 @@ function openReview(s, sk) {
     <h3>How was ${esc(name)}?</h3>
     <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done">
+    ${m && s.members.size > 1 ? `<label class="rev-rec"><input type="checkbox" id="revRec"> Recommend this to your friends</label>` : ""}
     <button class="primary" id="revGo">Save</button><button id="revSkip">Just mark as seen</button></div></div>`);
   document.body.appendChild(bg);
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
+    const rec = !!bg.querySelector("#revRec")?.checked;
     bg.remove();
     const from = s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
     const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
     act("saw", { sk, v: 1, ...(sc ? { s: sc } : {}), ...(x ? { x } : {}) }, news);
+    // Recommend: it goes on the club watchlist under "Seen it, recommend" and everyone else gets a weekly nudge until they've seen it.
+    if (rec && m) {
+      const s2 = derive(active().id), others = realIds(s2).filter(id => id !== me.id && !s2.saw[sk]?.get(id)?.v);
+      if (!s2.wl.has(key(m))) act("wl", { m });
+      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 1 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Seen it and says you should too." } : null);
+      M.toast(`Recommended ${m.n} to your friends.`);
+    }
     if (m && (sc || x)) {
       const t = el(`<div class="post-offer"><span>Saved. Share it on Instagram?</span><button class="primary">Make a post</button><button class="link" aria-label="No thanks">✕</button></div>`);
       document.body.appendChild(t); const bye = () => t.remove(); setTimeout(bye, 9000);
