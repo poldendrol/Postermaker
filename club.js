@@ -5,7 +5,7 @@
 // missing. That way the club's state survives as long as any member still has it.
 const M = window.Marquee;
 const $ = id => document.getElementById(id);
-const view = $("clubView"), hist = $("histView");
+const view = $("clubView"), hist = $("histView"), lead = $("leadView");
 const APP_URL = location.origin + location.pathname;
 const NTFY = window.MARQUEE_NTFY || "https://ntfy.sh";
 const TAG = "mqc1:";
@@ -447,6 +447,7 @@ function render() {
     renderStart();
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
     $("hsGo").onclick = () => M.setView("club");
+    if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching, reviews and outings get ranked here.</p></div>`;
     return;
   }
   if (pendingInvite) { activeId = pendingInvite.id; LS.set("marqueeClubActive", activeId); pendingInvite = null; }
@@ -1226,6 +1227,79 @@ async function shareWrap() {
   if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: `${w.name} ${w.yr}` }); return; } catch {} }
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
+// ---------- Leaderboard: every category the club's own data can rank, per year ----------
+let ldYear = new Date().getFullYear(), ldOpen = new Set();
+function leadersHtml(s) {
+  const ids = [...s.members.keys()], nm = id => id === me.id ? "You" : s.members.get(id)?.name || "Someone";
+  const inYr = d => d && +String(d).slice(0, 4) === ldYear, yrOf = t => new Date(t).getFullYear();
+  const W = {}; for (const id of ids) W[id] = myWatched(s, id).filter(w => inYr(w.d));
+  const years = new Set([new Date().getFullYear()]);
+  for (const id of ids) myWatched(s, id).forEach(w => years.add(+w.d.slice(0, 4)));
+  s.sugs.forEach(g => years.add(yrOf(g.at))); for (const o of s.outs.values()) if (o.sc?.d) years.add(+o.sc.d.slice(0, 4));
+  // Ratings and reviews given this year (any "Watched" with stars or text, dated by watch day or tap day).
+  const rated = {}, reviews = {};
+  for (const [sk, mp] of Object.entries(s.saw)) for (const [id, x] of mp) {
+    if (!x.v) continue; const when = x.d || iso(new Date(x.at || 0)); if (!inYr(when)) continue;
+    if (x.s) (rated[id] ||= []).push(x.s); if (x.x) reviews[id] = (reviews[id] || 0) + 1;
+  }
+  const sugY = s.sugs.filter(g => yrOf(g.at) === ldYear);
+  const landed = {}, speed = {}, accepted = {};
+  for (const g of sugY) for (const id of sugTo(s, g)) {
+    const at = sawAt(s, g.m, id); if (at && at >= g.at) { landed[g.a] = (landed[g.a] || 0) + 1; (speed[id] ||= []).push((at - g.at) / 864e5); }
+    if (accAt(s, g, id)) accepted[id] = (accepted[id] || 0) + 1;
+  }
+  const outsY = [...s.outs.values()].filter(o => inYr(o.sc?.d) || (!o.sc?.d && yrOf(o.at) === ldYear));
+  const went = {}, organised = {}, spots = {};
+  for (const o of outsY) { if (o.sc?.d && o.sc.d <= iso(new Date())) for (const id of o.ins.keys()) went[id] = (went[id] || 0) + 1; organised[o.a] = (organised[o.a] || 0) + 1; }
+  const talk = {}; for (const list of Object.values(s.talk)) for (const e of list) if (yrOf(e.t) === ldYear) talk[e.a] = (talk[e.a] || 0) + 1;
+  const wlNow = {}; for (const w of s.wl.values()) for (const id of w.adders.keys()) wlNow[id] = (wlNow[id] || 0) + 1;
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const bestMonth = id => { const c = {}; W[id].forEach(w => c[w.d.slice(0, 7)] = (c[w.d.slice(0, 7)] || 0) + 1); const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return top ? { v: top[1], note: new Date(top[0] + "-15").toLocaleDateString(undefined, { month: "long" }) } : null; };
+  const bestWeek = id => { const days = [...new Set(W[id].map(w => w.d))].sort(); let best = 0; for (const d of days) best = Math.max(best, W[id].filter(w => w.d >= d && w.d <= isoAdd(d, 6)).length); return best; };
+  const streak = id => { const wk = new Set(W[id].map(w => { const x = new Date(w.d + "T12:00"); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return iso(x); })); let best = 0; for (const w of wk) { let n = 1, d = w; while (wk.has(isoAdd(d, 7))) { n++; d = isoAdd(d, 7); } best = Math.max(best, n); } return best; };
+  const uniq = id => new Set(W[id].map(w => w.sk)).size;
+  const cats = [
+    { e: "🏆", t: "Most watched", d: "Films and series seasons logged as just watched", v: id => W[id].length, u: "watched" },
+    { e: "🎬", t: "Film buff", d: "Most films", v: id => W[id].filter(w => w.m.t !== "tv").length, u: "films" },
+    { e: "📺", t: "Binge king", d: "Most series seasons", v: id => W[id].filter(w => w.m.t === "tv").reduce((n, w) => n + (w.ss?.length || 1), 0), u: "seasons" },
+    { e: "🔥", t: "Longest streak", d: "Weeks in a row with something watched", v: streak, u: "weeks" },
+    { e: "⚡", t: "Busiest week", d: "Most watched in any 7 days", v: bestWeek, u: "in a week" },
+    { e: "📅", t: "Best month", d: "Most watched in one month", v: id => bestMonth(id)?.v || 0, note: id => bestMonth(id)?.note, u: "" },
+    { e: "✍️", t: "Critic of the year", d: "Most reviews written", v: id => reviews[id] || 0, u: "reviews" },
+    { e: "⭐", t: "Star giver", d: "Most ratings given", v: id => (rated[id] || []).length, u: "ratings" },
+    { e: "😇", t: "Softie", d: "Highest average rating (3+ ratings)", v: id => (rated[id] || []).length >= 3 ? +avg(rated[id]).toFixed(2) : 0, fmt: v => v.toFixed(1) + " ★" },
+    { e: "😈", t: "Harshest critic", d: "Lowest average rating (3+ ratings)", v: id => (rated[id] || []).length >= 3 ? +avg(rated[id]).toFixed(2) : 0, low: true, fmt: v => v.toFixed(1) + " ★" },
+    { e: "🎯", t: "Best taste", d: "Their suggestions that friends then watched", v: id => landed[id] || 0, u: "landed" },
+    { e: "📣", t: "Top recommender", d: "Suggestions sent", v: id => sugY.filter(g => g.a === id).length, u: "sent" },
+    { e: "👍", t: "Yes person", d: "Suggestions accepted", v: id => accepted[id] || 0, u: "accepted" },
+    { e: "🏃", t: "Quickest to watch", d: "Fastest average from suggestion to watched (2+)", v: id => (speed[id] || []).length >= 2 ? +avg(speed[id]).toFixed(1) : 0, low: true, fmt: v => v < 1 ? "same day" : `${v.toFixed(1)} days` },
+    { e: "🍿", t: "Cinema regular", d: "Cinema outings joined", v: id => went[id] || 0, u: "outings" },
+    { e: "🗓️", t: "Organiser", d: "Cinema outings suggested", v: id => organised[id] || 0, u: "suggested" },
+    { e: "💬", t: "Chatterbox", d: "Comments on titles", v: id => talk[id] || 0, u: "comments" },
+    { e: "📚", t: "Watchlist hoarder", d: "Titles on their watchlist right now", v: id => wlNow[id] || 0, u: "titles" },
+    { e: "🌍", t: "Explorer", d: "Different titles watched", v: uniq, u: "titles" },
+  ];
+  const cards = cats.map((c, ci) => {
+    const rows = ids.map(id => ({ id, v: c.v(id) })).filter(r => r.v > 0).sort((a, b) => c.low ? a.v - b.v : b.v - a.v);
+    if (!rows.length) return `<div class="ld-card empty"><div class="ld-h"><span class="ld-e">${c.e}</span><div><b>${esc(c.t)}</b><small class="hint">${esc(c.d)}</small></div></div><p class="hint">Nobody yet.</p></div>`;
+    const val = r => c.fmt ? c.fmt(r.v) : `${r.v}${c.u ? " " + (r.v === 1 && c.u.endsWith("s") ? c.u.slice(0, -1) : c.u) : ""}${c.note?.(r.id) ? ` · ${c.note(r.id)}` : ""}`;
+    let rank = 0, prev = null;
+    const ranked = rows.map((r, i) => { if (r.v !== prev) { rank = i + 1; prev = r.v; } return { ...r, rank }; });
+    const open = ldOpen.has(ci), shown = open ? ranked : ranked.filter(r => r.rank <= 3);
+    return `<div class="ld-card"><div class="ld-h"><span class="ld-e">${c.e}</span><div><b>${esc(c.t)}</b><small class="hint">${esc(c.d)}</small></div></div>
+      <ol class="ld-list">${shown.map(r => `<li class="r${r.rank}${r.id === me.id ? " me" : ""}"><span class="ld-r">${["🥇", "🥈", "🥉"][r.rank - 1] || r.rank}</span><span class="ld-n">${esc(nm(r.id))}</span><span class="ld-v">${esc(val(r))}</span></li>`).join("")}</ol>
+      ${ranked.length > ranked.filter(r => r.rank <= 3).length ? `<button class="link" data-ldmore="${ci}">${open ? "Show less" : `All ${ranked.length}`}</button>` : ""}</div>`;
+  });
+  const yrs = [...years].filter(y => y > 1990).sort((a, b) => b - a);
+  return `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">Leaderboard</h2></div>
+    ${yrs.length > 1 ? `<div class="wl-views">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>` : ""}
+    <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
+    <div class="ld-grid">${[...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))].join("")}</div>`;
+}
+function bindLeaders() {
+  lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
+  lead.querySelectorAll("[data-ldmore]").forEach(b => b.onclick = () => { const i = +b.dataset.ldmore; ldOpen.has(i) ? ldOpen.delete(i) : ldOpen.add(i); lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
+}
 // History: everything the club has watched (newest first) with stars and reviews, plus past cinema outings.
 function historyHtml(s) {
   const items = [];
@@ -1337,6 +1411,7 @@ function renderClub() {
     </div>`;
 
   hist.innerHTML = historyHtml(s);
+  if (lead) { lead.innerHTML = leadersHtml(s); bindLeaders(); }
   bind(c, s, cands, movie);
   bindCinema(s);
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
