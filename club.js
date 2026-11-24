@@ -533,7 +533,7 @@ async function loadCine() {
     try { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) continue; cine = await r.json(); indexCine(); const box = $("cbCal"); if (box && box._redraw) box._redraw(); return; } catch {}
   }
 }
-let calAll = LS.get("marqueeCalAll", false); // false: the cinema calendar shows outings and Kinepolis releases only
+let calAll = LS.get("marqueeCalAll2", true); // false: the cinema calendar shows outings and Kinepolis releases only
 function cineHtml(dayIso) {
   if (!cine && !kp.length) return "";
   const off = cineOff();
@@ -642,7 +642,7 @@ function bindCal(s, ev, mode) {
   box.querySelectorAll("[data-cine]").forEach(b => b.onclick = () => { const off = cineOff(), c = b.dataset.cine; off.has(c) ? off.delete(c) : off.add(c); LS.set("marqueeCinemasOff", [...off]); indexCine(); redraw(); });
   box.querySelectorAll("[data-cn]").forEach(b => b.onclick = () => { const x = JSON.parse(b.dataset.cn); pickTime(x, h => cineNominate({ c: x.c, d: x.d, h, u: x.u }, x.t)); });
   box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { st.off += +b.dataset.cm; redraw(); });
-  box.querySelector("#calAll")?.addEventListener("click", () => { calAll = !calAll; LS.set("marqueeCalAll", calAll); redraw(); });
+  box.querySelector("#calAll")?.addEventListener("click", () => { calAll = !calAll; LS.set("marqueeCalAll2", calAll); redraw(); });
   box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { st.sel = b.dataset.cal; kpAll = false; redraw(); });
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.open));
   box.querySelector("#kpMore")?.addEventListener("click", () => { kpAll = true; redraw(); });
