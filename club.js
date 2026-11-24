@@ -564,7 +564,7 @@ const sugForMe = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(m
 const sugMine = s => s.sugs.filter(g => g.a === me.id && sugTo(s, g).some(id => sugOpen(s, g, id)));
 // Suggestions to me that I've already seen stay visible (greyed, with "✓ Seen" to undo a misclick).
 const sugForMeSeen = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && !sugOpen(s, g, me.id)).sort((a, b) => sawAt(s, b.m, me.id) - sawAt(s, a.m, me.id)).slice(0, 10);
-const sugSent = s => s.sugs.filter(g => g.a === me.id).sort((a, b) => b.at - a.at).slice(0, 20); // including ones everybody has watched
+const sugSent = s => s.sugs.filter(g => g.a === me.id).sort((a, b) => b.at - a.at); // including ones everybody has watched
 const isoAdd = (d, n) => { const x = new Date(d + "T12:00"); x.setDate(x.getDate() + n); return iso(x); };
 function sugDays(g, from, to) {
   const out = []; if (!g.wk) { if (g.d >= from && g.d <= to) out.push(g.d); return out; }
@@ -848,7 +848,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       : wlSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n)
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
-  const shown = grouped || wlAll || wlQ ? items : items.slice(0, 20);
+  const shown = items;
   { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
   const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const fchip = (id, l, n, on) => `<button class="chip${on ? " on" : ""}" data-wlf="${esc(id)}">${esc(l)}${n != null ? ` <i>${n}</i>` : ""}</button>`;
@@ -880,7 +880,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     <div class="wl-tools">${preStream.length > 1 ? `<button class="chip wl-sf${(wlStream && wlMode === "mine") || (mixed && wlType !== "all") ? " on" : ""}" id="wlSF" data-mixed="${mixed ? 1 : ""}">⇅ ${esc([{ az: "A–Z", genre: "Genre", year: "Year" }[wlSort], mixed && wlType !== "all" ? { movie: "Films", tv: "Series" }[wlType] : "", wlStream && wlMode === "mine" ? "My services" : ""].filter(Boolean).join(" · "))}${wlStream && provBusy ? "…" : ""}</button>` : ""}
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}<button class="primary" id="cwAdd">+ Add</button></div>
     ${tiles(shown)}${items.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
-    ${!grouped && !wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
+`}
   </div>`;
 }
 // ---------- genres for the watchlist rows (cached on this device) ----------
@@ -1007,7 +1007,7 @@ function forYouCard(s) {
     </div>${out ? "" : !done && !by ? `<button class="acc-btn" data-acc="${esc(g.id)}">Accept</button>` : seenTag(g.m.n, true)}</div>`;
   };
   return `<div id="fyCard">
-    ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
+    ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
     <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
     ${due.length ? `<h4 class="wl-sec">Accepted <i>${due.length}</i></h4><div class="wl-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
@@ -1268,7 +1268,6 @@ function bindWl(s, cands) {
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
   view.querySelectorAll("[data-wlm]").forEach(x => x.onclick = () => { wlMode = x.dataset.wlm; LS.set("marqueeWlMode", wlMode); wlAll = false; render(); });
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
-  $("wlMore")?.addEventListener("click", () => { wlAll = true; render(); });
   view.querySelectorAll("details.g-sec").forEach(d => d.addEventListener("toggle", () => { d.open ? genreShut.delete(d.dataset.g) : genreShut.add(d.dataset.g); }));
   $("wlStream")?.addEventListener("click", () => { if (!myServices().size) { M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = !wlStream; render(); });
   view.querySelectorAll("[data-wldrop]").forEach(b => b.onclick = () => { const w = s.wl.get(b.dataset.wldrop); if (w) act("wldrop", { m: w.m }); });
@@ -1319,7 +1318,7 @@ let ldYear = new Date().getFullYear(), ldOpen = new Set(), lastWrapHtml = "";
 // Past cinema outings (shown at the bottom of At the cinema).
 function pastOutingsHtml(s) {
   const today = iso(new Date());
-  const past = [...s.outs.values()].filter(o => o.sc?.d && o.sc.d < today && o.ins.size).sort((a, b) => b.sc.d.localeCompare(a.sc.d)).slice(0, 12);
+  const past = [...s.outs.values()].filter(o => o.sc?.d && o.sc.d < today && o.ins.size).sort((a, b) => b.sc.d.localeCompare(a.sc.d));
   return past.length ? `<div class="past-outs"><h4 class="wl-sec">Past outings</h4>${past.map(o => `<div class="out-i" data-open="${esc(key(o.m))}">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "";
 }
 function leadersHtml(s) {
@@ -1378,10 +1377,10 @@ function leadersHtml(s) {
     const val = r => c.fmt ? c.fmt(r.v) : `${r.v}${c.u ? " " + (r.v === 1 && c.u.endsWith("s") ? c.u.slice(0, -1) : c.u) : ""}${c.note?.(r.id) ? ` · ${c.note(r.id)}` : ""}`;
     let rank = 0, prev = null;
     const ranked = rows.map((r, i) => { if (r.v !== prev) { rank = i + 1; prev = r.v; } return { ...r, rank }; });
-    const open = ldOpen.has(ci), shown = open ? ranked : ranked.filter(r => r.rank <= 3);
+    const shown = ranked;
     return `<div class="ld-card"><div class="ld-h"><span class="ld-e">${c.e}</span><div><b>${esc(c.t)}</b><small class="hint">${esc(c.d)}</small></div></div>
       <ol class="ld-list">${shown.map(r => `<li class="r${r.rank}${r.id === me.id ? " me" : ""}"><span class="ld-r">${["🥇", "🥈", "🥉"][r.rank - 1] || r.rank}</span><span class="ld-n">${esc(nm(r.id))}</span><span class="ld-v">${esc(val(r))}</span></li>`).join("")}</ol>
-      ${ranked.length > ranked.filter(r => r.rank <= 3).length ? `<button class="link" data-ldmore="${ci}">${open ? "Show less" : `All ${ranked.length}`}</button>` : ""}</div>`;
+</div>`;
   });
   const yrs = [...years].filter(y => y > 1990).sort((a, b) => b - a);
   return `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">Leaderboard</h2></div>
@@ -1389,14 +1388,11 @@ function leadersHtml(s) {
     <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
     ${ldYear === new Date().getFullYear() ? lastWrapHtml : ""}
     ${(() => { const all = [...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))]; // the 6 most interesting first, the rest on request
-      return `<div class="ld-grid">${(ldAll ? all : all.slice(0, 6)).join("")}</div>${all.length > 6 ? `<button class="ld-all" id="ldAll">${ldAll ? "Show fewer" : `All ${all.length} categories`}</button>` : ""}`; })()}`;
+      return `<div class="ld-grid">${all.join("")}</div>`; })()}`;
 }
-let ldAll = false;
 function bindLeaders() {
-  $("ldAll")?.addEventListener("click", () => { ldAll = !ldAll; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
   $("wrapShare")?.addEventListener("click", shareWrap);
   lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
-  lead.querySelectorAll("[data-ldmore]").forEach(b => b.onclick = () => { const i = +b.dataset.ldmore; ldOpen.has(i) ? ldOpen.delete(i) : ldOpen.add(i); lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
 }
 // History: everything the club has watched (newest first) with stars and reviews, plus past cinema outings.
 function historyHtml(s) {
@@ -1512,7 +1508,6 @@ function renderClub() {
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
   bindWl(s, cands);
   $("mwLog")?.addEventListener("click", () => openSearch("What did you watch?", m => openReview(derive(active().id), seenKey(m.n), m)));
-  $("mwMore")?.addEventListener("click", () => { mwAll = true; renderClub(); });
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; mwAll = false; renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
 }
@@ -1599,7 +1594,7 @@ function myWatchedCard(s) {
   const who = mwWho || me.id, whoName = mwWho ? s.members.get(mwWho)?.name || "They" : "";
   const all = myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
   if (!years.includes(mwYear)) mwYear = years[0];
-  const list = all.filter(w => +w.d.slice(0, 4) === mwYear), shown = mwAll ? list : list.slice(0, 15);
+  const list = all.filter(w => +w.d.slice(0, 4) === mwYear), shown = list;
   const films = list.filter(w => w.m.t !== "tv").length, series = list.length - films;
   let lastMo = "";
   const rows = shown.map(w => {
@@ -1611,7 +1606,6 @@ function myWatchedCard(s) {
     ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
     <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap Watched? on any title, or + Log for something that isn't on a list.`}</p>
     <div class="mw-list">${rows}</div>
-    ${!mwAll && list.length > shown.length ? `<button class="link" id="mwMore">Show all ${list.length}</button>` : ""}
   </div>`;
 }
 function openReview(s, sk, m0, opts = {}) {
