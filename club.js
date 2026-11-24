@@ -32,7 +32,7 @@ function seenTag(title, undo) {
   const s = lastState; if (!s || !me) return "";
   const k = seenKey(title), who = [...(s.saw[k] || new Map()).entries()].filter(([, x]) => x.v), mine = who.some(([a]) => a === me.id);
   const others = who.filter(([a]) => a !== me.id).map(([, x]) => x.name);
-  return `<button class="seen-tag${mine ? " on" : ""}" data-saw="${esc(k)}" aria-pressed="${mine}" title="${esc(who.length ? "Seen by " + who.map(([a, x]) => a === me.id ? "you" : x.name).join(", ") : "Tap if you've already seen it")}">${mine ? (undo ? "Unsee" : "✓ Seen") : "Seen?"}</button>`;
+  return `<button class="seen-tag${mine ? " on" : ""}" data-saw="${esc(k)}" aria-pressed="${mine}" title="${esc(who.length ? "Watched by " + who.map(([a, x]) => a === me.id ? "you" : x.name).join(", ") : "Tap if you've already watched it")}">${mine ? (undo ? "Unwatch" : "✓ Watched") : "Watched?"}</button>`;
 }
 const monthOf = d => d.getFullYear() * 12 + d.getMonth();
 const monthName = r => new Date(Math.floor(r / 12), r % 12, 1, 12).toLocaleDateString(undefined, { month: "long" });
@@ -558,7 +558,7 @@ function acceptSug(s, g) {
   act("acc", { sg: g.id, v: 1 }, { to: [g.a], title: `${me.name} accepted ${g.m.n}`, body: `Watching it this week (by ${byLabel(by)}).` });
   // One friendly nudge the evening before the week is up, only if it still isn't marked as seen by then (marking it seen cancels it).
   const at = new Date(by + "T18:00"); at.setDate(at.getDate() - 1);
-  window.MarqueePush?.send({ to: [me.id], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), at: +at, title: `Still on for ${g.m.n}?`, body: `You said you'd watch ${g.by}'s suggestion this week. Tap Seen? when you have.` });
+  window.MarqueePush?.send({ to: [me.id], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), at: +at, title: `Still on for ${g.m.n}?`, body: `You said you'd watch ${g.by}'s suggestion this week. Tap Watched? when you have.` });
   M.toast(`Accepted. Watch ${g.m.n} by ${byLabel(by)}.`);
 }
 const whoLabel = (s, g) => g.to.includes("*") ? "everyone" : sugTo(s, g).map(id => id === me.id ? "you" : s.members.get(id)?.name || "someone").join(", ");
@@ -824,22 +824,22 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       const sb = seenBy(w.m.n);
       return `<div class="wl-i"><button class="wl-open" data-open="${esc(key(w.m))}" aria-label="Open ${esc(w.m.n)}">${poster(w.m.p, "w92")}</button><div class="body" data-open="${esc(key(w.m))}">
         <b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-        ${(() => { const l = provCache[key(w.m)]?.l || [], m = l.filter(p => svc.has(p.id)), show = (m.length ? m : l).slice(0, 3); return show.length ? `<span class="provs${m.length ? " on-mine" : ""}">${provLogos(show, svc)}${!m.length && l.length > 3 ? `<i>+${l.length - 3}</i>` : ""}</span>` : ""; })()}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
+        ${(() => { const l = provCache[key(w.m)]?.l || [], m = l.filter(p => svc.has(p.id)), show = (m.length ? m : l).slice(0, 3); return show.length ? `<span class="provs${m.length ? " on-mine" : ""}">${provLogos(show, svc)}${!m.length && l.length > 3 ? `<i>+${l.length - 3}</i>` : ""}</span>` : ""; })()}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · watched by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
       </div>${seenTag(w.m.n)}</div>`;
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
     <div class="wl-head"><h3>Club watchlist</h3><button class="primary" id="cwAdd">+ Add</button></div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
-    ${base.length ? `<div class="wl-views">${chip("common", "Nobody's seen", common.length)}${chip("all", "Everything", base.length)}${people.map(p => chip(p.id, p.name, p.n)).join("")}</div>` : ""}
+    ${base.length ? `<div class="wl-views">${chip("common", "Nobody's watched", common.length)}${chip("all", "Everything", base.length)}${people.map(p => chip(p.id, p.name, p.n)).join("")}</div>` : ""}
     ${base.length ? `<div class="wl-tools"><button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button></div>` : ""}
     ${mixed || items.length > 12 || wlQ ? `<div class="wl-tools">${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Filter" value="${esc(wlQ)}" autocomplete="off">` : ""}
       ${mixed ? `<span class="seg">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${wlType === k ? "on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</span>` : ""}</div>` : ""}
     ${person ? (() => {
       const who = wlView === me.id ? "" : esc(s.members.get(wlView)?.name || "They"), recs = items.filter(w => sawBy(w.m.n, wlView)), wants = items.filter(w => !sawBy(w.m.n, wlView));
-      return `<h4 class="wl-sec">${who ? `${who} recommends` : "Seen it, recommend"} <i>${recs.length}</i></h4><div class="wl-list">${recs.map(row).join("") || `<p class="hint">${who ? "Nothing yet." : "Tap Seen? on anything you've watched and liked, or + Add › Recommend."}</p>`}</div>
+      return `<h4 class="wl-sec">${who ? `${who} recommends` : "Watched it, recommend"} <i>${recs.length}</i></h4><div class="wl-list">${recs.map(row).join("") || `<p class="hint">${who ? "Nothing yet." : "Tap Watched? on anything you've watched and liked, or + Add › Recommend."}</p>`}</div>
         <h4 class="wl-sec">${who ? `${who} wants to watch` : "I want to watch"} <i>${wants.length}</i></h4><div class="wl-list">${wants.map(row).join("") || `<p class="hint">Nothing yet.</p>`}</div>`;
-    })() : `<div class="wl-list">${shown.map(row).join("") || `<p class="hint">${base.length ? (wlView === "common" ? "Everything on the list has been seen by someone." : "Nothing here.") : "Empty for now. Tap + Add to bring in your IMDb watchlist, then tap a title to suggest it to friends."}</p>`}</div>
+    })() : `<div class="wl-list">${shown.map(row).join("") || `<p class="hint">${base.length ? (wlView === "common" ? "Everything on the list has been watched by someone." : "Nothing here.") : "Empty for now. Tap + Add to bring in your IMDb watchlist, then tap a title to suggest it to friends."}</p>`}</div>
     ${!wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
   </div>`;
 }
@@ -961,7 +961,7 @@ function openTitle(s, m, focusSuggest) {
   const bg = el(`<div class="sheet-bg"><div class="sheet title-sheet" role="dialog" aria-label="${esc(m.n)}">
     <div class="ts-head">${poster(m.p, "w154")}<div><h3>${esc(m.n)}${m.y ? ` <small class="hint">${esc(m.y)}</small>` : ""}</h3>
       <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? `On the list of ${esc([...wl.adders.entries()].map(([a, n]) => a === me.id ? "you" : n).join(", "))}` : ""}</small>
-      <small class="hint">${seen.length ? `Seen by ${esc(seen.join(", "))}` : "Nobody has seen it yet"}</small>
+      <small class="hint">${seen.length ? `Watched by ${esc(seen.join(", "))}` : "Nobody has watched it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
@@ -1057,14 +1057,14 @@ function bindWl(s, cands) {
       <h4 class="wl-sec">Import from IMDb or Letterboxd</h4>
       <div class="imdb-steps"><a class="btn" href="https://www.imdb.com/list/watchlist/" target="_blank" rel="noopener" data-a="go">1 · Export from IMDb ↗</a><a class="btn" href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener" data-a="go">1 · Export from Letterboxd ↗</a></div>
       <button class="primary" data-a="file">2 · Pick the file</button>
-      <small class="hint">Watchlists land on your list. Ratings, watched or diary files count as seen (with your stars) and become your recommendations. IMDb: tap ⋯ › Export, then download it from <a class="link" href="https://www.imdb.com/exports/" target="_blank" rel="noopener" data-a="go">your Exports page ↗</a>. Letterboxd: pick the ZIP as it is.</small>
+      <small class="hint">Watchlists land on your list. Ratings, watched or diary files count as watched (with your stars) and become your recommendations. IMDb: tap ⋯ › Export, then download it from <a class="link" href="https://www.imdb.com/exports/" target="_blank" rel="noopener" data-a="go">your Exports page ↗</a>. Letterboxd: pick the ZIP as it is.</small>
       <h4 class="wl-sec">Add one title</h4>
       <button data-a="search">Search a film or series</button>
-      <button data-a="rec">Recommend something I've seen</button>
+      <button data-a="rec">Recommend something I've watched</button>
       ${saved ? `<button data-a="saved">My Marquee watchlist (${saved})</button>` : ""}
       <button data-a="x">Cancel</button></div></div>`);
     document.body.appendChild(bg);
-    bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "rec") openSearch("Recommend something you've seen", m => addAll([m], m.n, true)); else if (a === "search") fromSearch(); else if (a === "saved") fromSaved(); });
+    bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "rec") openSearch("Recommend something you've watched", m => addAll([m], m.n, true)); else if (a === "search") fromSearch(); else if (a === "saved") fromSaved(); });
   });
   // Imports: IMDb CSV (watchlist or ratings) and Letterboxd (watchlist, ratings, watched or diary CSV, or the whole export ZIP).
   const pool = async (list, fn, label) => {
@@ -1114,7 +1114,7 @@ function bindWl(s, cands) {
           const r2 = extra ? await fromLbRows(extra, "seen") : { out: [], missed: 0, total: 0 };
           const have = new Set(r1.out.map(key)), all = [...r1.out, ...r2.out.filter(m => !have.has(key(m)))];
           addAll(all, "From their Letterboxd films", true);
-          msg.push(`${all.length} films you've seen added to your recommendations.`);
+          msg.push(`${all.length} films you've watched added to your recommendations.`);
         }
         status(msg.join(" "));
         return;
@@ -1215,7 +1215,7 @@ function historyHtml(s) {
     </div><button class="primary" id="wrapShare">Share as an Instagram post</button></div>`;
   })() : "";
   return head + wrap
-    + (items.length ? items.map(card).join("") : `<div class="fr-card"><p class="hint">Nothing watched yet. When someone taps Seen? on a title, it lands here with their stars and review.</p></div>`)
+    + (items.length ? items.map(card).join("") : `<div class="fr-card"><p class="hint">Nothing watched yet. When someone taps Watched? on a title, it lands here with their stars and review.</p></div>`)
     + (past.length ? `<div class="fr-card"><h3>Past outings</h3>${past.map(o => `<div class="out-i">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "");
 }
 
@@ -1367,7 +1367,7 @@ function openReview(s, sk) {
     <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done">
     ${m && s.members.size > 1 ? `<label class="rev-rec"><input type="checkbox" id="revRec"> Recommend this to your friends</label>` : ""}
-    <button class="primary" id="revGo">Save</button><button id="revSkip">Just mark as seen</button></div></div>`);
+    <button class="primary" id="revGo">Save</button><button id="revSkip">Just mark as watched</button></div></div>`);
   document.body.appendChild(bg);
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
@@ -1378,11 +1378,11 @@ function openReview(s, sk) {
     act("saw", { sk, v: 1, ...(sc ? { s: sc } : {}), ...(x ? { x } : {}) }, news);
     // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
     for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
-    // Recommend: it goes on the club watchlist under "Seen it, recommend" and lands in everyone else's For you to accept.
+    // Recommend: it goes on the club watchlist under "Watched it, recommend" and lands in everyone else's For you to accept.
     if (rec && m) {
       const s2 = derive(active().id), others = realIds(s2).filter(id => id !== me.id && !s2.saw[sk]?.get(id)?.v);
       if (!s2.wl.has(key(m))) act("wl", { m });
-      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 0 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Seen it and says you should too." } : null);
+      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 0 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Watched it and says you should too." } : null);
       M.toast(`Recommended ${m.n} to your friends.`);
     }
     if (m && (sc || x)) {
