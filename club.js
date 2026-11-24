@@ -61,7 +61,8 @@ let activeId = LS.get("marqueeClubActive", null);
 const evKey = id => "marqueeClubEv_" + id;
 const store = {};                                         // club id -> { event id: event }
 const evs = id => (store[id] ||= LS.get(evKey(id), {}));
-const save = id => LS.set(evKey(id), store[id] || {});
+// Merge what's already stored before writing, so events another tab or the account sync just wrote are never overwritten.
+const save = id => { const m = store[id] ||= {}, cur = LS.get(evKey(id), {}); for (const k in cur) if (!(k in m)) m[k] = cur[k]; LS.set(evKey(id), m); };
 const active = () => clubs().find(c => c.id === activeId) || clubs()[0] || null;
 
 function addClub(c) {

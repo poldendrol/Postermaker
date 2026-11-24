@@ -19,6 +19,12 @@ const write = (k, v) => { try { setRaw.call(localStorage, k, v); } catch {} };
 const parse = s => { try { return JSON.parse(s); } catch { return s; } };
 const DEV = (() => { let d = sessionStorage.getItem("marqueeDev"); if (!d) { d = Math.random().toString(36).slice(2, 10); try { sessionStorage.setItem("marqueeDev", d); } catch {} } return d; })();
 
+// Club histories can get big (imports add hundreds of events), so they're gzipped to fit Firestore's 1 MB document limit.
+const GZ = "gz1:", canGz = typeof CompressionStream === "function";
+const b64e = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+const gz = async str => canGz ? GZ + b64e(new Uint8Array(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer())) : str;
+const gunz = async v => typeof v === "string" && v.startsWith(GZ) ? await new Response(new Blob([Uint8Array.from(atob(v.slice(GZ.length)), c => c.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream("gzip"))).text() : v;
+
 // Combine this device's copy with the account's copy without losing anything from either side.
 const idOf = x => x && typeof x === "object" ? (x.id != null ? `${x.type || ""}:${x.id}` : x.key ?? x.at ?? x.t ?? JSON.stringify(x)) : JSON.stringify(x);
 function mergeVal(k, local, remote) {
@@ -42,22 +48,23 @@ async function start() {
   const auth = A.getAuth(app), db = F.getFirestore(app);
   let user = null, unsub = null, timer = null, busy = false, stale = false;
 
-  const snapshot = () => { const d = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (synced(k)) d[k] = raw(k); } return d; };
+  const snapshot = async () => { const d = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (synced(k)) d[k] = raw(k); } for (const k of Object.keys(d)) if (k.startsWith("marqueeClubEv_") && d[k]?.length > 2000) { try { d[k] = await gz(d[k]); } catch {} } return d; };
   const push = async () => {
     if (!user) return; clearTimeout(timer); timer = null;
-    const d = snapshot(), size = Object.values(d).reduce((n, v) => n + (v?.length || 0), 0);
-    if (size > 900000) for (const k of Object.keys(d).filter(k => k.startsWith("marqueeClubEv_"))) delete d[k]; // stay under Firestore's 1 MB
+    const d = await snapshot(), size = Object.values(d).reduce((n, v) => n + (v?.length || 0), 0);
+    if (size > 900000) { console.warn("Marquee sync: too big, leaving out the largest club histories"); for (const k of Object.keys(d).filter(k => k.startsWith("marqueeClubEv_")).sort((a, b) => d[b].length - d[a].length)) { if (Object.values(d).reduce((n, v) => n + (v?.length || 0), 0) <= 900000) break; delete d[k]; } }
     try { await F.setDoc(F.doc(db, "sync", user.uid), { d, dev: DEV, t: Date.now() }); setStatus(); } catch (e) { console.error(e); setStatus("Couldn't save to your account. It'll try again."); }
   };
   // Save automatically shortly after anything worth syncing changes.
   Storage.prototype.setItem = function (k, v) { setRaw.call(this, k, v); if (this === localStorage && user && synced(k) && !busy) { clearTimeout(timer); timer = setTimeout(push, 2500); } };
   addEventListener("pagehide", () => { if (timer) push(); });
 
-  const apply = remote => {
+  const apply = async remote => {
+    const plain = {};
+    for (const [k, v] of Object.entries(remote || {})) { if (!synced(k)) continue; try { plain[k] = await gunz(v); } catch (e) { console.error(e); } }
     busy = true; let changed = false;
     try {
-      for (const [k, v] of Object.entries(remote || {})) {
-        if (!synced(k)) continue;
+      for (const [k, v] of Object.entries(plain)) {
         const cur = raw(k), next = mergeVal(k, cur, v);
         if (next != null && next !== cur) { write(k, next); changed = true; }
       }
@@ -70,16 +77,16 @@ async function start() {
     if (!u) return;
     const ref = F.doc(db, "sync", u.uid);
     let first = true;
-    unsub = F.onSnapshot(ref, snap => {
+    unsub = F.onSnapshot(ref, async snap => {
       const data = snap.exists() ? snap.data() : null;
       if (first) {
         first = false;
-        const changed = apply(data?.d);
+        const changed = await apply(data?.d);
         push();
         if (changed && !sessionStorage.getItem("marqueeSyncReloaded")) { try { sessionStorage.setItem("marqueeSyncReloaded", "1"); } catch {} toast("Synced with your account."); setTimeout(() => location.reload(), 700); }
         return;
       }
-      if (data && data.dev !== DEV && apply(data.d)) { stale = true; if (document.hidden) location.reload(); else setStatus("Updated from another device. It shows the next time you open Marquee."); }
+      if (data && data.dev !== DEV && await apply(data.d)) { stale = true; if (document.hidden) location.reload(); else setStatus("Updated from another device. It shows the next time you open Marquee."); }
     }, e => { console.error(e); setStatus("Couldn't reach your account."); });
   });
   document.addEventListener("visibilitychange", () => { if (stale && document.visibilityState === "visible") location.reload(); });
