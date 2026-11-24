@@ -5,7 +5,7 @@
 // missing. That way the club's state survives as long as any member still has it.
 const M = window.Marquee;
 const $ = id => document.getElementById(id);
-const view = $("clubView"), hist = $("histView"), lead = $("leadView");
+const view = $("clubView"), hist = $("histView"), lead = $("leadView"), mwView = $("mwView");
 const APP_URL = location.origin + location.pathname;
 const NTFY = window.MARQUEE_NTFY || "https://ntfy.sh";
 const TAG = "mqc1:";
@@ -448,6 +448,7 @@ function render() {
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
     $("hsGo").onclick = () => M.setView("club");
     if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching, reviews and outings get ranked here.</p></div>`;
+    if (mwView) mwView.innerHTML = `<div class="fr-card"><h3>My watched list</h3><p class="hint">Start or join a movie club first, then everything you watch is logged here with its date.</p></div>`;
     return;
   }
   if (pendingInvite) { activeId = pendingInvite.id; LS.set("marqueeClubActive", activeId); pendingInvite = null; }
@@ -1358,7 +1359,7 @@ function historyHtml(s) {
 const CH_WORDS = ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const chapterWord = n => CH_WORDS[n - 1] || String(n);
 // The club page is split into tabs so nothing needs a long scroll on a phone.
-let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "monthly", cal: "monthly" }[t] || t; })();
+let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "monthly", cal: "monthly", mine: "weekly" }[t] || t; })();
 function setClubTab(t) { clubTab = t; try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
 function renderClub() {
   const c = active(), s = derive(c.id); lastState = s;
@@ -1388,7 +1389,7 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["weekly", "At home", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot], ["mine", "My watched", false]]
+    <div class="club-tabs" role="tablist">${[["weekly", "At home", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c1"><h2 class="sec-h">At home <small>suggest, watch, talk</small></h2>
 
@@ -1414,12 +1415,11 @@ function renderClub() {
         </div>
       </details>
     </div>
-    </div><div class="ccol c3"><h2 class="sec-h">My watched list <small>what you've seen, by date</small></h2>
-    ${myWatchedCard(s)}
     </div>`;
 
   hist.innerHTML = historyHtml(s);
   if (lead) { lead.innerHTML = leadersHtml(s); bindLeaders(); }
+  if (mwView) { mwView.innerHTML = myWatchedCard(s); mwView.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.open)); }
   bind(c, s, cands, movie);
   bindCinema(s);
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
@@ -1518,7 +1518,7 @@ function myWatchedCard(s) {
     const mo = w.d.slice(0, 7), head = mo !== lastMo ? `<h5 class="mw-mo">${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { month: "long" }))}</h5>` : ""; lastMo = mo;
     return `${head}<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d"><b>${+w.d.slice(8)}</b><small>${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { weekday: "short" }))}</small></span>${poster(w.m.p, "w92")}<div class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">${w.ss ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}</b>${w.s ? `<span class="stars">${"★".repeat(w.s)}${"☆".repeat(5 - w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`;
   }).join("");
-  return `<div class="fr-card" data-tab="mine" id="mwCard">
+  return `<div class="fr-card" id="mwCard">
     <div class="wl-head"><h3>${whoName ? `${esc(whoName)}'s watched list` : "My watched list"}</h3>${whoName ? "" : `<button class="primary" id="mwLog">+ Log</button>`}</div>
     ${ppl.length ? `<div class="wl-views">${[["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => `<button class="chip${id === mwWho ? " on" : ""}" data-mww="${esc(id)}">${esc(n)}</button>`).join("")}</div>` : ""}
     ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
