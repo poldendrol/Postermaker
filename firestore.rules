@@ -29,6 +29,11 @@ service cloud.firestore {
       }
     }
 
+    // Account sync: one private document per person with their Marquee data. Only they can read or write it.
+    match /sync/{userId} {
+      allow read, write: if signedIn() && uid() == userId;
+    }
+
     // Friend codes point to a user id. Codes can't be changed or taken over.
     match /codes/{code} {
       allow read: if signedIn();

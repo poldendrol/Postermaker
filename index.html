@@ -597,6 +597,11 @@ footer { padding-left: 0; }
 .imdb-steps { display: flex; gap: 8px; }
 .imdb-steps > * { flex: 1 1 0; }
 .imdb-steps .btn { display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 10px 8px; font-weight: 700; font-size: 14px; color: inherit; background: var(--field); }
+.acct form { display: flex; flex-direction: column; gap: 8px; }
+.acct .row-btns { display: flex; gap: 8px; }
+.acct .row-btns button { flex: 1 1 0; }
+.acct-me { margin: 4px 0; }
+.acct-err:not([hidden]) { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -750,6 +755,7 @@ footer { padding-left: 0; }
 
       <section class="section s-set v-settings">
         <h2>Settings</h2>
+        <div class="imp acct" id="acct" hidden></div>
         <button class="primary" id="invite">Invite friends to Marquee</button>
         <label>Your Instagram handle (shown on posts) <input type="text" id="handle" placeholder="@yourname"></label>
         <label>My own hashtags (added to every caption) <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
@@ -2124,6 +2130,7 @@ footer { padding-left: 0; }
 </script>
 <script src="firebase-config.js"></script>
 <script type="module" src="friends.js"></script>
+<script type="module" src="account.js"></script>
 <script type="module" src="club.js"></script>
 </body>
 </html>
