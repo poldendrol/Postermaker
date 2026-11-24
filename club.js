@@ -868,7 +868,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     if (list.some(w => !genreCache[key(w.m)])) setTimeout(() => fillGenres(list), 0);
     const groups = {}; for (const w of list) (groups[genreOf(w.m) || "Loading…"] ||= []).push(w);
     return Object.entries(groups).sort((a, b) => (a[0] === "Loading…") - (b[0] === "Loading…") || (a[0] === "Other") - (b[0] === "Other") || b[1].length - a[1].length)
-      .map(([g, ws]) => `<div class="g-row"><h5 class="g-h">${esc(g)} <i>${ws.length}</i></h5><div class="g-scroll">${ws.map(tile).join("")}</div></div>`).join("");
+      .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreOpen.has(g) ? " open" : ""}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
     <div class="wl-head"><div class="seg wl-mode" role="tablist"><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch list <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club watchlist</button></div><button class="primary" id="cwAdd">+ Add</button></div>
@@ -889,6 +889,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
 }
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
+const genreOpen = new Set(); // genre sections you opened (folded by default so a long list stays a short overview)
 let genreBusy = false, wlByGenre = LS.get("marqueeWlByGenre", true);
 async function fillGenres(items) {
   if (genreBusy) return;
@@ -1221,6 +1222,7 @@ function bindWl(s, cands) {
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
   $("wlUnseen")?.addEventListener("click", () => { wlUnseen = !wlUnseen; LS.set("marqueeWlUnseen", wlUnseen); wlAll = false; render(); });
   $("wlMore")?.addEventListener("click", () => { wlAll = true; render(); });
+  view.querySelectorAll("details.g-sec").forEach(d => d.addEventListener("toggle", () => { d.open ? genreOpen.add(d.dataset.g) : genreOpen.delete(d.dataset.g); }));
   $("wlGenre")?.addEventListener("click", () => { wlByGenre = !wlByGenre; LS.set("marqueeWlByGenre", wlByGenre); render(); });
   $("wlStream")?.addEventListener("click", () => { if (!myServices().size) { M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = !wlStream; render(); });
   view.querySelectorAll("[data-wldrop]").forEach(b => b.onclick = () => { const w = s.wl.get(b.dataset.wldrop); if (w) act("wldrop", { m: w.m }); });

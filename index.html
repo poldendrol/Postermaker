@@ -732,11 +732,14 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
 
 /* Watchlist as poster tiles (Netflix-style), grouped in genre rows */
 .wl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
-.g-row { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.g-h { margin: 6px 0 0; font-size: 15px; font-weight: 800; }
-.g-h i { font-style: normal; font-weight: 600; color: var(--muted); font-size: 12px; }
-.g-scroll { display: grid; grid-auto-flow: column; grid-auto-columns: 112px; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 6px; scrollbar-width: thin; }
-.g-scroll > .wl-tile { scroll-snap-align: start; }
+.g-sec { border-top: 1px solid var(--line); }
+.g-sec > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 11px 2px; font-size: 15px; font-weight: 800; }
+.g-sec > summary::-webkit-details-marker { display: none; }
+.g-sec > summary::after { content: "›"; margin-left: auto; font-size: 20px; color: var(--muted); transition: transform .15s; }
+.g-sec[open] > summary::after { transform: rotate(90deg); }
+.g-sec > summary i { font-style: normal; font-weight: 600; color: var(--muted); font-size: 12px; background: var(--field); padding: 2px 8px; border-radius: 99px; }
+.g-sec > .wl-grid { padding-bottom: 12px; }
+.wl-tile { scroll-snap-align: start; }
 .wl-tile { position: relative; padding: 0; border: 0; background: var(--field); border-radius: 10px; overflow: hidden; aspect-ratio: 2 / 3; cursor: pointer; text-align: left; display: block; width: 100%; }
 .wl-tile > img, .wl-tile > .ph { position: absolute; inset: 0; width: 100% !important; height: 100% !important; object-fit: cover; border-radius: 0; }
 .wl-tile:hover > img { transform: scale(1.04); transition: transform .2s; }
