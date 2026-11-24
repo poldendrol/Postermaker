@@ -2134,7 +2134,20 @@ footer { padding-left: 0; }
   $("install").onclick = async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch {} installEvt = null; $("install").hidden = true; };
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   if (standalone) $("installHint").textContent = "You're using the installed app.";
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  // Pick up new versions right away: check on open and whenever the app comes back to the front, then reload once.
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    const hadSw = !!navigator.serviceWorker.controller; let reloaded = false;
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+      const check = () => reg.update().catch(() => {});
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(); });
+      setInterval(check, 5 * 60 * 1000);
+    }).catch(() => {});
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadSw || reloaded) return; reloaded = true;
+      const busy = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.value;
+      if (busy) addEventListener("blur", () => location.reload(), { once: true, capture: true }); else location.reload();
+    });
+  }
 
   // ---------- boot ----------
   { const v = new URLSearchParams(location.search).get("view"); if (v) { document.body.dataset.view = v; history.replaceState(null, "", location.pathname + location.search.replace(/[?&]view=[^&]*/, "").replace(/^&/, "?")); } }
