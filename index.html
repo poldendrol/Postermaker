@@ -771,6 +771,10 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
         <div class="swatches" id="colors" aria-label="Color"></div>
         </div>
         <div class="pane caption" data-pane="cap" hidden>
+        <div class="row cap-me">
+          <label>Instagram handle <input type="text" id="handle" placeholder="@yourname"></label>
+          <label>Your hashtags <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
+        </div>
         <textarea id="caption" aria-label="Instagram caption"></textarea>
         <div class="actions"><button id="copyCap">Copy caption</button></div>
         </div>
@@ -830,8 +834,6 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
         <div class="imp" id="setStream"></div>
         <div class="imp" id="setPush"></div>
         <button class="primary" id="invite">Invite friends to Marquee</button>
-        <label>Your Instagram handle (shown on posts) <input type="text" id="handle" placeholder="@yourname"></label>
-        <label>My own hashtags (added to every caption) <input type="text" id="myTags" placeholder="#moviebuff #mypicks"></label>
         <div class="imp">
           <b>Use Marquee like an app</b>
           <button class="primary" id="install" hidden>Install on this device</button>
