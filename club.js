@@ -525,6 +525,7 @@ async function loadCine() {
     try { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) continue; cine = await r.json(); indexCine(); const box = $("cbCal"); if (box && box._redraw) box._redraw(); return; } catch {}
   }
 }
+let calAll = LS.get("marqueeCalAll", false); // false: the cinema calendar shows outings and Kinepolis releases only
 function cineHtml(dayIso) {
   if (!cine && !kp.length) return "";
   const off = cineOff();
@@ -533,8 +534,8 @@ function cineHtml(dayIso) {
   const kpFilm = (f, tag) => `<div class="cine-f"><span class="ct">${tag}</span><a href="${esc(KP_URL)}" target="_blank" rel="noopener">${esc(f.m.n)}</a><span class="cf-acts"><button class="link" data-cn="${esc(JSON.stringify({ c: "Kinepolis Gent", d: dayIso, t: f.m.n, u: KP_URL, h: [] }))}" title="Suggest for cinema night" aria-label="Suggest for cinema night">+🎟</button></span></div>`;
   const kpHtml = opens.length || running.length ? `<div class="cine-c"><span class="cine-name">Kinepolis Gent <small class="hint">times on Kinepolis</small></span>${opens.map(f => kpFilm(f, "Opens")).join("")}${running.slice(0, kpAll ? 99 : 8).map(f => kpFilm(f, "Showing")).join("")}${!kpAll && running.length > 8 ? `<button class="link" id="kpMore">+ ${running.length - 8} more</button>` : ""}</div>` : "";
   const chips = `<div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>`;
-  const list = cineByDay[dayIso] || [];
-  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${kpHtml || `<small class="hint">No screenings listed for this day.</small>`}<a class="link kp-link" href="https://kinepolis.be/nl/bioscopen/kinepolis-gent" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a></div>`;
+  const list = calAll ? cineByDay[dayIso] || [] : [];
+  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${calAll ? chips : ""}${kpHtml || `<small class="hint">${calAll ? "No screenings listed for this day." : "Nothing opening this day."}</small>`}<a class="link kp-link" href="https://kinepolis.be/nl/bioscopen/kinepolis-gent" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a></div>`;
   const by = {};
   for (const x of list) { const f = ((by[x.c] ||= {})[x.t] ||= { t: x.t, u: x.u, h: [] }); if (x.h && !f.h.includes(x.h)) f.h.push(x.h); }
   return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
@@ -604,8 +605,8 @@ function calHtml(s, ev, mode) {
     const d = day.getDate(), k = ymd(day), di = iso(day), e = ev[k], cls = `${k === today ? " today" : ""}${k === st.sel ? " sel" : ""}`;
     const lbl = d === 1 || i === 0 ? day.toLocaleDateString(undefined, { month: "short" }) + " " + d : d;
     const sg = sugBy[di] || [];
-    const nc = home ? sg.length : (cineByDay[di] || []).length + kpOpening(di).length;
-    const cnt = nc ? `<i class="cnt" title="${nc} ${home ? "to watch" : "screenings in Ghent"}">${nc}</i>` : "";
+    const nc = home ? sg.length : (calAll ? (cineByDay[di] || []).length : 0) + kpOpening(di).length;
+    const cnt = nc ? `<i class="cnt" title="${nc} ${home ? "to watch" : calAll ? "screenings in Ghent" : "new at Kinepolis"}">${nc}</i>` : "";
     const startSg = sg.filter(g => g.d === di); // the poster only on the day it was suggested; reminders after that are just a number
     const th = e ? poster(e.m.p, "w92") : startSg.length ? poster(startSg[0].m.p, "w92") : "";
     if (!th && !nc) { cells += `<button class="cal-d${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}"><em>${lbl}</em></button>`; continue; }
@@ -623,7 +624,7 @@ function calHtml(s, ev, mode) {
   }
   return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
-    <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Outing</span><span><i class="k cnt">3</i>Screenings in Ghent</span>`}</div>
+    <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Outing</span><span><i class="k cnt">3</i>${calAll ? "Screenings in Ghent" : "New at Kinepolis"}</span><button class="chip${calAll ? " on" : ""}" id="calAll">All Ghent screenings</button>`}</div>
     <div class="cal-info">${info}${home ? "" : cineHtml(selIso)}</div>`;
 }
 function bindCal(s, ev, mode) {
@@ -633,6 +634,7 @@ function bindCal(s, ev, mode) {
   box.querySelectorAll("[data-cine]").forEach(b => b.onclick = () => { const off = cineOff(), c = b.dataset.cine; off.has(c) ? off.delete(c) : off.add(c); LS.set("marqueeCinemasOff", [...off]); indexCine(); redraw(); });
   box.querySelectorAll("[data-cn]").forEach(b => b.onclick = () => { const x = JSON.parse(b.dataset.cn); pickTime(x, h => cineNominate({ c: x.c, d: x.d, h, u: x.u }, x.t)); });
   box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { st.off += +b.dataset.cm; redraw(); });
+  box.querySelector("#calAll")?.addEventListener("click", () => { calAll = !calAll; LS.set("marqueeCalAll", calAll); redraw(); });
   box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { st.sel = b.dataset.cal; kpAll = false; redraw(); });
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.open));
   box.querySelector("#kpMore")?.addEventListener("click", () => { kpAll = true; redraw(); });
@@ -846,7 +848,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       </div>${seenTag(w.m.n)}</div>`;
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="wl-head"><div class="seg wl-mode" role="tablist"><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">My watchlist <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club watchlist</button></div><button class="primary" id="cwAdd">+ Add</button></div>
+    <div class="wl-head"><div class="seg wl-mode" role="tablist"><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch list <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club watchlist</button></div><button class="primary" id="cwAdd">+ Add</button></div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${wlMode === "club" && friends.length ? `<div class="wl-views">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
@@ -1001,14 +1003,11 @@ function openTitle(s, m, focusSuggest) {
     <div class="ts-info"><small class="hint">Loading info…</small></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
-    <h4 class="wl-sec">Suggest it</h4>
-    ${others.length ? `<div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
-      <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button>`
-      : `<p class="hint">Invite friends to the club first, then you can suggest titles to them.</p>`}
+    ${others.length ? `<button class="ts-sug-open" id="tsSugOpen">📣 Suggest to friends</button><div class="ts-sug" hidden><div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
+      <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button></div>` : ""}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
-    ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); return rs.length ? `<h4 class="wl-sec">Reviews <i>${rs.length}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${"★".repeat(x.s)}${"☆".repeat(5 - x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>` : ""; })()}
-    <h4 class="wl-sec">Talk about it <i>${talk.length || ""}</i></h4>
-    <div class="ts-talk">${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || `<small class="hint">No thoughts yet.</small>`}</div>
+    ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
+      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev"><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${"★".repeat(x.s)}${"☆".repeat(5 - x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     <button id="tsClose">Close</button></div></div>`);
   document.body.appendChild(bg); titleSheet = bg;
@@ -1046,7 +1045,9 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("#tsSay").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) say(); });
   const close = () => { bg.remove(); if (titleSheet === bg) titleSheet = null; };
   bg.addEventListener("click", e => { if (e.target === bg || e.target.id === "tsClose") close(); });
-  if (focusSuggest) setTimeout(() => bg.querySelector(".ts-to")?.scrollIntoView({ block: "center" }), 50);
+  const sugOpenBtn = bg.querySelector("#tsSugOpen"), sugBox = bg.querySelector(".ts-sug");
+  sugOpenBtn?.addEventListener("click", () => { sugBox.hidden = false; sugOpenBtn.hidden = true; sugBox.scrollIntoView({ block: "nearest" }); });
+  if (focusSuggest && sugOpenBtn) { sugOpenBtn.click(); setTimeout(() => bg.querySelector(".ts-to")?.scrollIntoView({ block: "center" }), 50); }
 }
 
 // ---------- test friends (only on this device) ----------
@@ -1228,7 +1229,13 @@ async function shareWrap() {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 // ---------- Leaderboard: every category the club's own data can rank, per year ----------
-let ldYear = new Date().getFullYear(), ldOpen = new Set();
+let ldYear = new Date().getFullYear(), ldOpen = new Set(), lastWrapHtml = "";
+// Past cinema outings (shown at the bottom of At the cinema).
+function pastOutingsHtml(s) {
+  const today = iso(new Date());
+  const past = [...s.outs.values()].filter(o => o.sc?.d && o.sc.d < today && o.ins.size).sort((a, b) => b.sc.d.localeCompare(a.sc.d)).slice(0, 12);
+  return past.length ? `<div class="fr-card" data-tab="monthly"><h3>Past outings</h3>${past.map(o => `<div class="out-i" data-open="${esc(key(o.m))}">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "";
+}
 function leadersHtml(s) {
   const ids = [...s.members.keys()], nm = id => id === me.id ? "You" : s.members.get(id)?.name || "Someone";
   const inYr = d => d && +String(d).slice(0, 4) === ldYear, yrOf = t => new Date(t).getFullYear();
@@ -1294,9 +1301,11 @@ function leadersHtml(s) {
   return `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">Leaderboard</h2></div>
     ${yrs.length > 1 ? `<div class="wl-views">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>` : ""}
     <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
+    ${ldYear === new Date().getFullYear() ? lastWrapHtml : ""}
     <div class="ld-grid">${[...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))].join("")}</div>`;
 }
 function bindLeaders() {
+  $("wrapShare")?.addEventListener("click", shareWrap);
   lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
   lead.querySelectorAll("[data-ldmore]").forEach(b => b.onclick = () => { const i = +b.dataset.ldmore; ldOpen.has(i) ? ldOpen.delete(i) : ldOpen.add(i); lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
 }
@@ -1340,7 +1349,8 @@ function historyHtml(s) {
       ${top ? `<div><small>Top reviewer</small><b>${esc(top[0] === me.id ? "You" : top[1].n)}</b><i>${top[1].c} review${top[1].c === 1 ? "" : "s"}</i></div>` : ""}
     </div><button class="primary" id="wrapShare">Share as an Instagram post</button></div>`;
   })() : "";
-  return head + wrap
+  lastWrapHtml = wrap;
+  return head
     + (items.length ? items.map(card).join("") : `<div class="fr-card"><p class="hint">Nothing watched yet. When someone taps Watched? on a title, it lands here with their stars and review.</p></div>`)
     + (past.length ? `<div class="fr-card"><h3>Past outings</h3>${past.map(o => `<div class="out-i">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "");
 }
@@ -1387,6 +1397,7 @@ function renderClub() {
     </div><div class="ccol c2"><h2 class="sec-h">At the cinema <small>go see it together</small></h2>
     ${cinemaCard(s, members)}
     <div class="fr-card" data-tab="monthly"><h3>Cinema calendar</h3><div id="cbCal">${calHtml(s, calC, "cine")}</div></div>
+    ${pastOutingsHtml(s)}
 
 
 
@@ -1396,9 +1407,6 @@ function renderClub() {
           <label>Your name <input type="text" id="cbMe" maxlength="40" value="${esc(me.name)}"></label>
           <label>Club name <input type="text" id="cbRename" maxlength="40" value="${esc(s.name || c.name)}"></label>
           <button id="cbSaveSet">Save</button>
-          ${movie ? `<button class="link" id="cbUnpick">Wrong movie locked in? Reopen last week's vote</button>` : ""}
-          <p class="hint"><b>Alerts when Marquee is closed:</b> install the free ntfy app (<a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a>, <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Android</a>), tap + and subscribe to this code to hear about new picks, nominations and comments:</p>
-          <div class="fr-row"><input type="text" readonly value="${esc(newsTopic(c.id))}" id="cbNews"><button id="cbCopyNews">Copy</button></div>
           ${others.length ? `<p class="hint">Your other clubs:</p>${others.map(o => `<button data-switch="${esc(o.id)}">Switch to ${esc(o.name)}</button>`).join("")}` : ""}
           <button id="cbNew">Start or join another club</button>
           ${hasDemo(c.id) ? `<button id="cbDemoOff">Remove test friends</button>` : `<button id="cbDemo">Add test friends (only you see them)</button>`}
@@ -1459,7 +1467,6 @@ function bind(c, s, cands, movie) {
   };
   document.querySelectorAll("#clubView [data-say], #histView [data-say]").forEach(b => b.onclick = () => sendSay(+b.dataset.say));
   document.querySelectorAll("#clubView .say input, #histView .say input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) sendSay(+i.id.slice(4)); }));
-  $("wrapShare")?.addEventListener("click", shareWrap);
   hist.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
   hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbDemo")?.addEventListener("click", addDemo);
@@ -1473,11 +1480,6 @@ function bind(c, s, cands, movie) {
     else render();
     M.toast("Saved.");
   };
-  $("cbUnpick")?.addEventListener("click", () => {
-    if (!confirm(`Take ${movie.n} off and reopen the vote? Votes and comments are kept.`)) return;
-    act("unpick", { r: cur });
-  });
-  $("cbCopyNews").onclick = async () => { try { await navigator.clipboard.writeText(newsTopic(c.id)); M.toast("Copied."); } catch { $("cbNews").select(); } };
   view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => { activeId = b.dataset.switch; LS.set("marqueeClubActive", activeId); live(); render(); pull(activeId).then(render); });
   $("cbNew").onclick = () => { showStart = true; render(); };
   $("cbLeave").onclick = () => {
