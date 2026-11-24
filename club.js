@@ -866,7 +866,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="seg wl-mode" role="tablist"><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club list</button></div>
+    <div class="wl-pick" role="tablist">${[["mine", `${mineN} to watch`, "Personal list"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
