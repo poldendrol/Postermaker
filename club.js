@@ -87,7 +87,7 @@ const defaultName = () => me?.name || LS.get("marqueeMe", null)?.name || "";
 // Event: { i: id, k: kind, a: author id, n: author name, t: time, r: round, ... }
 // Kinds: meta {name, day} · join · nom {m} · drop {m} · vote {v: movie key or ""} · pick {m} · unpick
 //        say {x} · seen {s}. Nominations and votes in round r choose the movie for round r + 1.
-const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc", "sugdrop"]);
+const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc", "sugdrop", "fix"]);
 // Cinema outings: a "nom" with tr: "m" is a suggested outing (key ok = ckey). "in" { ok, v: 1|0 } joins it, "odate" { ok, sc } sets the date.
 // "sug" { m, to: [member ids] or ["*"] for everyone, d: "YYYY-MM-DD" first watch date, wk: 1 = remind weekly until seen }
 // "acc" { sg: suggestion id, v: 1|0 } = "I'll watch it in the coming week" (replaces the old weekly reminders; wk is ignored now).
@@ -107,6 +107,7 @@ function merge(clubId, list) {
     if (e.x) e.x = String(e.x).slice(0, 600);
     if (e.n) e.n = String(e.n).slice(0, 40);
     if (e.sk) e.sk = String(e.sk).slice(0, 120);
+    if (e.k === "fix") e.from = String(e.from || "").slice(0, 40);
     if (e.k === "ospot") { e.ok = String(e.ok || "").slice(0, 200); e.x = String(e.x || "").slice(0, 80); }
     if (e.k === "saw") {
       if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1;
@@ -128,9 +129,9 @@ function derive(clubId) {
   const club = clubs().find(c => c.id === clubId) || {};
   const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
-  const unpickAt = {};
+  const unpickAt = {}, fixes = {};
   for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
-  for (const e of E) {
+  for (let e of E) {
     s.members.set(e.a, { name: e.n || "Someone", last: e.t });
     if (e.k === "in" || e.k === "odate" || e.k === "ospot") {
       const o = s.outs.get(e.ok); if (!o) continue;
@@ -162,11 +163,17 @@ function derive(clubId) {
       case "vote": rd.votes.set(e.a, e.v || ""); break;
       case "seen": rd.seen.set(e.a, { s: e.s || 0, name: e.n }); break;
       case "say": if (e.sk) (s.talk[e.sk] ||= []).push(e); else rd.says.push(e); break;
-      case "sug": if (e.m && e.d) s.sugs.push({ id: e.i, m: e.m, a: e.a, by: e.n || "Someone", to: e.to, d: e.d, wk: !!e.wk, at: e.t }); break;
+      case "sug": if (e.m && e.d) s.sugs.push({ id: e.i, m: fixes[key(e.m)] || e.m, a: e.a, by: e.n || "Someone", to: e.to, d: e.d, wk: !!e.wk, at: e.t }); break;
       case "sugdrop": if (e.sg) (s.sugDrop ||= new Map()).set(e.sg, e.a); break;
       case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
-      case "wl": if (e.m) { const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
-      case "wldrop": if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
+      // "fix": someone swapped a wrong match (e.g. the 2002 film for the 2026 series) for everyone.
+      case "fix": if (e.from && e.m && e.from !== key(e.m)) {
+        const k2 = key(e.m), w = s.wl.get(e.from); fixes[e.from] = e.m;
+        if (w) { s.wl.delete(e.from); const t = s.wl.get(k2); if (t) for (const [a, n] of w.adders) t.adders.set(a, n); else s.wl.set(k2, { ...w, m: e.m }); }
+        for (const g of s.sugs) if (key(g.m) === e.from) g.m = e.m;
+      } break;
+      case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
+      case "wldrop": if (e.m && fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
       case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
@@ -248,7 +255,7 @@ async function reseed(clubId, inWindow) {
   const s = derive(clubId), keepFrom = s.cur - 1;
   const all = Object.values(evs(clubId)).filter(e => !e.gone);
   const latestMeta = all.filter(e => e.k === "meta").sort((a, b) => b.t - a.t)[0];
-  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
+  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "fix" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
   if (!missing.length) return;
   try { await send(clubId, missing); } catch {}
@@ -376,7 +383,7 @@ function openSearch(title, onPick, initial = "", foot = null) {
         if (my !== seq) return;
         items = (d.results || []).filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 12)
           .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
-        res.innerHTML = items.length ? items.map((m, i) => `<button data-i="${i}">${poster(m.p, "w92")}<span><b>${esc(m.n)}</b><br><small class="hint">${esc(m.y || "")}${m.t === "tv" ? " · series" : ""}</small></span></button>`).join("") : `<p class="hint">Nothing found.</p>`;
+        res.innerHTML = items.length ? items.map((m, i) => `<button data-i="${i}">${poster(m.p, "w92")}<span><b>${esc(m.n)}</b><br><small class="hint">${m.t === "tv" ? "📺 Series" : "🎬 Film"}${m.y ? ` · ${esc(m.y)}` : ""}</small></span></button>`).join("") : `<p class="hint">Nothing found.</p>`;
       } catch { res.innerHTML = `<p class="hint">Search isn't working right now. Check your connection.</p>`; }
     }, 300);
   });
@@ -1041,7 +1048,7 @@ function openTitle(s, m, focusSuggest) {
   const next = iso(nightAfter(now(), s.day));
   const bg = el(`<div class="sheet-bg"><div class="sheet title-sheet" role="dialog" aria-label="${esc(m.n)}">
     <div class="ts-head">${poster(m.p, "w154")}<div><h3>${esc(m.n)}${m.y ? ` <small class="hint">${esc(m.y)}</small>` : ""}</h3>
-      <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? (() => { const o = [...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n), mine = wl.adders.has(me.id); return esc(mine ? (o.length ? `On your list and ${o.join(", ")}'s` : "On your list") : `On ${o.join(", ")}'s list`); })() : ""}${wl?.adders.has(me.id) ? ` · <button class="link" data-tsdrop>remove from my list</button>` : ` · <button class="link" data-tsadd>add to my list</button>`}</small>
+      <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? (() => { const o = [...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n), mine = wl.adders.has(me.id); return esc(mine ? (o.length ? `On your list and ${o.join(", ")}'s` : "On your list") : `On ${o.join(", ")}'s list`); })() : ""}${wl?.adders.has(me.id) ? ` · <button class="link" data-tsdrop>remove from my list</button>` : ` · <button class="link" data-tsadd>add to my list</button>`}${wl ? ` · <button class="link" data-tsfix>wrong title?</button>` : ""}</small>
       <small class="hint">${seen.length ? `Watched by ${esc(seen.join(", "))}` : "Nobody has watched it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
     <div class="ts-info"><small class="hint">Loading info…</small></div>
@@ -1089,6 +1096,7 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("#tsSay").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) say(); });
   const close = () => { bg.remove(); if (titleSheet === bg) titleSheet = null; };
   bg.addEventListener("click", e => { if (e.target === bg || e.target.id === "tsClose") close(); });
+  bg.querySelector("[data-tsfix]")?.addEventListener("click", () => { bg.remove(); openSearch("Pick the right one", m2 => { if (key(m2) === key(m)) return; act("fix", { from: key(m), m: m2 }); M.toast(`Changed to ${m2.n}${m2.y ? ` (${m2.y})` : ""} for everyone.`); }, m.n); });
   bg.querySelector("[data-tsdrop]")?.addEventListener("click", () => { act("wldrop", { m }); M.toast(`${m.n} removed from your list.`); bg.remove(); });
   bg.querySelector("[data-tsadd]")?.addEventListener("click", () => { act("wl", { m }); M.toast(`${m.n} added to your list.`); bg.remove(); });
   const sugOpenBtn = bg.querySelector("#tsSugOpen"), sugBox = bg.querySelector(".ts-sug");
