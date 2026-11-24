@@ -463,12 +463,23 @@ const kpOn = () => !cineOff().has("Kinepolis Gent");
 const dayDiff = (a, b) => Math.round((new Date(a + "T12:00") - new Date(b + "T12:00")) / 864e5);
 const kpOpening = d => kpOn() ? kp.filter(f => f.d === d) : [];
 const kpRunning = d => kpOn() ? kp.filter(f => f.d < d && dayDiff(d, f.d) <= KP_RUN) : [];
+// TMDB falls back to the original script (Japanese, Korean…) when a film has no Dutch title, so fetch English too and
+// use the first title written in Latin letters.
+const latin = t => !!t && /^[\p{Script=Latin}\p{N}\p{P}\p{S}\s]+$/u.test(t);
+async function kpList(path, page = 1) {
+  const [nl, en] = await Promise.all([M.tm(path, { region: "BE", language: "nl-BE", page }), M.tm(path, { region: "BE", language: "en-US", page }).catch(() => ({ results: [] }))]);
+  const ens = new Map((en.results || []).map(x => [x.id, x]));
+  return (nl.results || []).map(x => {
+    const e = ens.get(x.id) || {};
+    const n = [x.title, e.title, x.original_title].find(latin) || e.title || x.title;
+    return { d: x.release_date || "", m: { t: "movie", i: x.id, n, y: (x.release_date || "").slice(0, 4), p: x.poster_path || e.poster_path || "" } };
+  });
+}
 async function loadKp() {
   const seen = new Set(), out = [];
   for (const [path, page] of [["/movie/now_playing", 1], ["/movie/now_playing", 2], ["/movie/upcoming", 1], ["/movie/upcoming", 2]]) {
     try {
-      const j = await M.tm(path, { region: "BE", language: "nl-BE", page });
-      for (const x of j.results || []) if (x.release_date && !seen.has(x.id)) { seen.add(x.id); out.push({ d: x.release_date, m: { t: "movie", i: x.id, n: x.title, y: x.release_date.slice(0, 4), p: x.poster_path || "" } }); }
+      for (const f of await kpList(path, page)) if (f.d && !seen.has(f.m.i)) { seen.add(f.m.i); out.push(f); }
     } catch {}
   }
   kp = out.sort((a, b) => a.d.localeCompare(b.d) || a.m.n.localeCompare(b.m.n));
@@ -640,7 +651,7 @@ function openScreenings(onPick, initial = "") {
     bg.querySelector("#scNow").innerHTML = shown.length ? `<h4 class="wl-sec">Now in cinemas · Kinepolis Gent</h4><div class="sc-now">${shown.map((m, i) => `<button data-now="${now.indexOf(m)}">${poster(m.p, "w92")}<small>${esc(m.n)}</small></button>`).join("")}</div>
       <a class="link" href="${KP_URL}" target="_blank" rel="noopener">Kinepolis Gent times ↗</a>` : "";
   };
-  M.tm("/movie/now_playing", { region: "BE", language: "nl-BE" }).then(j => { now = (j.results || []).map(x => ({ t: "movie", i: x.id, n: x.title, y: (x.release_date || "").slice(0, 4), p: x.poster_path || "" })); drawNow(); }).catch(() => {});
+  kpList("/movie/now_playing").then(l => { now = l.map(f => f.m); drawNow(); }).catch(() => {});
   bg.querySelector("#scQ")?.addEventListener("input", () => { draw(); drawNow(); });
   bg.addEventListener("click", e => {
     if (e.target === bg || e.target.id === "scCancel") { bg.remove(); return; }
