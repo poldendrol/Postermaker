@@ -832,6 +832,8 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const friends = [...s.members.entries()].filter(([id]) => id !== me.id).map(([id, m]) => ({ id, name: m.name, n: base.filter(w => w.adders.has(id) && !iSaw(w)).length })).filter(p => p.n);
   for (const id of [...wlFriends]) if (!friends.some(f => f.id === id)) wlFriends.delete(id);
   const sel = wlFriends.size ? [...wlFriends] : friends.map(f => f.id);
+  const fyNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length;
+  if (fyNew && !fyAuto) { fyAuto = true; if (sugForMe(s).some(g => sugNew(s, g))) wlMode = "fy"; }
   const mineAll = base.filter(w => w.adders.has(me.id) && !iSaw(w)), mineN = mineAll.length;
   let items = wlMode === "mine" ? mineAll : base.filter(w => !iSaw(w) && sel.some(id => w.adders.has(id)));
   const nTv = items.filter(w => w.m.t === "tv").length, mixed = nTv && nTv < items.length;
@@ -843,7 +845,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
   const shown = grouped || wlAll || wlQ ? items : items.slice(0, 20);
-  { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
+  if (wlMode !== "fy") { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
   const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const fchip = (id, l, n, on) => `<button class="chip${on ? " on" : ""}" data-wlf="${esc(id)}">${esc(l)}${n != null ? ` <i>${n}</i>` : ""}</button>`;
   // Netflix-style poster tiles: tap opens the title sheet (Watched?, remove, suggest, where to stream live there).
@@ -864,23 +866,25 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreOpen.has(g) ? " open" : ""}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="wl-head"><div class="seg wl-mode" role="tablist"><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch list <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club watchlist</button></div><button class="primary" id="cwAdd">+ Add</button></div>
+    <div class="seg wl-mode" role="tablist"><button data-wlm="fy" aria-pressed="${wlMode === "fy"}"${fyNew ? ' class="dot"' : ""}>For you${fyNew ? ` <i>${fyNew}</i>` : ""}</button><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club list</button></div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
+    ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
+    ${wlMode === "fy" ? forYouCard(s) : `
     ${wlMode === "club" && friends.length ? `<div class="wl-views">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
-    ${base.length ? `<div class="wl-tools">${wlMode === "mine" && mineN ? `<button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button>` : ""}
+    <div class="wl-tools">${wlMode === "mine" && mineN ? `<button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button>` : ""}
       ${mixed ? `<span class="seg">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${wlType === k ? "on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</span>` : ""}
-      ${items.length > 1 ? `<label class="wl-sort">Sort <select id="wlSort">${[["genre", "Genre"], ["az", "A–Z"], ["year", "Year"]].map(([k, l]) => `<option value="${k}"${wlSort === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
-      ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}</div>` : ""}
+      ${items.length > 1 ? `<label class="wl-sort"><select id="wlSort" aria-label="Sort">${[["genre", "By genre"], ["az", "A–Z"], ["year", "By year"]].map(([k, l]) => `<option value="${k}"${wlSort === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
+      ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}<button class="primary" id="cwAdd">+ Add</button></div>
     ${tiles(shown)}${items.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
-    ${!grouped && !wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}
+    ${!grouped && !wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
   </div>`;
 }
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
 const genreOpen = new Set(); // genre sections you opened (folded by default so a long list stays a short overview)
-let genreBusy = false, wlSort = LS.get("marqueeWlSort", "genre");
+let fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort", "genre");
 async function fillGenres(items) {
   if (genreBusy) return;
   const work = items.filter(w => !genreCache[key(w.m)]).slice(0, 400); if (!work.length) return;
@@ -986,14 +990,12 @@ function forYouCard(s) {
         (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : "", out ? `<button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""].filter(Boolean).join(" · ")}</small>
     </div>${out ? "" : !done && !by ? `<button class="acc-btn" data-acc="${esc(g.id)}">Accept</button>` : seenTag(g.m.n, true)}</div>`;
   };
-  return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
-    <div class="pulp-head"><span class="chapter">${fresh.length ? `${fresh.length} new` : mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
+  return `<div id="fyCard">
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
-    <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
+    <h4 class="wl-sec">New suggestions <i>${fresh.length || ""}</i></h4>
     <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
     ${due.length ? `<h4 class="wl-sec">Accepted <i>${due.length}</i></h4><div class="wl-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
     ${(() => { const seenL = sugForMeSeen(s); return seenL.length ? `<h4 class="wl-sec">Watched <i>${seenL.length}</i></h4><div class="wl-list">${seenL.map(g => row(g, false)).join("")}</div>` : ""; })()}
-    ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
 }
@@ -1125,16 +1127,16 @@ function bindWl(s, cands) {
       M.toast(`${fresh.length === 1 ? fresh[0].n : fresh.length + " titles"} marked as watched.`); return;
     }
     actMany(fresh.map(({ _s, _d, ...m }) => ["wl", { m }]), { title: `${me.name} added ${fresh.length} film${fresh.length === 1 ? "" : "s"} to the club watchlist`, body: label });
-    M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to the club watchlist.`);
+    M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your To watch list.`);
   };
-  const fromSearch = () => openSearch("Add to the club watchlist", m => addAll([m], m.n));
+  const fromSearch = () => openSearch("Add to your To watch list", m => addAll([m], m.n));
   { const so = view.querySelector("#wlSort"); if (so) so.onchange = () => { wlSort = so.value; LS.set("marqueeWlSort", wlSort); wlAll = true; render(); }; }
   view.querySelectorAll("[data-wlt]").forEach(b => b.onclick = () => { wlType = b.dataset.wlt; render(); });
   const fromSaved = () => addAll(LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv")).map(x => ({ t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" })), "From their Marquee watchlist");
   const fromFile = () => { status("Pick the file you exported from IMDb or Letterboxd."); $("wlFile").click(); };
   $("cwAdd")?.addEventListener("click", () => {
     const saved = LS.get("marqueeWatchlist", []).length;
-    const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Add to the club watchlist"><h3>Add to the club watchlist</h3>
+    const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Add to your To watch list"><h3>Add to your To watch list</h3>
       <h4 class="wl-sec">Import from IMDb or Letterboxd</h4>
       <div class="imdb-steps"><a class="btn" href="https://www.imdb.com/list/watchlist/" target="_blank" rel="noopener" data-a="go">1 · Export from IMDb ↗</a><a class="btn" href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener" data-a="go">1 · Export from Letterboxd ↗</a></div>
       <button class="primary" data-a="file">2 · Pick the file</button>
@@ -1423,7 +1425,6 @@ function renderClub() {
     ${myWatchedCard(s)}
     </div><div class="ccol c1"><h2 class="sec-h">The Club <small>suggest, watch, talk</small></h2>
 
-    ${forYouCard(s)}
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
     </div><div class="ccol c2"><h2 class="sec-h">At the cinema <small>go see it together</small></h2>
     ${cinemaCard(s, members)}
