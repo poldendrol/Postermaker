@@ -347,7 +347,7 @@ function renderStart() {
   const inv = pendingInvite;
   view.innerHTML = `
     <h2>Movie club</h2>
-    <p>Like a book club, but for movies. Every week your group watches the same movie, votes on next week's pick, and talks about it here. No accounts, nothing to install.</p>
+    <p>Like a book club, but for movies. Vote on a film or series to watch at home and talk about it here, and pick a film to go see together at the cinema. No accounts, nothing to install.</p>
     ${inv ? `<div class="fr-card">
       <h3>You're invited to ${esc(inv.name)}</h3>
       <label>Your name (the club sees this) <input type="text" id="cbName" maxlength="40" value="${esc(defaultName())}" placeholder="e.g. Bram"></label>
@@ -503,12 +503,12 @@ function calHtml(s, ev) {
     else {
       const sc = [...s.round(e.r).seen.values()].map(x => x.s).filter(Boolean);
       const a = sc.length ? ` · ${(sc.reduce((p, q) => p + q, 0) / sc.length).toFixed(1)} ★` : "";
-      info = `<b>${when} · Chapter ${chapterWord(e.r + 1)}</b><span>${e.k === "now" ? "This week: " : ""}${esc(e.m.n)}${e.m.y ? ` (${esc(e.m.y)})` : ""}<small class="hint"> · ${s.round(e.r).seen.size} watched${a}</small></span>${cineLine}`;
+      info = `<b>${when} · Chapter ${chapterWord(e.r + 1)}</b><span>${e.k === "now" ? "Now watching: " : ""}${esc(e.m.n)}${e.m.y ? ` (${esc(e.m.y)})` : ""}<small class="hint"> · ${s.round(e.r).seen.size} watched${a}</small></span>${cineLine}`;
     }
   }
   return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
-    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>This week</span><span><i class="k vote"></i>Up for vote</span><span>🎟 Cinema night</span>${cine ? `<span><i class="k cnt">3</i>Screenings in Ghent</span>` : ""}</div>
+    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>Now watching</span><span><i class="k vote"></i>Up for vote</span><span>🎟 Cinema night</span>${cine ? `<span><i class="k cnt">3</i>Screenings in Ghent</span>` : ""}</div>
     ${info || (selDay && cine) ? `<div class="cal-info">${info || `<b>${esc(nightLabel(selDay))}</b>`}${selDay ? cineHtml(iso(selDay)) : ""}</div>` : ""}`;
 }
 function bindCal(s, ev) {
@@ -542,6 +542,7 @@ async function matchMovie(title) {
   let h = 0; for (const ch of q) h = (h * 31 + ch.charCodeAt(0)) | 0;
   return { t: "movie", i: -Math.abs(h) || -1, n: q, y: yr || "", p: "" };
 }
+const KP_URL = "https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/";
 function openScreenings(onPick, initial = "") {
   const soon = new Date(); soon.setDate(soon.getDate() + 60);
   const today = iso(new Date()), until = iso(soon);
@@ -553,6 +554,7 @@ function openScreenings(onPick, initial = "") {
   const list = Object.values(films).sort((a, b) => a.t.localeCompare(b.t));
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Suggest a screening"><h3>Suggest a screening</h3>
     ${cine ? `<input type="search" id="scQ" placeholder="Filter films or cinemas" autocomplete="off">` : `<p class="hint">Ghent listings aren't loaded right now.</p>`}
+    <div id="scNow"></div>
     <div class="sc-list" id="scList"></div>
     <button id="scAny">Or search any movie</button><button id="scCancel">Cancel</button></div></div>`);
   document.body.appendChild(bg);
@@ -566,10 +568,20 @@ function openScreenings(onPick, initial = "") {
   };
   if (initial && bg.querySelector("#scQ")) { bg.querySelector("#scQ").value = initial; const hit = list.filter(f => f.t === initial); if (hit.length === 1) open = list.indexOf(hit[0]); }
   draw();
-  bg.querySelector("#scQ")?.addEventListener("input", draw);
+  // Kinepolis Gent blocks automated reading of its programme, so instead list what TMDB says is in Belgian cinemas now
+  // (wide releases all play at Kinepolis). The date and time get set after the vote.
+  let now = [];
+  const drawNow = () => {
+    const q = (bg.querySelector("#scQ")?.value || "").toLowerCase(), shown = now.filter(m => !q || m.n.toLowerCase().includes(q) || "kinepolis".includes(q));
+    bg.querySelector("#scNow").innerHTML = shown.length ? `<h4 class="wl-sec">Now in cinemas · Kinepolis Gent</h4><div class="sc-now">${shown.map((m, i) => `<button data-now="${now.indexOf(m)}">${poster(m.p, "w92")}<small>${esc(m.n)}</small></button>`).join("")}</div>
+      <a class="link" href="${KP_URL}" target="_blank" rel="noopener">Kinepolis Gent times ↗</a>` : "";
+  };
+  M.tm("/movie/now_playing", { region: "BE", language: "nl-BE" }).then(j => { now = (j.results || []).map(x => ({ t: "movie", i: x.id, n: x.title, y: (x.release_date || "").slice(0, 4), p: x.poster_path || "" })); drawNow(); }).catch(() => {});
+  bg.querySelector("#scQ")?.addEventListener("input", () => { draw(); drawNow(); });
   bg.addEventListener("click", e => {
     if (e.target === bg || e.target.id === "scCancel") { bg.remove(); return; }
     if (e.target.id === "scAny") { bg.remove(); onPick(null); return; }
+    const nb = e.target.closest("[data-now]"); if (nb) { const m = now[+nb.dataset.now]; bg.remove(); onPick({ c: "Kinepolis Gent", d: "", h: "", u: KP_URL }, m.n, m); return; }
     const t = e.target.closest("[data-f]"); if (t) { open = open === +t.dataset.f ? null : +t.dataset.f; draw(); return; }
     const sb = e.target.closest("[data-s]");
     if (sb && open != null) { const f = list[open], x = f.shows[+sb.dataset.s]; bg.remove(); onPick({ c: x.c, d: x.d, h: x.h, u: x.u }, f.t); }
@@ -603,7 +615,7 @@ function cinemaCard(s, members) {
   const going = pick ? [...mo.go.entries()].filter(([, g]) => g.v) : [], mine = pick ? mo.go.get(me.id) : null;
   const scPast = pick?.sc?.d && pick.sc.d < iso(new Date());
   return `<div class="fr-card pulp cinema" data-tab="monthly">
-    <div class="pulp-head mon"><span class="chapter">Cinema night · ${esc(monthName(cm))}</span><h2 class="bang">This month</h2></div>
+    <div class="pulp-head mon"><span class="chapter">Cinema night</span><h2 class="bang">Next outing</h2></div>
     ${pick ? `<div class="club-hero">${poster(pick.p, "w185")}<div class="body">
         <b class="t">${esc(pick.n)}${pick.y ? ` <small class="hint">(${esc(pick.y)})</small>` : ""}</b>
         ${pick.sc?.d ? `<span class="ticket-line">🎟 ${esc(scLabel(pick.sc))}</span>` : `<span class="ticket-line">📅 No date yet</span>`}
@@ -614,7 +626,7 @@ function cinemaCard(s, members) {
           <button class="${mine?.v ? "on vote" : "primary"}" data-go="1">${mine?.v ? "✓ I'm going" : "I'm going"}</button>
           <button class="${mine && !mine.v ? "on vote" : ""}" data-go="0">${mine && !mine.v ? "✓ Can't make it" : "Can't make it"}</button></div>`}
       </div></div>` : ""}
-    <h3 class="mon-h">Vote for ${esc(monthName(voteR))}'s cinema night <small>${total ? total + " vote" + (total === 1 ? "" : "s") : ""}</small></h3>
+    <h3 class="mon-h">Vote on ${pick ? "the outing after that" : "what we go see"} <small>${total ? total + " vote" + (total === 1 ? "" : "s") : ""}</small></h3>
     ${cands.length ? cands.map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
         <b>${esc(x.m.n)}${x.m.y ? ` <small>(${esc(x.m.y)})</small>` : ""}</b>
         <small>${x.sc ? "🎟 " + esc(scLabel(x.sc)) + " · " : ""}by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"}${x.a === me.id && !x.votes ? ` · <button class="link" data-mdrop="${esc(ckey(x))}">remove</button>` : ""}</small>
@@ -622,8 +634,8 @@ function cinemaCard(s, members) {
       </div><button class="vote${myVote === ckey(x) ? " on" : ""}" data-mvote="${esc(ckey(x))}">${myVote === ckey(x) ? "✓ Voted" : "Vote"}</button></div>`).join("")
       : `<p class="hint">Pick a screening in a Ghent cinema (or any movie) for the group to go see together.</p>`}
     <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap"><button id="cnSuggest">🎟 Suggest a screening</button></div>
-    ${cands.length ? `<button class="primary" id="cnLock">Lock in ${esc(cands[0].m.n)} for ${esc(monthName(voteR))}</button>` : ""}
-    ${pick ? `<button class="link" id="cnUnpick">Change this month's pick</button>` : ""}
+    ${cands.length ? `<button class="primary" id="cnLock">Lock in ${esc(cands[0].m.n)}</button>` : ""}
+    ${pick ? `<button class="link" id="cnUnpick">Change the pick</button>` : ""}
   </div>`;
 }
 function bindCinema(s) {
@@ -634,23 +646,23 @@ function bindCinema(s) {
     if (cands.some(c => ckey(c) === ckey(x))) { M.toast("That screening is already up for the vote."); return; }
     await act("nom", { tr: "m", r: voteR, m, sc }, { title: `${me.name} suggested ${m.n} for cinema night`, body: sc ? scLabel(sc) : "Open the club to vote." });
     if (!s.mon[voteR]?.votes.get(me.id)) setTimeout(() => act("vote", { tr: "m", r: voteR, v: ckey(x) }), 50);
-    M.toast(`${m.n} is up for ${monthName(voteR)}'s cinema night.`);
+    M.toast(`${m.n} is up for the cinema vote.`);
   };
   cineNominate = (sc, title) => nom(sc, title);
-  $("cnSuggest")?.addEventListener("click", () => openScreenings((sc, title) => sc ? nom(sc, title) : openSearch("Suggest a movie for cinema night", m => nom(null, m.n, m))));
+  $("cnSuggest")?.addEventListener("click", () => openScreenings((sc, title, m) => sc ? nom(sc, title, m) : openSearch("Suggest a movie for cinema night", m => nom(null, m.n, m))));
   view.querySelectorAll("[data-mvote]").forEach(b => b.onclick = () => act("vote", { tr: "m", r: voteR, v: s.mon[voteR]?.votes.get(me.id) === b.dataset.mvote ? "" : b.dataset.mvote }));
   view.querySelectorAll("[data-mdrop]").forEach(b => b.onclick = () => { const x = cands.find(c => ckey(c) === b.dataset.mdrop); if (x) act("drop", { tr: "m", r: voteR, m: x.m, sc: x.sc }); });
   view.querySelectorAll("[data-go]").forEach(b => b.onclick = () => act("go", { tr: "m", r: cm, v: +b.dataset.go }, +b.dataset.go ? { title: `${me.name} is going to ${pick.n}`, body: scLabel(pick.sc) } : null));
   $("cnLock")?.addEventListener("click", () => {
     const w = cands[0];
-    if (!confirm(`Lock in ${w.m.n} as ${monthName(voteR)}'s cinema night?`)) return;
-    act("pick", { tr: "m", r: voteR, m: w.m, sc: w.sc }, { title: `Cinema night: ${w.m.n}`, body: w.sc ? scLabel(w.sc) + ". Get your tickets!" : `${monthName(voteR)}'s outing is set.` });
+    if (!confirm(`Lock in ${w.m.n} for the cinema outing?`)) return;
+    act("pick", { tr: "m", r: voteR, m: w.m, sc: w.sc }, { title: `Cinema night: ${w.m.n}`, body: w.sc ? scLabel(w.sc) + ". Get your tickets!" : "Set a date in the club." });
   });
   $("cnDate")?.addEventListener("click", () => openDate(pick, sc => {
     const { sc: _o, by: _b, at: _a, ...m } = pick;
     act("pick", { tr: "m", r: cm, m, sc }, { title: `Cinema night date: ${pick.n}`, body: scLabel(sc) });
   }));
-  $("cnUnpick")?.addEventListener("click", () => { if (confirm(`Take ${pick.n} off and pick again for ${monthName(cm)}?`)) act("unpick", { tr: "m", r: cm }); });
+  $("cnUnpick")?.addEventListener("click", () => { if (confirm(`Take ${pick.n} off and pick again?`)) act("unpick", { tr: "m", r: cm }); });
 }
 
 // ---------- club watchlist ----------
@@ -693,7 +705,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       </div>${seenTag(w.m.n)}<button class="vote${voted ? " on" : ""}" data-wlvote="${esc(key(w.m))}">${voted ? "✓" : "Vote"}</button></div>`;
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="wlCard">
-    <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Next week" : "Opening night"}</h2></div>
+    <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Up next" : "Opening night"}</h2></div>
     ${cands.length ? `<div class="wl-lead"><span>🏆 <b>${esc(cands[0].m.n)}</b> · ${cands[0].votes} vote${cands[0].votes === 1 ? "" : "s"}${cands[1] ? ` <small>then ${esc(cands[1].m.n)} (${cands[1].votes})</small>` : ""}</span>
       <span class="wl-lead-btns"><button class="primary" id="cbLock">Lock in</button><button id="cbAskVote" aria-label="Ask the group to vote">📣</button></span></div>` : ""}
     <div class="wl-head"><h3>Club watchlist</h3><button class="primary" id="cwAdd">+ Add</button></div>
@@ -847,12 +859,12 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["weekly", "Weekly", s.wl.size > 0 && !myVote], ["monthly", "Monthly", cineDot]]
+    <div class="club-tabs" role="tablist">${[["weekly", "At home", s.wl.size > 0 && !myVote], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
-    <div class="ccol c1"><h2 class="sec-h">Weekly <small>watch at home, talk here</small></h2>
+    <div class="ccol c1"><h2 class="sec-h">At home <small>watch it, then talk here</small></h2>
 
     ${movie ? `<div class="fr-card pulp" data-tab="weekly">
-      <div class="pulp-head"><span class="chapter">Chapter ${chapterWord(cur + 1)}</span><h2 class="bang">This week</h2></div>
+      <div class="pulp-head"><span class="chapter">Chapter ${chapterWord(cur + 1)}</span><h2 class="bang">Now watching</h2></div>
       <div class="club-hero">${poster(movie.p, "w185")}<div class="body">
         <b class="t">${esc(movie.n)}${movie.y ? ` <small class="hint">(${esc(movie.y)})</small>` : ""}</b>
         <small class="hint">Watch it before ${esc(nightLabel(night))}</small>
@@ -878,7 +890,7 @@ function renderClub() {
     </div>`}
 
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
-    </div><div class="ccol c2"><h2 class="sec-h">Monthly <small>go see it together</small></h2>
+    </div><div class="ccol c2"><h2 class="sec-h">At the cinema <small>go see it together</small></h2>
     ${cinemaCard(s, members)}
 
     <div class="fr-card" data-tab="monthly">
@@ -917,7 +929,7 @@ function bind(c, s, cands, movie) {
   $("cbGear").onclick = () => setClubTab(clubTab === "set" ? "weekly" : "set");
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
-  calNominate = (initial = "") => openSearch(movie ? "Nominate for next week" : "Nominate the first movie", m => {
+  calNominate = (initial = "") => openSearch(movie ? "Nominate what to watch next" : "Nominate the first movie", m => {
     const rd = s.round(cur);
     if (tally(rd).some(x => key(x.m) === key(m))) { M.toast(`${m.n} is already nominated.`); return; }
     act("nom", { m }, { title: `${me.name} nominated ${m.n}`, body: "Open the club to vote." });
@@ -926,17 +938,17 @@ function bind(c, s, cands, movie) {
   $("cbNom")?.addEventListener("click", () => calNominate());
   $("cbAskVote")?.addEventListener("click", () => {
     const list = cands.map(x => `• ${x.m.n} (${x.votes})`).join("\n");
-    shareText(`Vote on the club watchlist for ${movie ? "next week's" : "our first"} pick:\n${list}\nVote here:`, APP_URL + "?view=club");
+    shareText(`Vote on the club watchlist for ${movie ? "our next" : "our first"} pick:\n${list}\nVote here:`, APP_URL + "?view=club");
   });
   $("cbLock")?.addEventListener("click", () => {
     const w = cands[0];
-    if (!confirm(`Lock in ${w.m.n} as ${movie ? "next week's" : "the first"} pick? This starts a new week for everyone.`)) return;
+    if (!confirm(`Lock in ${w.m.n} as ${movie ? "the next" : "the first"} pick to watch at home?`)) return;
     act("pick", { r: cur + 1, m: w.m }, { title: `Next movie: ${w.m.n}`, body: `${w.votes} vote${w.votes === 1 ? "" : "s"}. Watch it before ${nightLabel(nightAfter(now(), s.day))}.` });
   });
   view.querySelectorAll("[data-vote]").forEach(b => b.onclick = () => act("vote", { v: s.round(cur).votes.get(me.id) === b.dataset.vote ? "" : b.dataset.vote }));
   view.querySelectorAll("[data-drop]").forEach(b => b.onclick = () => { const x = cands.find(y => key(y.m) === b.dataset.drop); if (x) act("drop", { m: x.m }); });
   $("cbPost")?.addEventListener("click", () => M.open(movie.t, movie.i, movie.n));
-  $("cbShare")?.addEventListener("click", () => shareText(`This week in ${s.name || "our movie club"}: ${movie.n}${movie.y ? ` (${movie.y})` : ""}. Watch it before ${nightLabel(nightAfter(movie.at, s.day))}, then tell us what you thought:`, APP_URL + "?view=club"));
+  $("cbShare")?.addEventListener("click", () => shareText(`Now watching in ${s.name || "our movie club"}: ${movie.n}${movie.y ? ` (${movie.y})` : ""}. Watch it before ${nightLabel(nightAfter(movie.at, s.day))}, then tell us what you thought:`, APP_URL + "?view=club"));
   $("cbPeek")?.addEventListener("click", () => { peek[cur] = true; render(); });
   $("cbUnsee")?.addEventListener("click", () => openSeen(s, movie));
   $("cbSeen")?.addEventListener("click", () => openSeen(s, movie));
