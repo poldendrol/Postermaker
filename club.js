@@ -1033,8 +1033,8 @@ function renderClub() {
     ${forYouCard(s)}
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
     </div><div class="ccol c2"><h2 class="sec-h">At the cinema <small>go see it together</small></h2>
-    <div class="fr-card" data-tab="monthly"><h3>Cinema calendar</h3><div id="cbCal">${calHtml(s, calC, "cine")}</div></div>
     ${cinemaCard(s, members)}
+    <div class="fr-card" data-tab="monthly"><h3>Cinema calendar</h3><div id="cbCal">${calHtml(s, calC, "cine")}</div></div>
 
 
 
