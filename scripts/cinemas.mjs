@@ -50,7 +50,52 @@ async function skoop() {
   return out;
 }
 
-const SOURCES = { "KASKcinema": kask, "Sphinx": sphinx, "Studio Skoop": skoop };
+// UiT in Vlaanderen (Flanders' public events listing): every film event in Ghent, including one-off screenings at
+// cultural centres, libraries, bars and festivals. Venues we already read directly are skipped to avoid duplicates.
+function unNuxt(html) {
+  const m = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/); if (!m) return null;
+  const raw = JSON.parse(m[1]), memo = new Map();
+  const WRAP = new Set(["Reactive", "ShallowReactive", "Ref", "ShallowRef", "EmptyRef", "EmptyShallowRef", "NuxtError"]);
+  const rev = i => {
+    if (typeof i !== "number" || i < 0) return undefined;
+    if (memo.has(i)) return memo.get(i);
+    const v = raw[i];
+    if (Array.isArray(v)) {
+      if (typeof v[0] === "string" && WRAP.has(v[0])) { const r = rev(v[1]); memo.set(i, r); return r; }
+      if (v[0] === "Set" || v[0] === "Map") return null;
+      if (v[0] === "Date") return v[1];
+      const out = []; memo.set(i, out); v.forEach(x => out.push(rev(x))); return out;
+    }
+    if (v && typeof v === "object") { const o = {}; memo.set(i, o); for (const k in v) o[k] = rev(v[k]); return o; }
+    return v;
+  };
+  return rev(0);
+}
+const local = isoStr => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(isoStr)).map(x => [x.type, x.value]));
+  return { d: `${p.year}-${p.month}-${p.day}`, h: `${p.hour}:${p.minute}` };
+};
+const slug = t => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "film";
+async function uit() {
+  const out = [];
+  for (let page = 1; page <= 15; page++) {
+    const root = unNuxt(await get(`https://www.uitinvlaanderen.be/agenda/film/gent?page=${page}`));
+    const events = root?.pinia?.eventSearch?.result?.events?.data || [];
+    if (!events.length) break;
+    for (const e of events) {
+      const venue = e.location?.name || "";
+      if (!venue || /sphinx|skoop|kask/i.test(venue)) continue;
+      const subs = e.subEvent?.length ? e.subEvent : e.calendar?.startDate ? [{ startDate: e.calendar.startDate }] : [];
+      if (subs.length > 40) continue; // permanent installations, not screenings
+      const u = `https://www.uitinvlaanderen.be/agenda/e/${slug(e.name || "")}/${e.id}`;
+      for (const se of subs) { if (!se.startDate) continue; const { d, h } = local(se.startDate); out.push({ c: venue.replace(/\s+/g, " ").trim(), t: String(e.name || "").trim(), d, h: h === "00:00" ? "" : h, u, o: 1 }); }
+    }
+    if (events.length < 10) break;
+  }
+  return out;
+}
+
+const SOURCES = { "KASKcinema": kask, "Sphinx": sphinx, "Studio Skoop": skoop, "Elsewhere in Ghent": uit };
 let old = { screenings: [] }; try { old = JSON.parse(await readFile("screenings.json", "utf8")); } catch {}
 const all = [], status = {};
 for (const [name, fn] of Object.entries(SOURCES)) {
@@ -60,7 +105,7 @@ for (const [name, fn] of Object.entries(SOURCES)) {
     all.push(...list); status[name] = list.length;
   } catch (e) {
     console.error(`!! ${name}: ${e.message}`);
-    const kept = (old.screenings || []).filter(x => x.c === name); all.push(...kept); status[name] = `failed, kept ${kept.length}`;
+    const kept = (old.screenings || []).filter(x => name === "Elsewhere in Ghent" ? x.o : x.c === name); all.push(...kept); status[name] = `failed, kept ${kept.length}`;
   }
 }
 const seen = new Set();
@@ -68,4 +113,6 @@ const screenings = all.filter(x => { const k = `${x.c}|${x.d}|${x.h}|${x.t}`; if
   .sort((a, b) => (a.d + a.h).localeCompare(b.d + b.h) || a.c.localeCompare(b.c));
 console.log(status, screenings.length, "upcoming screenings");
 for (const c of Object.keys(SOURCES)) console.log(c, JSON.stringify(screenings.filter(x => x.c === c).slice(0, 3)));
+const others = screenings.filter(x => x.o); console.log("Elsewhere venues:", [...new Set(others.map(x => x.c))].join(" | "));
+console.log("Elsewhere sample:", JSON.stringify(others.slice(0, 6)));
 await writeFile("screenings.json", JSON.stringify({ updated: new Date().toISOString(), status, screenings }) + "\n");
