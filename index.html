@@ -468,12 +468,15 @@ footer { padding-left: 0; }
 .sheet label.rev-rec { display: flex; flex-direction: row; justify-content: flex-start; text-align: left; color: inherit; font-size: 15px; align-items: center; gap: 10px; font-weight: 600; margin: 4px 0; cursor: pointer; }
 .sheet label.rev-d { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: inherit; }
 .sheet label.rev-d input { width: auto; }
+.rev-ss .ss-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+.ss { border: 1.5px solid var(--line); background: none; border-radius: 99px; padding: 5px 11px; font-weight: 700; font-size: 13px; }
+.ss.on { background: #1e9e4a; border-color: #1e9e4a; color: #fff; }
 .sheet label.rev-rec input { flex: none; width: 20px; height: 20px; accent-color: var(--accent, #e2231a); margin: 0; }
 .mstars button.on { color: var(--accent); }
 
 /* ---- phone first: bottom tab bar, club tabs, tighter cards ---- */
 #clubView [data-tab] { display: none !important; }
-#clubView[data-tab=weekly] [data-tab=weekly], #clubView[data-tab=monthly] [data-tab=monthly], #clubView[data-tab=set] [data-tab=set] { display: flex !important; }
+#clubView[data-tab=weekly] [data-tab=weekly], #clubView[data-tab=monthly] [data-tab=monthly], #clubView[data-tab=mine] [data-tab=mine], #clubView[data-tab=set] [data-tab=set] { display: flex !important; }
 .club-tabs { display: flex; gap: 4px; padding: 4px; background: var(--field); border-radius: 12px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; }
 .club-tabs button { flex: 1 1 0; border: 0; background: none; padding: 9px 2px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--muted); position: relative; white-space: nowrap; }
 .club-tabs button[aria-selected=true] { background: #111; color: #ffd400; }
@@ -554,7 +557,7 @@ footer { padding-left: 0; }
 .gh-d { font-weight: 700; min-width: 7.5em; }
 .gh-times b { font-variant-numeric: tabular-nums; }
 @media (min-width: 1100px) {
-  #clubView { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #clubView { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, .85fr); }
   .sec-h { display: flex; align-items: baseline; gap: 10px; margin: 0; font: 400 40px/1 var(--display, Impact), sans-serif; text-transform: uppercase; letter-spacing: .02em; text-shadow: 3px 3px 0 var(--accent); }
   .sec-h small { font: 600 13px Inter, sans-serif; color: var(--muted); text-shadow: none; text-transform: none; letter-spacing: 0; }
   body[data-view=ghent] .app { grid-template-columns: minmax(0, 900px); }
