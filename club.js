@@ -500,6 +500,7 @@ const sawAt = (s, m, id) => { const x = s.saw[seenKey(m.n)]?.get(id); return x?.
 const sugOpen = (s, g, id) => !sawAt(s, g.m, id);
 const sugForMe = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && sugOpen(s, g, me.id)).sort((a, b) => a.d.localeCompare(b.d));
 const sugMine = s => s.sugs.filter(g => g.a === me.id && sugTo(s, g).some(id => sugOpen(s, g, id)));
+const sugSent = s => s.sugs.filter(g => g.a === me.id).sort((a, b) => b.at - a.at).slice(0, 20); // including ones everybody has watched
 const isoAdd = (d, n) => { const x = new Date(d + "T12:00"); x.setDate(x.getDate() + n); return iso(x); };
 function sugDays(g, from, to) {
   const out = []; if (!g.wk) { if (g.d >= from && g.d <= to) out.push(g.d); return out; }
@@ -772,14 +773,17 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
 }
 // ---------- suggestions (At home) ----------
 function forYouCard(s) {
-  const mine = sugForMe(s), sent = sugMine(s), today = iso(new Date());
+  const mine = sugForMe(s), sent = sugSent(s), today = iso(new Date());
   const due = mine.filter(g => sugDueToday(g, today) || (!g.wk && g.d < today));
   const row = (g, out) => {
-    const left = sugTo(s, g).filter(id => sugOpen(s, g, id)).map(id => id === me.id ? "you" : s.members.get(id)?.name || "someone");
+    const rec = sugTo(s, g), done = out && rec.length && rec.every(id => !sugOpen(s, g, id));
+    const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? "" : " ok"}">${sugOpen(s, g, id) ? "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}</span>`).join("");
     const when = g.d === today ? "today" : g.d < today ? (g.wk ? DAYS[new Date(g.d + "T12:00").getDay()] + "s" : "overdue") : nightLabel(new Date(g.d + "T12:00"));
-    return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}</button><div class="body" data-open="${esc(key(g.m))}">
+    return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="Everyone watched it">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${g.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-      <small class="hint">${out ? `To ${esc(whoLabel(s, g))}${left.length && !g.to.includes("*") ? "" : ""} · waiting on ${esc(left.slice(0, 3).join(", "))}${left.length > 3 ? ` +${left.length - 3}` : ""}` : `From ${esc(g.by)}`} · ${g.wk ? `🔔 every ${esc(DAYS[new Date(g.d + "T12:00").getDay()])}` : `📅 ${esc(when)}`}${(s.talk[seenKey(g.m.n)] || []).length ? ` · 💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""}</small>
+      ${out ? `<span class="whos">${who}</span>` : ""}<small class="hint">${[out ? (done ? "Everyone watched it" : g.to.includes("*") ? "To everyone" : "") : `From ${esc(g.by)}`,
+        done ? "" : g.wk ? `🔔 every ${esc(DAYS[new Date(g.d + "T12:00").getDay()])}` : `📅 ${esc(when)}`,
+        (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""].filter(Boolean).join(" · ")}</small>
     </div>${out ? "" : seenTag(g.m.n)}</div>`;
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
