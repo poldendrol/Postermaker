@@ -1673,4 +1673,12 @@ document.addEventListener("click", e => {
 clubs().filter(c => c.id !== active()?.id).forEach(c => pull(c.id));
 setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 120000);
 document.addEventListener("visibilitychange", () => { live(); if (document.visibilityState === "visible") refresh(); });
+// The account sync wrote newer data (another device's clubs, list, history): fold it in and redraw.
+addEventListener("marquee-synced", e => {
+  const keys = e.detail || [];
+  if (keys.includes("marqueeClubMe")) me = LS.get("marqueeClubMe", me);
+  if (keys.includes("marqueeClubActive") || !active()) activeId = LS.get("marqueeClubActive", activeId);
+  for (const k of keys) if (k.startsWith("marqueeClubEv_")) { const id = k.slice(evKey("").length), m = store[id] ||= {}, cur = LS.get(k, {}); for (const i in cur) if (!(i in m)) m[i] = cur[i]; }
+  live(); render();
+});
 $("nav").addEventListener("click", e => { if (e.target.closest("[data-view=club]")) { markRead(); render(); } });

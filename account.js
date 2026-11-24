@@ -62,14 +62,16 @@ async function start() {
   const apply = async remote => {
     const plain = {};
     for (const [k, v] of Object.entries(remote || {})) { if (!synced(k)) continue; try { plain[k] = await gunz(v); } catch (e) { console.error(e); } }
-    busy = true; let changed = false;
+    busy = true; const keys = [];
     try {
       for (const [k, v] of Object.entries(plain)) {
         const cur = raw(k), next = mergeVal(k, cur, v);
-        if (next != null && next !== cur) { write(k, next); changed = true; }
+        if (next != null && next !== cur && JSON.stringify(parse(next)) !== JSON.stringify(parse(cur))) { write(k, next); keys.push(k); }
       }
     } finally { busy = false; }
-    return changed;
+    // Tell the open page (club, watchlist) to pick it up right away, no reload needed.
+    if (keys.length) dispatchEvent(new CustomEvent("marquee-synced", { detail: keys }));
+    return keys.length > 0;
   };
 
   A.onAuthStateChanged(auth, async u => {
@@ -83,13 +85,13 @@ async function start() {
         first = false;
         const changed = await apply(data?.d);
         push();
-        if (changed && !sessionStorage.getItem("marqueeSyncReloaded")) { try { sessionStorage.setItem("marqueeSyncReloaded", "1"); } catch {} toast("Synced with your account."); setTimeout(() => location.reload(), 700); }
+        if (changed) toast("Synced with your account.");
+        setStatus(data?.t ? `Everything is saved to your account. Last saved ${new Date(data.t).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}${data.dev !== DEV ? " from another device" : ""}.` : "");
         return;
       }
-      if (data && data.dev !== DEV && await apply(data.d)) { stale = true; if (document.hidden) location.reload(); else setStatus("Updated from another device. It shows the next time you open Marquee."); }
+      if (data && data.dev !== DEV && await apply(data.d)) setStatus("Updated from another device just now.");
     }, e => { console.error(e); setStatus("Couldn't reach your account."); });
   });
-  document.addEventListener("visibilitychange", () => { if (stale && document.visibilityState === "visible") location.reload(); });
 
   function setStatus(t) { const n = box.querySelector(".acct-st"); if (n) n.textContent = t || "Everything is saved to your account."; }
   function render() {
