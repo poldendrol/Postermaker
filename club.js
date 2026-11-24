@@ -832,8 +832,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const friends = [...s.members.entries()].filter(([id]) => id !== me.id).map(([id, m]) => ({ id, name: m.name, n: base.filter(w => w.adders.has(id) && !iSaw(w)).length })).filter(p => p.n);
   for (const id of [...wlFriends]) if (!friends.some(f => f.id === id)) wlFriends.delete(id);
   const sel = wlFriends.size ? [...wlFriends] : friends.map(f => f.id);
-  const fyNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length;
-  if (fyNew && !fyAuto) { fyAuto = true; if (sugForMe(s).some(g => sugNew(s, g))) wlMode = "fy"; }
+  if (wlMode === "fy") wlMode = "mine";
   const mineAll = base.filter(w => w.adders.has(me.id) && !iSaw(w)), mineN = mineAll.length;
   let items = wlMode === "mine" ? mineAll : base.filter(w => !iSaw(w) && sel.some(id => w.adders.has(id)));
   const nTv = items.filter(w => w.m.t === "tv").length, mixed = nTv && nTv < items.length;
@@ -845,7 +844,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
   const shown = grouped || wlAll || wlQ ? items : items.slice(0, 20);
-  if (wlMode !== "fy") { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
+  { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
   const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const fchip = (id, l, n, on) => `<button class="chip${on ? " on" : ""}" data-wlf="${esc(id)}">${esc(l)}${n != null ? ` <i>${n}</i>` : ""}</button>`;
   // Netflix-style poster tiles: tap opens the title sheet (Watched?, remove, suggest, where to stream live there).
@@ -866,11 +865,11 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreOpen.has(g) ? " open" : ""}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="seg wl-mode" role="tablist"><button data-wlm="fy" aria-pressed="${wlMode === "fy"}"${fyNew ? ' class="dot"' : ""}>For you${fyNew ? ` <i>${fyNew}</i>` : ""}</button><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club list</button></div>
+    <div class="seg wl-mode" role="tablist"><button data-wlm="mine" aria-pressed="${wlMode === "mine"}">To watch <i>${mineN}</i></button><button data-wlm="club" aria-pressed="${wlMode === "club"}">Club list</button></div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
-    ${wlMode === "fy" ? forYouCard(s) : `
+    ${`
     ${wlMode === "club" && friends.length ? `<div class="wl-views">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
     <div class="wl-tools">${wlMode === "mine" && mineN ? `<button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button>` : ""}
@@ -990,9 +989,10 @@ function forYouCard(s) {
         (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : "", out ? `<button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""].filter(Boolean).join(" · ")}</small>
     </div>${out ? "" : !done && !by ? `<button class="acc-btn" data-acc="${esc(g.id)}">Accept</button>` : seenTag(g.m.n, true)}</div>`;
   };
-  return `<div id="fyCard">
+  if (!mine.length && !sent.length && !sugForMeSeen(s).length && !newReviews(s).length) return "";
+  return `<div class="fr-card" data-tab="mine" id="fyCard"><h3>For you${fresh.length ? ` <i class="fy-n">${fresh.length} new</i>` : ""}</h3>
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
-    <h4 class="wl-sec">New suggestions <i>${fresh.length || ""}</i></h4>
+    <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
     <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
     ${due.length ? `<h4 class="wl-sec">Accepted <i>${due.length}</i></h4><div class="wl-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
     ${(() => { const seenL = sugForMeSeen(s); return seenL.length ? `<h4 class="wl-sec">Watched <i>${seenL.length}</i></h4><div class="wl-list">${seenL.map(g => row(g, false)).join("")}</div>` : ""; })()}
@@ -1419,9 +1419,10 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My watched", false], ["weekly", "The Club", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
+    <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
-    <div class="ccol c0"><h2 class="sec-h">My watched <small>what you've seen, by date</small></h2>
+    <div class="ccol c0"><h2 class="sec-h">My watched <small>for you, and what you've seen</small></h2>
+    ${forYouCard(s)}
     ${myWatchedCard(s)}
     </div><div class="ccol c1"><h2 class="sec-h">The Club <small>suggest, watch, talk</small></h2>
 
