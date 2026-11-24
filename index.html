@@ -567,6 +567,28 @@ footer { padding-left: 0; }
 
 .wl-lead { background: var(--field); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
 .tv-tag { display: inline-block; vertical-align: 1px; margin-left: 4px; background: #111; color: #ffd400; font: 700 10px/1 Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; padding: 3px 5px; border-radius: 4px; }
+
+.wl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wl-head .primary { padding: 7px 14px; }
+.wl-lead { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.wl-lead small { color: var(--muted); }
+.wl-lead-btns { display: flex; gap: 6px; flex: none; }
+.wl-lead-btns button { padding: 7px 12px; }
+.wl-views { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 0 2px; }
+.wl-views::-webkit-scrollbar { display: none; }
+.wl-views .chip { flex: none; font-size: 12px; padding: 5px 10px; white-space: nowrap; }
+.wl-views .chip.on { background: #111; color: #ffd400; border-color: #111; }
+.wl-views .chip i { font-style: normal; opacity: .65; margin-left: 2px; }
+.seg { display: inline-flex; background: var(--field); border-radius: 99px; padding: 2px; flex: none; }
+.seg button { border: 0; background: none; border-radius: 99px; padding: 5px 10px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.seg button.on { background: var(--fg); color: var(--bg); }
+.wl-i { gap: 8px; }
+.wl-i .seen-tag { align-self: center; flex: none; }
+.wl-i .vote { flex: none; min-width: 54px; padding: 7px 10px; }
+.wl-i .body > b small { color: var(--muted); font-weight: 500; }
+.wl-sec { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.wl-sec i { font-style: normal; opacity: .7; }
+.sheet .wl-sec { margin-top: 8px; }
 </style>
 </head>
 <body>
