@@ -157,7 +157,7 @@ function derive(clubId) {
       case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
       case "wl": if (e.m) { const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
       case "wldrop": if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
-      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || null, ss: e.v ? e.ss || null : null }); break;
+      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
@@ -1556,7 +1556,7 @@ function openReview(s, sk, m0) {
     const from = prev || old ? [] : s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
     const ss = {}; for (const k of picked) ss[k] = prev?.ss && k in prev.ss ? prev.ss[k] : old ? "" : d;
     const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
-    act("saw", { sk, v: 1, ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m && !titleBySk(s, sk) ? { m } : {}) }, news);
+    act("saw", { sk, v: 1, ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m ? { m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } } : {}) }, news);
     // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
     for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
     // Recommend: it goes on the club watchlist under "Watched it, recommend" and lands in everyone else's For you to accept.
