@@ -1394,11 +1394,11 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My watched", false], ["weekly", "At home", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
+    <div class="club-tabs" role="tablist">${[["mine", "My watched", false], ["weekly", "The Club", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0"><h2 class="sec-h">My watched <small>what you've seen, by date</small></h2>
     ${myWatchedCard(s)}
-    </div><div class="ccol c1"><h2 class="sec-h">At home <small>suggest, watch, talk</small></h2>
+    </div><div class="ccol c1"><h2 class="sec-h">The Club <small>suggest, watch, talk</small></h2>
 
     ${forYouCard(s)}
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
