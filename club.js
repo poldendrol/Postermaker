@@ -56,7 +56,8 @@ const paintStars = (root, v) => root.querySelectorAll(".mstars button").forEach(
 
 // ---------- local data ----------
 let me = LS.get("marqueeClubMe", null);                 // { id, name }
-const clubs = () => LS.get("marqueeClubs", []);           // [{ id, name, day }]
+// Clubs you left stay in marqueeClubsGone, so the account sync never brings them back (rejoining with an invite clears it).
+const clubs = () => { const gone = new Set(LS.get("marqueeClubsGone", [])); return LS.get("marqueeClubs", []).filter(c => !gone.has(c.id)); }; // [{ id, name, day }]
 let activeId = LS.get("marqueeClubActive", null);
 const evKey = id => "marqueeClubEv_" + id;
 const store = {};                                         // club id -> { event id: event }
@@ -68,6 +69,7 @@ const save = id => { const m = foldIn(store[id] ||= {}, LS.get(evKey(id), {})); 
 const active = () => clubs().find(c => c.id === activeId) || clubs()[0] || null;
 
 function addClub(c) {
+  const gone = LS.get("marqueeClubsGone", []); if (gone.includes(c.id)) LS.set("marqueeClubsGone", gone.filter(x => x !== c.id));
   const l = clubs();
   if (!l.some(x => x.id === c.id)) { l.push({ id: c.id, name: c.name || "Movie club", day: c.day ?? 0 }); LS.set("marqueeClubs", l); }
   activeId = c.id; LS.set("marqueeClubActive", activeId);
@@ -944,8 +946,22 @@ async function openServices(done) {
   bg.addEventListener("click", e => { if (e.target === bg) close(); });
 }
 // Settings: streaming services and notifications live there.
+function leaveClub(id) {
+  LS.set("marqueeClubsGone", [...new Set([...LS.get("marqueeClubsGone", []), id])]);
+  LS.set("marqueeClubs", LS.get("marqueeClubs", []).filter(x => x.id !== id)); try { localStorage.removeItem(evKey(id)); } catch {}
+  delete store[id]; if (activeId === id) { activeId = clubs()[0]?.id || null; LS.set("marqueeClubActive", activeId); } live(); render();
+}
 function renderSettingsExtras() {
-  const st = $("setStream"), pu = $("setPush");
+  const st = $("setStream"), pu = $("setPush"), cl = $("setClubs");
+  if (cl) {
+    const list = clubs();
+    cl.innerHTML = `<b>My clubs</b>${list.length ? list.map(c => { const s = derive(c.id), n = s.members.size, here = c.id === active()?.id;
+      return `<div class="club-row"><div><b>${esc(s.name || c.name)}</b><small class="hint">${n} member${n === 1 ? "" : "s"}${here ? " · open now" : ""}</small></div>${here ? "" : `<button data-copen="${esc(c.id)}">Open</button>`}<button class="link danger" data-cleave="${esc(c.id)}">Leave</button></div>`; }).join("") : `<p class="hint">You're not in a club yet.</p>`}
+      <button id="setNewClub">Start or join a club</button>`;
+    cl.querySelectorAll("[data-copen]").forEach(b => b.onclick = () => { activeId = b.dataset.copen; LS.set("marqueeClubActive", activeId); live(); render(); M.setView("club"); });
+    cl.querySelectorAll("[data-cleave]").forEach(b => b.onclick = () => { const c = clubs().find(x => x.id === b.dataset.cleave); if (!c || !confirm(`Leave ${derive(c.id).name || c.name}? It's removed from all your devices. You can rejoin with an invite link.`)) return; leaveClub(c.id); renderSettingsExtras(); M.toast("Left the club."); });
+    cl.querySelector("#setNewClub").onclick = () => { M.setView("club"); setTimeout(() => $("cbNew")?.click(), 50); };
+  }
   if (st) {
     const n = myServices().size;
     st.innerHTML = `<b>My streaming services</b><p class="hint">${n ? `${n} picked. Titles on them get marked and you can filter the club watchlist with "📺 On my services".` : "Pick what you pay for to see which titles you can stream right away."}</p><button id="setSvc">${n ? "Change services" : "Pick services"}</button>`;
@@ -1483,7 +1499,7 @@ function renderClub() {
           <button id="cbNew">Start or join another club</button>
           ${hasDemo(c.id) ? `<button id="cbDemoOff">Remove test friends</button>` : `<button id="cbDemo">Add test friends (only you see them)</button>`}
           ${LS.get("marqueeLastReset_" + c.id, "") ? `<button id="cbUndoReset">Undo the reset</button>` : `<button id="cbReset">Reset to just after my list imports</button>`}
-          <button class="link" id="cbLeave">Leave this club on this device</button>
+          <button class="link" id="cbLeave">Leave this club</button>
         </div>
       </details>
     </div>
@@ -1557,8 +1573,7 @@ function bind(c, s, cands, movie) {
   $("cbNew").onclick = () => { showStart = true; render(); };
   $("cbLeave").onclick = () => {
     if (!confirm(`Remove ${s.name || c.name} from this device? You can rejoin with the invite link.`)) return;
-    LS.set("marqueeClubs", clubs().filter(x => x.id !== c.id)); try { localStorage.removeItem(evKey(c.id)); } catch {}
-    delete store[c.id]; activeId = clubs()[0]?.id || null; LS.set("marqueeClubActive", activeId); live(); render();
+    leaveClub(c.id);
   };
 }
 
