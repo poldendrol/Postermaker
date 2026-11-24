@@ -164,7 +164,7 @@ function derive(clubId) {
       case "seen": rd.seen.set(e.a, { s: e.s || 0, name: e.n }); break;
       case "say": if (e.sk) (s.talk[e.sk] ||= []).push(e); else rd.says.push(e); break;
       case "sug": if (e.m && e.d) s.sugs.push({ id: e.i, m: fixes[key(e.m)] || e.m, a: e.a, by: e.n || "Someone", to: e.to, d: e.d, wk: !!e.wk, at: e.t }); break;
-      case "sugdrop": if (e.sg) (s.sugDrop ||= new Map()).set(e.sg, e.a); break;
+      case "sugdrop": if (e.sg) { const m = (s.sugDrop ||= new Map()); (m.get(e.sg) || m.set(e.sg, new Set()).get(e.sg)).add(e.a); } break;
       case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
       // "fix": someone swapped a wrong match (e.g. the 2002 film for the 2026 series) for everyone.
       case "fix": if (e.from && e.m && e.from !== key(e.m)) {
@@ -178,7 +178,7 @@ function derive(clubId) {
     }
   }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
-  if (s.sugDrop) s.sugs = s.sugs.filter(g => s.sugDrop.get(g.id) !== g.a); // only the one who suggested it can take it back
+  if (s.sugDrop) s.sugs = s.sugs.filter(g => !s.sugDrop.get(g.id)?.has(g.a)); // the sender takes it back for everyone; a recipient's drop only hides it for them (see sugTo)
   const rs = Object.keys(s.picks).map(Number);
   s.cur = rs.length ? Math.max(...rs) : -1;
   s.round = r => R(r);
@@ -564,13 +564,15 @@ function cineHtml(dayIso) {
 }
 const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 // Suggestions: who it's for, whether they've seen it, and the days it comes up (once, or weekly until seen).
-const sugTo = (s, g) => g.to.includes("*") ? [...s.members.keys()].filter(id => id !== g.a) : g.to.filter(id => s.members.has(id) || id === me.id);
+const sugTo = (s, g) => { const gone = s.sugDrop?.get(g.id); return (g.to.includes("*") ? [...s.members.keys()].filter(id => id !== g.a) : g.to.filter(id => s.members.has(id) || id === me.id)).filter(id => !gone?.has(id)); };
 const sawAt = (s, m, id) => { const x = s.saw[seenKey(m.n)]?.get(id); return x?.v ? x.at || 1 : 0; };
 const sugOpen = (s, g, id) => !sawAt(s, g.m, id);
-const sugForMe = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && sugOpen(s, g, me.id)).sort((a, b) => a.d.localeCompare(b.d));
+// The same title suggested twice (by one friend or several) shows once: "From Emma and Rikkert".
+const dedupeSugs = list => { const by = new Map(); for (const g of list) { const k = key(g.m), o = by.get(k); if (!o) by.set(k, { ...g, ids: [g.id], froms: [g.by] }); else { o.ids.push(g.id); if (!o.froms.includes(g.by)) o.froms.push(g.by); o.by = o.froms.join(" and "); } } return [...by.values()]; };
+const sugForMe = s => dedupeSugs(s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && sugOpen(s, g, me.id)).sort((a, b) => a.d.localeCompare(b.d)));
 const sugMine = s => s.sugs.filter(g => g.a === me.id && sugTo(s, g).some(id => sugOpen(s, g, id)));
 // Suggestions to me that I've already seen stay visible (greyed, with "✓ Seen" to undo a misclick).
-const sugForMeSeen = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && !sugOpen(s, g, me.id)).sort((a, b) => sawAt(s, b.m, me.id) - sawAt(s, a.m, me.id)).slice(0, 10);
+const sugForMeSeen = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && !sugOpen(s, g, me.id)).sort((a, b) => sawAt(s, b.m, me.id) - sawAt(s, a.m, me.id));
 const sugSent = s => s.sugs.filter(g => g.a === me.id).sort((a, b) => b.at - a.at); // including ones everybody has watched
 const isoAdd = (d, n) => { const x = new Date(d + "T12:00"); x.setDate(x.getDate() + n); return iso(x); };
 function sugDays(g, from, to) {
@@ -1011,7 +1013,7 @@ function forYouCard(s) {
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${g.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
       ${out ? `<span class="whos">${who}</span>` : ""}<small class="hint">${[out ? (done ? "Everyone watched it" : g.to.includes("*") ? "To everyone" : "") : `From ${esc(g.by)}`,
         done ? (out ? "" : "You watched it") : out ? "" : by ? (late ? `⏰ was due ${esc(byLabel(by))}` : `👍 Watch by ${esc(byLabel(by))}`) : "New",
-        (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : "", out ? `<button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""].filter(Boolean).join(" · ")}</small>
+        (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : "", `<button class="link" data-sugdrop="${esc((g.ids || [g.id]).join(","))}">remove</button>`].filter(Boolean).join(" · ")}</small>
     </div>${out ? "" : !done && !by ? `<button class="acc-btn" data-acc="${esc(g.id)}">Accept</button>` : seenTag(g.m.n, true)}</div>`;
   };
   return `<div id="fyCard">
@@ -1722,7 +1724,8 @@ loadCine(); loadKp();
 // Take back one of my own suggestions (For you › You suggested, and the title sheet).
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-sugdrop]"); if (!b || !lastState) return;
-  e.stopPropagation(); const g = lastState.sugs.find(x => x.id === b.dataset.sugdrop); if (!g || g.a !== me.id) return;
+  e.stopPropagation(); const ids = b.dataset.sugdrop.split(","), gs = lastState.sugs.filter(x => ids.includes(x.id)), g = gs[0]; if (!g) return;
+  if (g.a !== me.id) { actMany(gs.map(x => ["sugdrop", { sg: x.id }]), null); M.toast(`Removed ${g.m.n} from your suggestions.`); return; } // only hides it for me
   act("sugdrop", { sg: g.id }); M.toast(`Took back your suggestion of ${g.m.n}.`);
   if (titleSheet && b.closest(".title-sheet")) { titleSheet.remove(); setTimeout(() => openTitle(derive(active().id), g.m), 60); }
 }, true);
