@@ -773,8 +773,7 @@ function cinemaCard(s, members) {
         ${mine && o.sc?.d ? `<button data-oics="${esc(o.ok)}" aria-label="Add to my calendar">📅</button>` : ""}</div>
     </div></div>`;
   };
-  return `<div class="fr-card pulp cinema" data-tab="monthly">
-    <div class="pulp-head mon"><span class="chapter">${list.length ? `${list.length} planned` : "Cinema night"}</span><h2 class="bang">Next outings</h2></div>
+  return `<div class="cinema">
     ${list.map(row).join("") || `<p class="hint">Suggest a film in a Ghent cinema. Friends tap "I'm in", then you pick a date together.</p>`}
     <button class="${list.length ? "" : "primary"}" id="cnSuggest">🎟 Suggest an outing</button>
   </div>`;
@@ -874,9 +873,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${`
     ${wlMode === "club" && friends.length ? `<div class="wl-views">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
-    <div class="wl-tools">${wlMode === "mine" && mineN ? `<button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button>` : ""}
-      ${mixed ? `<span class="seg">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${wlType === k ? "on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</span>` : ""}
-      ${items.length > 1 ? `<label class="wl-sort"><select id="wlSort" aria-label="Sort">${[["az", "A–Z"], ["genre", "By genre"], ["year", "By year"]].map(([k, l]) => `<option value="${k}"${wlSort === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
+    <div class="wl-tools">${preStream.length > 1 ? `<button class="chip wl-sf${(wlStream && wlMode === "mine") || (mixed && wlType !== "all") ? " on" : ""}" id="wlSF" data-mixed="${mixed ? 1 : ""}">⇅ ${esc([{ az: "A–Z", genre: "Genre", year: "Year" }[wlSort], mixed && wlType !== "all" ? { movie: "Films", tv: "Series" }[wlType] : "", wlStream && wlMode === "mine" ? "My services" : ""].filter(Boolean).join(" · "))}${wlStream && provBusy ? "…" : ""}</button>` : ""}
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}<button class="primary" id="cwAdd">+ Add</button></div>
     ${tiles(shown)}${items.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
     ${!grouped && !wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
@@ -885,7 +882,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
 const genreShut = new Set(); // genre sections you folded (all open by default)
-let mwPane = "list", fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
+let cinePane = "out", mwPane = "list", fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
 async function fillGenres(items) {
   if (genreBusy) return;
   const work = items.filter(w => !genreCache[key(w.m)]).slice(0, 400); if (!work.length) return;
@@ -1131,7 +1128,24 @@ function bindWl(s, cands) {
     M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your To watch list.`);
   };
   const fromSearch = () => openSearch("Add to your To watch list", m => addAll([m], m.n));
-  { const so = view.querySelector("#wlSort"); if (so) so.onchange = () => { wlSort = so.value; LS.set("marqueeWlSort2", wlSort); wlAll = true; render(); }; }
+  // One small button holds sorting and the filters (films/series, on my services).
+  $("wlSF")?.addEventListener("click", e => {
+    const mixed = !!e.currentTarget.dataset.mixed, grp = (t, items) => `<h4 class="wl-sec">${t}</h4><div class="wl-views">${items.join("")}</div>`;
+    const ch = (attr, v, l, on) => `<button class="chip${on ? " on" : ""}" ${attr}="${v}">${l}</button>`;
+    const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Sort and filter"><h3>Sort and filter</h3>
+      ${grp("Sort", [["az", "A–Z"], ["genre", "By genre"], ["year", "By year"]].map(([k, l]) => ch("data-so", k, l, wlSort === k)))}
+      ${mixed ? grp("Show", [["all", "Everything"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => ch("data-ty", k, l, wlType === k))) : ""}
+      ${wlMode === "mine" ? grp("Streaming", [ch("data-st", "0", "Everything", !wlStream), ch("data-st", "1", "📺 On my services", wlStream)]) : ""}
+      <button class="primary" data-x="1">Done</button></div></div>`);
+    document.body.appendChild(bg);
+    bg.addEventListener("click", ev => {
+      const b = ev.target.closest("button"); if (ev.target === bg || b?.dataset.x) return bg.remove(); if (!b) return;
+      if (b.dataset.so) { wlSort = b.dataset.so; LS.set("marqueeWlSort2", wlSort); wlAll = wlSort !== "genre"; }
+      if (b.dataset.ty) wlType = b.dataset.ty;
+      if (b.dataset.st) { if (b.dataset.st === "1" && !myServices().size) { bg.remove(); M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = b.dataset.st === "1"; }
+      b.parentElement.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b)); render();
+    });
+  });
   view.querySelectorAll("[data-wlt]").forEach(b => b.onclick = () => { wlType = b.dataset.wlt; render(); });
   const fromSaved = () => addAll(LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv")).map(x => ({ t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" })), "From their Marquee watchlist");
   const fromFile = () => { status("Pick the file you exported from IMDb or Letterboxd."); $("wlFile").click(); };
@@ -1211,6 +1225,7 @@ function bindWl(s, cands) {
     } catch (x) { console.error(x); status("Couldn't read that file. Try exporting it again."); }
   });
   $("wlQ")?.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
+  view.querySelectorAll("[data-cnv]").forEach(x => x.onclick = () => { cinePane = x.dataset.cnv; render(); });
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
   view.querySelectorAll("[data-wlm]").forEach(x => x.onclick = () => { wlMode = x.dataset.wlm; LS.set("marqueeWlMode", wlMode); wlAll = false; render(); });
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
@@ -1266,7 +1281,7 @@ let ldYear = new Date().getFullYear(), ldOpen = new Set(), lastWrapHtml = "";
 function pastOutingsHtml(s) {
   const today = iso(new Date());
   const past = [...s.outs.values()].filter(o => o.sc?.d && o.sc.d < today && o.ins.size).sort((a, b) => b.sc.d.localeCompare(a.sc.d)).slice(0, 12);
-  return past.length ? `<div class="fr-card" data-tab="monthly"><h3>Past outings</h3>${past.map(o => `<div class="out-i" data-open="${esc(key(o.m))}">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "";
+  return past.length ? `<div class="past-outs"><h4 class="wl-sec">Past outings</h4>${past.map(o => `<div class="out-i" data-open="${esc(key(o.m))}">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "";
 }
 function leadersHtml(s) {
   const ids = [...s.members.keys()], nm = id => id === me.id ? "You" : s.members.get(id)?.name || "Someone";
@@ -1334,9 +1349,12 @@ function leadersHtml(s) {
     ${yrs.length > 1 ? `<div class="wl-views">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>` : ""}
     <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
     ${ldYear === new Date().getFullYear() ? lastWrapHtml : ""}
-    <div class="ld-grid">${[...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))].join("")}</div>`;
+    ${(() => { const all = [...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))]; // the 6 most interesting first, the rest on request
+      return `<div class="ld-grid">${(ldAll ? all : all.slice(0, 6)).join("")}</div>${all.length > 6 ? `<button class="ld-all" id="ldAll">${ldAll ? "Show fewer" : `All ${all.length} categories`}</button>` : ""}`; })()}`;
 }
+let ldAll = false;
 function bindLeaders() {
+  $("ldAll")?.addEventListener("click", () => { ldAll = !ldAll; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
   $("wrapShare")?.addEventListener("click", shareWrap);
   lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
   lead.querySelectorAll("[data-ldmore]").forEach(b => b.onclick = () => { const i = +b.dataset.ldmore; ldOpen.has(i) ? ldOpen.delete(i) : ldOpen.add(i); lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
@@ -1415,24 +1433,20 @@ function renderClub() {
 
   view.innerHTML = `
     <div class="fr-card">
-      <div class="fr-row"><div style="flex:1;min-width:0"><h2 style="margin:0">${esc(s.name || c.name)}</h2><small class="hint">${members.length} member${members.length === 1 ? "" : "s"}</small></div>
+      <div class="fr-row club-top"><div class="club-id"><h2>${esc(s.name || c.name)}</h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div></div>
         <button id="cbInvite">Invite</button><button id="cbGear" class="gear${clubTab === "set" ? " on" : ""}" aria-label="Club settings">⚙</button></div>
-      <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
     <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
-    <div class="ccol c0"><h2 class="sec-h">My watched <small>what you've seen, and what's for you</small></h2>
-    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
+    <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       return `<div class="fr-card" data-tab="mine"><div class="wl-pick" role="tablist">${[["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${mwPane === k ? " on" : ""}${k === "fy" && nNew ? " dot" : ""}" data-mwv="${k}" role="tab" aria-selected="${mwPane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
       ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
-    </div><div class="ccol c1"><h2 class="sec-h">The Club <small>suggest, watch, talk</small></h2>
-
+    </div><div class="ccol c1">
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
-    </div><div class="ccol c2"><h2 class="sec-h">At the cinema <small>go see it together</small></h2>
-    ${cinemaCard(s, members)}
-    <div class="fr-card" data-tab="monthly"><h3>Cinema calendar</h3><div id="cbCal">${calHtml(s, calC, "cine")}</div></div>
-    ${pastOutingsHtml(s)}
+    </div><div class="ccol c2">    ${(() => { const n = outings(s).length;
+      return `<div class="fr-card" data-tab="monthly"><div class="wl-pick" role="tablist">${[["out", n ? `${n} planned` : "Cinema night", "Next outings"], ["cal", "In Ghent", "Calendar"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${cinePane === k ? " on" : ""}" data-cnv="${k}" role="tab" aria-selected="${cinePane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+      ${cinePane === "cal" ? `<div id="cbCal">${calHtml(s, calC, "cine")}</div>` : cinemaCard(s, members) + pastOutingsHtml(s)}</div>`; })()}
 
 
 
