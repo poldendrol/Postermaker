@@ -137,6 +137,15 @@ function tallyM(mo) {
   const count = {}; for (const v of mo.votes.values()) if (v) count[v] = (count[v] || 0) + 1;
   return noms.map((n, idx) => ({ ...n, votes: count[ckey(n)] || 0, idx })).sort((a, b) => b.votes - a.votes || a.idx - b.idx);
 }
+// Next week's pick is voted on straight from the club watchlist (older nominations still count).
+// Only titles with at least one vote are candidates; most votes first, ties go to whatever was added first.
+function tallyW(s, rd) {
+  const count = {}; for (const v of rd.votes.values()) if (v) count[v] = (count[v] || 0) + 1;
+  const map = new Map();
+  for (const w of [...s.wl.values()].sort((a, b) => a.at - b.at)) map.set(key(w.m), { m: w.m, by: [...w.adders.values()][0], a: [...w.adders.keys()][0], at: w.at });
+  for (const n of rd.noms) if (!rd.dropped.has(key(n.m)) && !map.has(key(n.m))) map.set(key(n.m), n);
+  return [...map.values()].map((n, idx) => ({ ...n, votes: count[key(n.m)] || 0, idx })).filter(x => x.votes > 0).sort((a, b) => b.votes - a.votes || a.idx - b.idx);
+}
 // Candidates for the next movie, most votes first; ties go to whoever was nominated first.
 function tally(rd) {
   const noms = rd.noms.filter(n => !rd.dropped.has(key(n.m)));
@@ -645,7 +654,7 @@ function bindCinema(s) {
 }
 
 // ---------- club watchlist ----------
-let wlAll = false, wlQ = "", wlHideSeen = false, wlMsg = "";
+let wlAll = false, wlQ = "", wlHideSeen = false, wlMsg = "", wlType = "all";
 function parseCsv(text) {
   const rows = []; let row = [], f = "", q = false;
   for (let i = 0; i < text.length; i++) {
@@ -658,34 +667,40 @@ function parseCsv(text) {
   if (f || row.length) { row.push(f); rows.push(row); }
   return rows;
 }
-function wlCard(s, cands, myVote) {
+function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const nominated = new Map(cands.map(x => [key(x.m), x]));
   const mySeen = t => !!s.saw[seenKey(t)]?.get(me.id)?.v;
-  let items = [...s.wl.values()].map(w => ({ ...w, nom: nominated.get(key(w.m)) }));
+  const picked = new Set(Object.values(s.picks).map(key)); // already watched as a club: lives in History now
+  let items = [...s.wl.values()].filter(w => !picked.has(key(w.m))).map(w => ({ ...w, nom: nominated.get(key(w.m)) }));
   const total = items.length;
-  items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && !(wlHideSeen && mySeen(w.m.n)))
+  const nTv = items.filter(w => w.m.t === "tv").length;
+  items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && !(wlHideSeen && mySeen(w.m.n)) && (wlType === "all" || w.m.t === wlType))
     .sort((a, b) => (b.nom?.votes ?? -1) - (a.nom?.votes ?? -1) || b.adders.size - a.adders.size || a.m.n.localeCompare(b.m.n));
   const shown = wlAll || wlQ ? items : items.slice(0, 25);
   const saved = LS.get("marqueeWatchlist", []).length;
-  return `<div class="fr-card" data-tab="weekly" id="wlCard">
+  return `<div class="fr-card pulp" data-tab="weekly" id="wlCard">
+    <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Next week" : "Opening night"}</h2></div>
     <h3>Club watchlist <small>${total || ""}</small></h3>
-    <p class="hint">Everyone's watchlists in one place. Vote here for next week's home movie, and tick what you've already seen.</p>
+    <p class="hint">Films and series from everyone's watchlists. Vote for what to watch at home ${movie ? "next week" : "first"}, and tick what you've already seen.</p>
+    ${cands.length ? `<div class="wl-lead">🏆 <b>${esc(cands[0].m.n)}</b> leads with ${cands[0].votes} vote${cands[0].votes === 1 ? "" : "s"}${cands[1] ? `, then ${esc(cands[1].m.n)} (${cands[1].votes})` : ""}</div>
+      <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="cbLock">Lock in ${esc(cands[0].m.n)}${movie ? " for next week" : ""}</button><button id="cbAskVote">Ask the group to vote</button></div>` : ""}
     <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button id="wlImdb">+ My IMDb watchlist</button><button id="wlSearch">+ Add a movie</button>
+      <button id="wlImdb">+ My IMDb watchlist</button><button id="wlSearch">+ Add a film or series</button>
       ${saved ? `<button id="wlSaved">+ My Marquee watchlist (${saved})</button>` : ""}
     </div>
     <input type="file" id="wlFile" accept=".csv,text/csv" hidden>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
+    ${nTv && nTv < total ? `<div class="cine-chips">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="chip${wlType === k ? " on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</div>` : ""}
     ${total > 6 ? `<div class="wl-tools"><input type="search" id="wlQ" placeholder="Filter the watchlist" value="${esc(wlQ)}" autocomplete="off"><button class="chip${wlHideSeen ? " on" : ""}" id="wlSeenF">Hide what I've seen</button></div>` : ""}
     <div class="wl-list">${shown.map(w => {
       const mine = w.adders.has(me.id), names = [...w.adders.values()];
       const voted = w.nom && myVote === key(w.m);
       return `<div class="wl-i">${poster(w.m.p, "w92")}<div class="body">
-        <b>${esc(w.m.n)}${w.m.y ? ` <small>(${esc(w.m.y)})</small>` : ""}</b>
+        <b>${esc(w.m.n)}${w.m.y ? ` <small>(${esc(w.m.y)})</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
         <small class="hint">${esc(names.slice(0, 2).map(n => n === me.name && mine ? "you" : n).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""} want${names.length === 1 && !mine ? "s" : ""} to see it${w.nom ? ` · <b>${w.nom.votes} vote${w.nom.votes === 1 ? "" : "s"}</b>` : ""}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
         ${seenTag(w.m.n)}
       </div><button class="vote${voted ? " on" : ""}" data-wlvote="${esc(key(w.m))}">${voted ? "✓ Voted" : "Vote"}</button></div>`;
-    }).join("") || `<p class="hint">${total ? "Nothing matches." : "Empty for now. Add your IMDb watchlist to get started."}</p>`}</div>
+    }).join("") || `<p class="hint">${total ? "Nothing matches." : "Empty for now. Add your IMDb watchlist, or any film or series, to get started."}</p>`}</div>
     ${!wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}
   </div>`;
 }
@@ -700,6 +715,7 @@ function bindWl(s, cands) {
     M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to the club watchlist.`);
   };
   $("wlSearch")?.addEventListener("click", () => openSearch("Add to the club watchlist", m => addAll([m], m.n)));
+  view.querySelectorAll("[data-wlt]").forEach(b => b.onclick = () => { wlType = b.dataset.wlt; render(); });
   $("wlSaved")?.addEventListener("click", () => addAll(LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv")).map(x => ({ t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" })), "From their Marquee watchlist"));
   $("wlImdb")?.addEventListener("click", () => {
     status("On IMDb: open your Watchlist, tap ⋯ › Export, then download the CSV from IMDb's Exports page and pick it here.");
@@ -729,8 +745,7 @@ function bindWl(s, cands) {
   view.querySelectorAll("[data-wlvote]").forEach(b => b.onclick = () => {
     const w = s.wl.get(b.dataset.wlvote); if (!w) return;
     const k = key(w.m), mine = s.round(s.cur).votes.get(me.id) || "";
-    if (cands.some(x => key(x.m) === k)) act("vote", { v: mine === k ? "" : k });
-    else actMany([["nom", { m: w.m }], ["vote", { v: k }]], { title: `${me.name} wants to watch ${w.m.n} next`, body: "Open the club to vote." });
+    act("vote", { v: mine === k ? "" : k }, mine === k ? null : { title: `${me.name} voted for ${w.m.n}`, body: "Open the club to vote." });
   });
 }
 
@@ -784,7 +799,7 @@ function setClubTab(t) { clubTab = t; try { sessionStorage.setItem("marqueeClubT
 function renderClub() {
   const c = active(), s = derive(c.id); lastState = s;
   if (s.name !== c.name || s.day !== c.day) { const l = clubs(); const x = l.find(y => y.id === c.id); x.name = s.name || x.name; x.day = s.day; LS.set("marqueeClubs", l); }
-  const cur = s.cur, movie = s.picks[cur], rd = s.round(cur), cands = tally(rd);
+  const cur = s.cur, movie = s.picks[cur], rd = s.round(cur), cands = tallyW(s, rd);
   const myVote = rd.votes.get(me.id) || "";
   const totalVotes = cands.reduce((a, x) => a + x.votes, 0);
   const members = [...s.members.entries()];
@@ -810,7 +825,7 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["weekly", "Weekly", cands.length && !myVote], ["monthly", "Monthly", cineDot]]
+    <div class="club-tabs" role="tablist">${[["weekly", "Weekly", s.wl.size > 0 && !myVote], ["monthly", "Monthly", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c1"><h2 class="sec-h">Weekly <small>watch at home, talk here</small></h2>
 
@@ -835,33 +850,12 @@ function renderClub() {
       ${chatHtml(s, cur, locked)}
       ${sayBox(cur)}
     </div>` : `<div class="fr-card" data-tab="weekly">
-      <h3>Pick your first movie</h3>
-      <p class="hint">Choose it yourself, or let everyone nominate and vote below.</p>
-      <button class="primary" id="cbFirst">Choose the first movie</button>
+      <h3>Pick your first film or series</h3>
+      <p class="hint">Vote on the club watchlist below, or just choose one yourself.</p>
+      <button class="primary" id="cbFirst">Choose it myself</button>
     </div>`}
 
-    <div class="fr-card pulp${vsStill ? " vs-still" : ""}" data-tab="weekly">
-      <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Next week" : "Opening night"}</h2></div>
-      ${vs ? faceoff(cands[0], cands[1], myVote) : ""}
-      <div class="vote-rest">
-      ${cands.length && totalVotes ? voteChart(cands, totalVotes, members.length) : ""}
-      ${vs && cands.length > 2 ? `<p class="hint">Also in the running:</p>` : ""}
-      ${cands.length ? cands.slice(vs ? 2 : 0).map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
-          <b>${esc(x.m.n)}${x.m.y ? ` <small>(${esc(x.m.y)})</small>` : ""}</b>
-          <small>Nominated by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"}${x.a === me.id && !x.votes ? ` · <button class="link" data-drop="${esc(key(x.m))}">remove</button>` : ""}</small>
-          <div class="bar"><i style="width:${totalVotes ? Math.round(x.votes / totalVotes * 100) : 0}%;background:${CHART[(i + (vs ? 2 : 0)) % CHART.length]}"></i></div>${seenTag(x.m.n)}
-        </div><button class="vote${myVote === key(x.m) ? " on" : ""}" data-vote="${esc(key(x.m))}">${myVote === key(x.m) ? "✓ Voted" : "Vote"}</button></div>`).join("")
-        : `<p class="hint">No nominations yet. Add a movie you'd like the group to watch${movie ? " next" : ""}.</p>`}
-      <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="cbNom">+ Nominate a movie</button>
-        ${cands.length ? `<button id="cbAskVote">Ask the group to vote</button>` : ""}
-      </div>
-      </div>
-      ${cands.length ? `<button class="primary" id="cbLock">Lock in ${esc(cands[0].m.n)}${movie ? " for next week" : ""}</button>
-        <p class="hint">Do this on movie night once everyone has voted. Most votes wins; a tie goes to whatever was nominated first.</p>` : ""}
-    </div>
-
-    ${wlCard(s, cands, myVote)}
+    ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
     </div><div class="ccol c2"><h2 class="sec-h">Monthly <small>go see it together</small></h2>
     ${cinemaCard(s, members)}
 
@@ -900,21 +894,21 @@ function bind(c, s, cands, movie) {
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => setClubTab(b.dataset.ct));
   $("cbGear").onclick = () => setClubTab(clubTab === "set" ? "weekly" : "set");
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
-  $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first movie", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
+  $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate for next week" : "Nominate the first movie", m => {
     const rd = s.round(cur);
     if (tally(rd).some(x => key(x.m) === key(m))) { M.toast(`${m.n} is already nominated.`); return; }
     act("nom", { m }, { title: `${me.name} nominated ${m.n}`, body: "Open the club to vote." });
     if (!s.round(cur).votes.get(me.id)) setTimeout(() => act("vote", { v: key(m) }), 50);
   }, initial);
-  $("cbNom").onclick = () => calNominate();
+  $("cbNom")?.addEventListener("click", () => calNominate());
   $("cbAskVote")?.addEventListener("click", () => {
     const list = cands.map(x => `• ${x.m.n} (${x.votes})`).join("\n");
-    shareText(`Vote for ${movie ? "next week's" : "our first"} movie club pick:\n${list}\nVote here:`, APP_URL + "?view=club");
+    shareText(`Vote on the club watchlist for ${movie ? "next week's" : "our first"} pick:\n${list}\nVote here:`, APP_URL + "?view=club");
   });
   $("cbLock")?.addEventListener("click", () => {
     const w = cands[0];
-    if (!confirm(`Lock in ${w.m.n} as ${movie ? "next week's" : "the first"} movie? This starts a new week for everyone.`)) return;
+    if (!confirm(`Lock in ${w.m.n} as ${movie ? "next week's" : "the first"} pick? This starts a new week for everyone.`)) return;
     act("pick", { r: cur + 1, m: w.m }, { title: `Next movie: ${w.m.n}`, body: `${w.votes} vote${w.votes === 1 ? "" : "s"}. Watch it before ${nightLabel(nightAfter(now(), s.day))}.` });
   });
   view.querySelectorAll("[data-vote]").forEach(b => b.onclick = () => act("vote", { v: s.round(cur).votes.get(me.id) === b.dataset.vote ? "" : b.dataset.vote }));
