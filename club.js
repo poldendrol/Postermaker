@@ -25,6 +25,10 @@ const when = ms => { const m = (now() - ms) / 6e4; return m < 1 ? "just now" : m
 const poster = (p, size = "w154") => p ? `<img src="${M.IMG}${size}${esc(p)}" alt="" loading="lazy">` : `<i class="ph"></i>`;
 const avatar = (name, on) => `<span class="avatar${on ? " on" : ""}" title="${esc(name)}">${esc((name || "?")[0].toUpperCase())}</span>`;
 const key = m => m ? m.t + ":" + m.i : "";
+const ckey = x => x ? key(x.m) + "@" + (x.sc ? `${x.sc.c}|${x.sc.d}|${x.sc.h}` : "") : "";
+const monthOf = d => d.getFullYear() * 12 + d.getMonth();
+const monthName = r => new Date(Math.floor(r / 12), r % 12, 1, 12).toLocaleDateString(undefined, { month: "long" });
+const scLabel = sc => { if (!sc || !sc.d) return sc?.c || ""; const [y, m, d] = sc.d.split("-").map(Number); return `${sc.c} · ${new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}${sc.h ? " " + sc.h : ""}`; };
 const stars = n => n ? "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n)) : "";
 
 // ---------- local data ----------
@@ -55,7 +59,9 @@ const defaultName = () => me?.name || LS.get("marqueeMe", null)?.name || "";
 // Event: { i: id, k: kind, a: author id, n: author name, t: time, r: round, ... }
 // Kinds: meta {name, day} · join · nom {m} · drop {m} · vote {v: movie key or ""} · pick {m} · unpick
 //        say {x} · seen {s}. Nominations and votes in round r choose the movie for round r + 1.
-const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen"]);
+const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go"]);
+// Monthly cinema night: the same nom/drop/vote/pick events carry tr: "m", r = year * 12 + month, and sc = the screening
+// { c: cinema, d: "YYYY-MM-DD", h: "HH:MM", u: link }. "go" { v: 1|0 } is an RSVP for that month's outing.
 function valid(e) {
   return e && typeof e.i === "string" && e.i.length <= 16 && KINDS.has(e.k) && typeof e.a === "string" && typeof e.t === "number" && typeof e.r === "number"
     && (!e.m || (typeof e.m === "object" && (e.m.t === "movie" || e.m.t === "tv") && Number.isFinite(+e.m.i)));
@@ -66,6 +72,7 @@ function merge(clubId, list) {
     if (!valid(e) || map[e.i]) continue;
     if (e.x) e.x = String(e.x).slice(0, 600);
     if (e.n) e.n = String(e.n).slice(0, 40);
+    if (e.sc) e.sc = typeof e.sc === "object" ? { c: String(e.sc.c || "").slice(0, 40), d: /^\d{4}-\d\d-\d\d$/.test(e.sc.d) ? e.sc.d : "", h: /^\d\d:\d\d$/.test(e.sc.h) ? e.sc.h : "", u: /^https:\/\//.test(e.sc.u) ? String(e.sc.u).slice(0, 300) : "" } : null;
     map[e.i] = e; fresh.push(e);
   }
   if (fresh.length) save(clubId);
@@ -75,12 +82,24 @@ function merge(clubId, list) {
 function derive(clubId) {
   const E = Object.values(evs(clubId)).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {} };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {};
-  for (const e of E) if (e.k === "unpick") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
+  for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
   for (const e of E) {
     s.members.set(e.a, { name: e.n || "Someone", last: e.t });
+    if (e.tr === "m") {
+      const mo = (s.mon[e.r] ||= { noms: [], dropped: new Set(), votes: new Map(), pick: null, go: new Map() });
+      switch (e.k) {
+        case "nom": if (!mo.noms.some(n => ckey(n) === ckey(e))) mo.noms.push({ m: e.m, sc: e.sc, by: e.n, a: e.a, at: e.t }); else mo.dropped.delete(ckey(e)); break;
+        case "drop": mo.dropped.add(ckey(e)); break;
+        case "vote": mo.votes.set(e.a, e.v || ""); break;
+        case "pick": mo.pick = { ...e.m, sc: e.sc, by: e.n, at: e.t }; break;
+        case "unpick": mo.pick = null; break;
+        case "go": mo.go.set(e.a, { v: !!e.v, name: e.n }); break;
+      }
+      continue;
+    }
     const rd = R(e.r);
     switch (e.k) {
       case "meta": if (e.name) s.name = String(e.name).slice(0, 40); if (e.day >= 0 && e.day <= 6) s.day = e.day; break;
@@ -96,6 +115,12 @@ function derive(clubId) {
   s.cur = rs.length ? Math.max(...rs) : -1;
   s.round = r => R(r);
   return s;
+}
+function tallyM(mo) {
+  if (!mo) return [];
+  const noms = mo.noms.filter(n => !mo.dropped.has(ckey(n)));
+  const count = {}; for (const v of mo.votes.values()) if (v) count[v] = (count[v] || 0) + 1;
+  return noms.map((n, idx) => ({ ...n, votes: count[ckey(n)] || 0, idx })).sort((a, b) => b.votes - a.votes || a.idx - b.idx);
 }
 // Candidates for the next movie, most votes first; ties go to whoever was nominated first.
 function tally(rd) {
@@ -394,7 +419,7 @@ function cineHtml(dayIso) {
   const by = {};
   for (const x of list) { const f = ((by[x.c] ||= {})[x.t] ||= { t: x.t, u: x.u, h: [] }); if (x.h && !f.h.includes(x.h)) f.h.push(x.h); }
   return `<div class="cine"><b class="cine-h">In Ghent cinemas</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
-    ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><button class="link" data-nomt="${esc(f.t)}" title="Nominate for the club">+ Vote</button></div>`).join("")}</div>`).join("")}
+    ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><span class="cf-acts"><button class="link" data-nomt="${esc(f.t)}" title="Nominate for the weekly movie">+ Week</button><button class="link" data-cn="${esc(JSON.stringify({ c, d: dayIso, t: f.t, u: f.u, h: f.h }))}" title="Nominate this screening for cinema night">🎟 Cinema night</button></span></div>`).join("")}</div>`).join("")}
     <small class="hint">Listings from the cinemas' own sites, updated daily.</small></div>`;
 }
 const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -406,6 +431,7 @@ function calEvents(s, cands, movie) {
   }
   const vd = movie ? nightAfter(nightAfter(movie.at, s.day).getTime(), s.day) : nightAfter(now(), s.day);
   ev[ymd(vd)] = { k: "vote", list: cands, d: vd, r: s.cur + 1 };
+  for (const mo of Object.values(s.mon)) if (mo.pick?.sc?.d) { const [y, m, d] = mo.pick.sc.d.split("-").map(Number); const k = ymd(new Date(y, m - 1, d, 12)); if (!ev[k]) ev[k] = { k: "cine", m: mo.pick, d: new Date(y, m - 1, d, 12) }; else ev[k].cine = mo.pick; }
   return ev;
 }
 function calHtml(s, ev) {
@@ -422,34 +448,143 @@ function calHtml(s, ev) {
     const nc = (cineByDay[iso(day)] || []).length, cnt = nc ? `<i class="cnt" title="${nc} screenings in Ghent">${nc}</i>` : "";
     if (!e) { cells += nc ? `<button class="cal-d cn${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}, ${nc} screenings"><em>${lbl}</em>${cnt}</button>` : `<span class="cal-d${cls}"><em>${lbl}</em></span>`; continue; }
     const thumbs = e.k === "vote" ? (e.list.length ? e.list.slice(0, 2).map(x => poster(x.m.p, "w92")).join("") + (e.list.length > 1 ? `<b class="vs">VS</b>` : "") : `<i class="q">?</i>`) : poster(e.m.p, "w92");
-    cells += `<button class="cal-d ev ${e.k}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(e.d))}"><em>${lbl}</em><span class="th">${thumbs}</span>${cnt}</button>`;
+    cells += `<button class="cal-d ev ${e.k}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(e.d))}"><em>${lbl}</em><span class="th">${thumbs}</span>${e.k === "cine" || e.cine ? `<i class="tk" title="Cinema night">🎟</i>` : ""}${cnt}</button>`;
   }
   const fmt = d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
   const e = ev[calSel]; let info = "";
   const [sy, sm, sd] = (calSel || "").split("-").map(Number), selDay = calSel ? new Date(sy, sm - 1, sd, 12) : null;
   if (e) {
-    const when = esc(nightLabel(e.d));
-    if (e.k === "vote") info = `<b>${when} · Chapter ${chapterWord(e.r + 1)} · up for vote</b>` + (e.list.length
+    const when = esc(nightLabel(e.d)), cp = e.k === "cine" ? e.m : e.cine;
+    const cineLine = cp ? `<span class="cn-line">🎟 <b>Cinema night:</b> ${esc(cp.n)} · ${esc(scLabel(cp.sc))}</span>` : "";
+    if (e.k === "cine") info = `<b>${when}</b>${cineLine}`;
+    else if (e.k === "vote") info = `<b>${when} · Chapter ${chapterWord(e.r + 1)} · up for vote</b>` + (e.list.length
       ? `<ol>${e.list.map(x => `<li>${esc(x.m.n)}${x.m.y ? ` (${esc(x.m.y)})` : ""} <small>${x.votes} vote${x.votes === 1 ? "" : "s"}</small></li>`).join("")}</ol>`
-      : `<small class="hint">Nothing nominated yet.</small>`);
+      : `<small class="hint">Nothing nominated yet.</small>`) + cineLine;
     else {
       const sc = [...s.round(e.r).seen.values()].map(x => x.s).filter(Boolean);
       const a = sc.length ? ` · ${(sc.reduce((p, q) => p + q, 0) / sc.length).toFixed(1)} ★` : "";
-      info = `<b>${when} · Chapter ${chapterWord(e.r + 1)}</b><span>${e.k === "now" ? "This week: " : ""}${esc(e.m.n)}${e.m.y ? ` (${esc(e.m.y)})` : ""}<small class="hint"> · ${s.round(e.r).seen.size} watched${a}</small></span>`;
+      info = `<b>${when} · Chapter ${chapterWord(e.r + 1)}</b><span>${e.k === "now" ? "This week: " : ""}${esc(e.m.n)}${e.m.y ? ` (${esc(e.m.y)})` : ""}<small class="hint"> · ${s.round(e.r).seen.size} watched${a}</small></span>${cineLine}`;
     }
   }
   return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
-    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>This week</span><span><i class="k vote"></i>Up for vote</span>${cine ? `<span><i class="k cnt">3</i>Screenings in Ghent</span>` : ""}</div>
+    <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>This week</span><span><i class="k vote"></i>Up for vote</span><span>🎟 Cinema night</span>${cine ? `<span><i class="k cnt">3</i>Screenings in Ghent</span>` : ""}</div>
     ${info || (selDay && cine) ? `<div class="cal-info">${info || `<b>${esc(nightLabel(selDay))}</b>`}${selDay ? cineHtml(iso(selDay)) : ""}</div>` : ""}`;
 }
 function bindCal(s, ev) {
   const box = $("cbCal"); if (!box) return;
   const redraw = box._redraw = () => { box.innerHTML = calHtml(s, ev); bindCal(s, ev); };
   box.querySelectorAll("[data-cine]").forEach(b => b.onclick = () => { const off = cineOff(), c = b.dataset.cine; off.has(c) ? off.delete(c) : off.add(c); LS.set("marqueeCinemasOff", [...off]); indexCine(); redraw(); });
+  box.querySelectorAll("[data-cn]").forEach(b => b.onclick = () => { const x = JSON.parse(b.dataset.cn); pickTime(x, h => cineNominate({ c: x.c, d: x.d, h, u: x.u }, x.t)); });
   box.querySelectorAll("[data-nomt]").forEach(b => b.onclick = () => calNominate(b.dataset.nomt.replace(/\s*\(\d{4}\)\s*$/, "")));
   box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { calOff += +b.dataset.cm; redraw(); });
   box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { calSel = b.dataset.cal; redraw(); });
+}
+
+// ---------- cinema night (monthly) ----------
+let cineNominate = () => {};
+function pickTime(x, done) {
+  const times = x.h && x.h.length ? x.h : [""];
+  if (times.length === 1) { done(times[0]); return; }
+  const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Pick a time"><h3>${esc(x.t)}</h3><p class="hint">${esc(x.c)} · which screening?</p>
+    <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">${times.map(h => `<button data-h="${esc(h)}">${esc(h)}</button>`).join("")}</div><button id="ptCancel">Cancel</button></div></div>`);
+  document.body.appendChild(bg);
+  bg.addEventListener("click", e => { const b = e.target.closest("[data-h]"); if (b) { bg.remove(); done(b.dataset.h); } else if (e.target === bg || e.target.id === "ptCancel") bg.remove(); });
+}
+// Match a cinema title to TMDB so the vote shows a poster; fall back to the bare title.
+async function matchMovie(title) {
+  const yr = (title.match(/\((\d{4})\)\s*$/) || [])[1], q = title.replace(/\s*\(\d{4}\)\s*$/, "");
+  try {
+    const d = await M.tm("/search/movie", yr ? { query: q, year: yr } : { query: q });
+    const x = (d.results || [])[0];
+    if (x) return { t: "movie", i: x.id, n: x.title, y: (x.release_date || "").slice(0, 4), p: x.poster_path || "" };
+  } catch {}
+  let h = 0; for (const ch of q) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return { t: "movie", i: -Math.abs(h) || -1, n: q, y: yr || "", p: "" };
+}
+function openScreenings(onPick) {
+  const soon = new Date(); soon.setDate(soon.getDate() + 60);
+  const today = iso(new Date()), until = iso(soon);
+  const films = {};
+  for (const x of cine?.screenings || []) {
+    if (x.d < today || x.d > until) continue;
+    const f = (films[x.c + "|" + x.t] ||= { c: x.c, t: x.t, u: x.u, shows: [] }); f.shows.push(x);
+  }
+  const list = Object.values(films).sort((a, b) => a.t.localeCompare(b.t));
+  const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Suggest a screening"><h3>Suggest a screening</h3>
+    ${cine ? `<input type="search" id="scQ" placeholder="Filter films or cinemas" autocomplete="off">` : `<p class="hint">Ghent listings aren't loaded right now.</p>`}
+    <div class="sc-list" id="scList"></div>
+    <button id="scAny">Or search any movie</button><button id="scCancel">Cancel</button></div></div>`);
+  document.body.appendChild(bg);
+  const box = bg.querySelector("#scList"); let open = null;
+  const draw = () => {
+    const q = (bg.querySelector("#scQ")?.value || "").toLowerCase();
+    const shown = list.filter(f => !q || f.t.toLowerCase().includes(q) || f.c.toLowerCase().includes(q)).slice(0, 60);
+    box.innerHTML = shown.length ? shown.map((f, i) => `<div class="sc-f"><button class="sc-t" data-f="${list.indexOf(f)}"><b>${esc(f.t)}</b><small>${esc(f.c)} · ${f.shows.length} screening${f.shows.length === 1 ? "" : "s"}</small></button>
+      ${open === list.indexOf(f) ? `<div class="sc-times">${f.shows.slice(0, 24).map((x, j) => `<button class="chip" data-s="${j}">${esc(scLabel({ c: "", d: x.d, h: x.h }).replace(/^ · /, ""))}</button>`).join("")}</div>` : ""}</div>`).join("")
+      : `<p class="hint">${cine ? "Nothing matches." : ""}</p>`;
+  };
+  draw();
+  bg.querySelector("#scQ")?.addEventListener("input", draw);
+  bg.addEventListener("click", e => {
+    if (e.target === bg || e.target.id === "scCancel") { bg.remove(); return; }
+    if (e.target.id === "scAny") { bg.remove(); onPick(null); return; }
+    const t = e.target.closest("[data-f]"); if (t) { open = open === +t.dataset.f ? null : +t.dataset.f; draw(); return; }
+    const sb = e.target.closest("[data-s]");
+    if (sb && open != null) { const f = list[open], x = f.shows[+sb.dataset.s]; bg.remove(); onPick({ c: x.c, d: x.d, h: x.h, u: x.u }, f.t); }
+  });
+  setTimeout(() => bg.querySelector("#scQ")?.focus(), 50);
+}
+function cinemaCard(s, members) {
+  const cm = monthOf(new Date()), mo = s.mon[cm], pick = mo?.pick;
+  const voteR = pick ? cm + 1 : cm, vm = s.mon[voteR], cands = tallyM(vm);
+  const myVote = vm?.votes.get(me.id) || "", total = cands.reduce((a, x) => a + x.votes, 0);
+  const going = pick ? [...mo.go.entries()].filter(([, g]) => g.v) : [], mine = pick ? mo.go.get(me.id) : null;
+  const scPast = pick?.sc?.d && pick.sc.d < iso(new Date());
+  return `<div class="fr-card pulp cinema">
+    <div class="pulp-head mon"><span class="chapter">Cinema night · ${esc(monthName(cm))}</span><h2 class="bang">This month</h2></div>
+    ${pick ? `<div class="club-hero">${poster(pick.p, "w185")}<div class="body">
+        <b class="t">${esc(pick.n)}${pick.y ? ` <small class="hint">(${esc(pick.y)})</small>` : ""}</b>
+        ${pick.sc ? `<span class="ticket-line">🎟 ${esc(scLabel(pick.sc))}</span>` : ""}
+        ${pick.sc?.u ? `<a class="link" href="${esc(pick.sc.u)}" target="_blank" rel="noopener">Tickets and info</a>` : ""}
+        <small class="hint">${going.length ? `Going: ${going.map(([, g]) => esc(g.name)).join(", ")}` : "Nobody has said they're going yet"}</small>
+        ${scPast ? `<small class="hint">That screening has passed.</small>` : `<div class="acts">
+          <button class="${mine?.v ? "on vote" : "primary"}" data-go="1">${mine?.v ? "✓ I'm going" : "I'm going"}</button>
+          <button class="${mine && !mine.v ? "on vote" : ""}" data-go="0">${mine && !mine.v ? "✓ Can't make it" : "Can't make it"}</button></div>`}
+      </div></div>` : ""}
+    <h3 class="mon-h">Vote for ${esc(monthName(voteR))}'s cinema night <small>${total ? total + " vote" + (total === 1 ? "" : "s") : ""}</small></h3>
+    ${cands.length ? cands.map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
+        <b>${esc(x.m.n)}${x.m.y ? ` <small>(${esc(x.m.y)})</small>` : ""}</b>
+        <small>${x.sc ? "🎟 " + esc(scLabel(x.sc)) + " · " : ""}by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"}${x.a === me.id && !x.votes ? ` · <button class="link" data-mdrop="${esc(ckey(x))}">remove</button>` : ""}</small>
+        <div class="bar"><i style="width:${total ? Math.round(x.votes / total * 100) : 0}%;background:${CHART[i % CHART.length]}"></i></div>
+      </div><button class="vote${myVote === ckey(x) ? " on" : ""}" data-mvote="${esc(ckey(x))}">${myVote === ckey(x) ? "✓ Voted" : "Vote"}</button></div>`).join("")
+      : `<p class="hint">Pick a screening in a Ghent cinema (or any movie) for the group to go see together.</p>`}
+    <div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap"><button id="cnSuggest">🎟 Suggest a screening</button></div>
+    ${cands.length ? `<button class="primary" id="cnLock">Lock in ${esc(cands[0].m.n)} for ${esc(monthName(voteR))}</button>` : ""}
+    ${pick ? `<button class="link" id="cnUnpick">Change this month's pick</button>` : ""}
+  </div>`;
+}
+function bindCinema(s) {
+  const cm = monthOf(new Date()), mo = s.mon[cm], pick = mo?.pick, voteR = pick ? cm + 1 : cm, cands = tallyM(s.mon[voteR]);
+  const nom = async (sc, title, m) => {
+    m ||= await matchMovie(title);
+    const x = { m, sc };
+    if (cands.some(c => ckey(c) === ckey(x))) { M.toast("That screening is already up for the vote."); return; }
+    await act("nom", { tr: "m", r: voteR, m, sc }, { title: `${me.name} suggested ${m.n} for cinema night`, body: sc ? scLabel(sc) : "Open the club to vote." });
+    if (!s.mon[voteR]?.votes.get(me.id)) setTimeout(() => act("vote", { tr: "m", r: voteR, v: ckey(x) }), 50);
+    M.toast(`${m.n} is up for ${monthName(voteR)}'s cinema night.`);
+  };
+  cineNominate = (sc, title) => nom(sc, title);
+  $("cnSuggest")?.addEventListener("click", () => openScreenings((sc, title) => sc ? nom(sc, title) : openSearch("Suggest a movie for cinema night", m => nom(null, m.n, m))));
+  view.querySelectorAll("[data-mvote]").forEach(b => b.onclick = () => act("vote", { tr: "m", r: voteR, v: s.mon[voteR]?.votes.get(me.id) === b.dataset.mvote ? "" : b.dataset.mvote }));
+  view.querySelectorAll("[data-mdrop]").forEach(b => b.onclick = () => { const x = cands.find(c => ckey(c) === b.dataset.mdrop); if (x) act("drop", { tr: "m", r: voteR, m: x.m, sc: x.sc }); });
+  view.querySelectorAll("[data-go]").forEach(b => b.onclick = () => act("go", { tr: "m", r: cm, v: +b.dataset.go }, +b.dataset.go ? { title: `${me.name} is going to ${pick.n}`, body: scLabel(pick.sc) } : null));
+  $("cnLock")?.addEventListener("click", () => {
+    const w = cands[0];
+    if (!confirm(`Lock in ${w.m.n} as ${monthName(voteR)}'s cinema night?`)) return;
+    act("pick", { tr: "m", r: voteR, m: w.m, sc: w.sc }, { title: `Cinema night: ${w.m.n}`, body: w.sc ? scLabel(w.sc) + ". Get your tickets!" : `${monthName(voteR)}'s outing is set.` });
+  });
+  $("cnUnpick")?.addEventListener("click", () => { if (confirm(`Take ${pick.n} off and pick again for ${monthName(cm)}?`)) act("unpick", { tr: "m", r: cm }); });
 }
 
 // ---------- face-off ----------
@@ -570,6 +705,8 @@ function renderClub() {
         <p class="hint">Do this on movie night once everyone has voted. Most votes wins; a tie goes to whatever was nominated first.</p>` : ""}
     </div>
 
+    ${cinemaCard(s, members)}
+
     <div class="fr-card">
       <h3>Calendar</h3>
       <div id="cbCal">${calHtml(s, calEv)}</div>
@@ -595,6 +732,7 @@ function renderClub() {
 
   hist.innerHTML = historyHtml(s);
   bind(c, s, cands, movie);
+  bindCinema(s);
   bindCal(s, calEv);
 }
 
