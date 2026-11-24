@@ -348,14 +348,15 @@ function nightAfter(t, day) {
 const nightLabel = d => d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
 
 // ---------- search sheet ----------
-function openSearch(title, onPick, initial = "") {
+function openSearch(title, onPick, initial = "", foot = null) {
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="${esc(title)}">
     <h3>${esc(title)}</h3>
     <input type="search" id="clubQ" placeholder="Search a movie or series" autocomplete="off">
     <div class="results" id="clubRes"><p class="hint">Start typing a title.</p></div>
-    <button id="clubCancel">Cancel</button></div></div>`);
+    ${foot ? foot.html : ""}<button id="clubCancel">Cancel</button></div></div>`);
   document.body.appendChild(bg);
   const close = () => bg.remove();
+  if (foot) bg.querySelectorAll("[data-foot]").forEach(b => b.onclick = () => { close(); foot.on(b.dataset.foot); });
   bg.addEventListener("click", e => { if (e.target === bg) close(); });
   bg.querySelector("#clubCancel").onclick = close;
   const q = bg.querySelector("#clubQ"), res = bg.querySelector("#clubRes");
@@ -1134,21 +1135,20 @@ function bindWl(s, cands) {
   view.querySelectorAll("[data-wlt]").forEach(b => b.onclick = () => { wlType = b.dataset.wlt; render(); });
   const fromSaved = () => addAll(LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv")).map(x => ({ t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" })), "From their Marquee watchlist");
   const fromFile = () => { status("Pick the file you exported from IMDb or Letterboxd."); $("wlFile").click(); };
-  $("cwAdd")?.addEventListener("click", () => {
+  // + Add: straight into search; importing a whole list is one tap below it.
+  const openImport = () => {
     const saved = LS.get("marqueeWatchlist", []).length;
-    const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Add to your To watch list"><h3>Add to your To watch list</h3>
-      <h4 class="wl-sec">Import from IMDb or Letterboxd</h4>
-      <div class="imdb-steps"><a class="btn" href="https://www.imdb.com/list/watchlist/" target="_blank" rel="noopener" data-a="go">1 · Export from IMDb ↗</a><a class="btn" href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener" data-a="go">1 · Export from Letterboxd ↗</a></div>
-      <button class="primary" data-a="file">2 · Pick the file</button>
-      <small class="hint">Watchlists land on your list. Ratings, watched or diary files mark titles as watched, with your stars and dates. IMDb: tap ⋯ › Export, then download it from <a class="link" href="https://www.imdb.com/exports/" target="_blank" rel="noopener" data-a="go">your Exports page ↗</a>. Letterboxd: pick the ZIP as it is.</small>
-      <h4 class="wl-sec">Add one title</h4>
-      <button data-a="search">Search a film or series</button>
-      <button data-a="rec">Recommend something to friends</button>
-      ${saved ? `<button data-a="saved">My Marquee watchlist (${saved})</button>` : ""}
+    const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Import a list"><h3>Import a list</h3>
+      <ol class="imp-steps"><li>Export your list: <a class="link" href="https://www.imdb.com/list/watchlist/" target="_blank" rel="noopener" data-a="go">IMDb ↗</a> (⋯ › Export, then <a class="link" href="https://www.imdb.com/exports/" target="_blank" rel="noopener" data-a="go">Exports page ↗</a>) or <a class="link" href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener" data-a="go">Letterboxd ↗</a> (the ZIP as it is).</li>
+      <li>Pick the file here.</li></ol>
+      <button class="primary" data-a="file">Pick the file</button>
+      <small class="hint">Watchlists go on your To watch list. Ratings and diaries mark titles as watched.</small>
+      ${saved ? `<button class="link" data-a="saved">Or add the ${saved} titles from your Marquee watchlist</button>` : ""}
       <button data-a="x">Cancel</button></div></div>`);
     document.body.appendChild(bg);
-    bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "rec") openSearch("What do you recommend?", m => openReview(derive(active().id), seenKey(m.n), m, { rec: true })); else if (a === "search") fromSearch(); else if (a === "saved") fromSaved(); });
-  });
+    bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "saved") fromSaved(); });
+  };
+  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your To watch list", m => addAll([m], m.n), "", { html: `<button class="link imp-link" data-foot="import">Import a whole list from IMDb or Letterboxd</button>`, on: openImport }));
   // Imports: IMDb CSV (watchlist or ratings) and Letterboxd (watchlist, ratings, watched or diary CSV, or the whole export ZIP).
   const pool = async (list, fn, label) => {
     const work = list.slice(), out = []; let done = 0, missed = 0;
