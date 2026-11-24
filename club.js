@@ -748,15 +748,17 @@ function bindWl(s, cands) {
   $("cwAdd")?.addEventListener("click", () => {
     const saved = LS.get("marqueeWatchlist", []).length;
     const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Add to the club watchlist"><h3>Add to the club watchlist</h3>
-      <button class="primary" data-a="imdb">My IMDb watchlist</button><small class="hint">On IMDb: Watchlist › ⋯ › Export, then download the CSV from your Exports page.</small>
+      <h4 class="wl-sec">My IMDb watchlist</h4>
+      <div class="imdb-steps"><a class="btn" href="https://www.imdb.com/list/watchlist/" target="_blank" rel="noopener" data-a="go">1 · Export on IMDb ↗</a><button class="primary" data-a="imdb">2 · Pick the file</button></div>
+      <small class="hint">On IMDb tap ⋯ › Export. When it's ready, download it from <a class="link" href="https://www.imdb.com/exports/" target="_blank" rel="noopener" data-a="go">your Exports page ↗</a>, then come back and pick it.</small>
       <button data-a="search">Search a film or series</button>
       <h4 class="wl-sec">Seen it? Recommend it</h4>
       <button data-a="rec">Recommend something I've seen</button>
-      <button data-a="rated">My IMDb ratings</button>
+      <div class="imdb-steps"><a class="btn" href="https://www.imdb.com/list/ratings/" target="_blank" rel="noopener" data-a="go">1 · Export my IMDb ratings ↗</a><button data-a="rated">2 · Pick the file</button></div>
       ${saved ? `<button data-a="saved">My Marquee watchlist (${saved})</button>` : ""}
       <button data-a="x">Cancel</button></div></div>`);
     document.body.appendChild(bg);
-    bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if (e.target !== bg && !a) return; bg.remove(); if (a === "imdb") fromImdb(); else if (a === "rated") fromImdb(true); else if (a === "rec") openSearch("Recommend something you've seen", m => addAll([m], m.n, true)); else if (a === "search") fromSearch(); else if (a === "saved") fromSaved(); });
+    bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "imdb") fromImdb(); else if (a === "rated") fromImdb(true); else if (a === "rec") openSearch("Recommend something you've seen", m => addAll([m], m.n, true)); else if (a === "search") fromSearch(); else if (a === "saved") fromSaved(); });
   });
   $("wlFile")?.addEventListener("change", async e => {
     const file = e.target.files[0]; if (!file) return;
