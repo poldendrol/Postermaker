@@ -741,12 +741,13 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
 .g-sec > .wl-grid { padding-bottom: 12px; }
 .wl-tile { scroll-snap-align: start; }
 .wl-tile { position: relative; padding: 0; border: 0; background: var(--field); border-radius: 10px; overflow: hidden; aspect-ratio: 2 / 3; cursor: pointer; text-align: left; display: block; width: 100%; }
-.wl-tile > img, .wl-tile > .ph { position: absolute; inset: 0; width: 100% !important; height: 100% !important; object-fit: cover; border-radius: 0; }
-.wl-tile:hover > img { transform: scale(1.04); transition: transform .2s; }
+.wl-tile > img:not(.tile-prov), .wl-tile > .ph { position: absolute; inset: 0; width: 100% !important; height: 100% !important; object-fit: cover; border-radius: 0; }
+.wl-tile > .ph { background: linear-gradient(160deg, #2a2a3a, #12121a); }
+.wl-tile:hover > img:not(.tile-prov) { transform: scale(1.04); transition: transform .2s; }
 .tile-t { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 7px 6px; background: linear-gradient(transparent, rgba(0,0,0,.88)); color: #fff; display: flex; flex-direction: column; line-height: 1.15; }
 .tile-t b { font-size: 12px; font-weight: 800; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tile-t small { font-size: 10px; opacity: .8; }
-.tile-prov { position: absolute; top: 5px; left: 5px; width: 22px; height: 22px; border-radius: 5px; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.tile-prov { position: absolute; top: 5px; left: 5px; width: 22px !important; height: 22px !important; object-fit: contain; border-radius: 5px; z-index: 1; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .tile-prov.mine { box-shadow: 0 0 0 2px #1e9e4a, 0 1px 4px rgba(0,0,0,.5); }
 .tile-ok { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%; background: #1e9e4a; color: #fff; font: 800 13px/22px Inter, sans-serif; text-align: center; font-style: normal; }
 .tile-tv { position: absolute; top: 31px; right: 5px; background: #ffd400; color: #111; font: 800 9px/1 Inter, sans-serif; padding: 2px 4px; border-radius: 3px; font-style: normal; text-transform: uppercase; }
