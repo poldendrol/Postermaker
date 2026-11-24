@@ -70,9 +70,10 @@ const defaultName = () => me?.name || LS.get("marqueeMe", null)?.name || "";
 // Event: { i: id, k: kind, a: author id, n: author name, t: time, r: round, ... }
 // Kinds: meta {name, day} · join · nom {m} · drop {m} · vote {v: movie key or ""} · pick {m} · unpick
 //        say {x} · seen {s}. Nominations and votes in round r choose the movie for round r + 1.
-const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot"]);
+const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc"]);
 // Cinema outings: a "nom" with tr: "m" is a suggested outing (key ok = ckey). "in" { ok, v: 1|0 } joins it, "odate" { ok, sc } sets the date.
 // "sug" { m, to: [member ids] or ["*"] for everyone, d: "YYYY-MM-DD" first watch date, wk: 1 = remind weekly until seen }
+// "acc" { sg: suggestion id, v: 1|0 } = "I'll watch it in the coming week" (replaces the old weekly reminders; wk is ignored now).
 // "say" with sk: seenKey(title) is a comment on that title (talked about per film or series, not per week).
 // "wl" { m } adds a film to the shared club watchlist (from IMDb, a saved list or search); "wldrop" { m } takes your add back.
 // "saw" { sk: seenKey(title), v: 1|0 } marks that a member has already seen a film (any film, any list).
@@ -90,6 +91,7 @@ function merge(clubId, list) {
     if (e.n) e.n = String(e.n).slice(0, 40);
     if (e.sk) e.sk = String(e.sk).slice(0, 120);
     if (e.k === "ospot") { e.ok = String(e.ok || "").slice(0, 200); e.x = String(e.x || "").slice(0, 80); }
+    if (e.k === "acc") { e.sg = String(e.sg || "").slice(0, 16); e.v = e.v ? 1 : 0; }
     if (e.k === "in" || e.k === "odate") { e.ok = String(e.ok || "").slice(0, 200); e.v = e.v ? 1 : 0; }
     if (e.k === "sug") { e.to = Array.isArray(e.to) ? e.to.slice(0, 30).map(x => String(x).slice(0, 16)) : []; e.d = /^\d{4}-\d\d-\d\d$/.test(e.d) ? e.d : ""; e.wk = e.wk ? 1 : 0; }
     if (e.sc) e.sc = typeof e.sc === "object" ? { c: String(e.sc.c || "").slice(0, 40), d: /^\d{4}-\d\d-\d\d$/.test(e.sc.d) ? e.sc.d : "", h: /^\d\d:\d\d$/.test(e.sc.h) ? e.sc.h : "", u: /^https:\/\//.test(e.sc.u) ? String(e.sc.u).slice(0, 300) : "" } : null;
@@ -102,7 +104,7 @@ function merge(clubId, list) {
 function derive(clubId) {
   const E = Object.values(evs(clubId)).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map() };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {};
   for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
@@ -139,6 +141,7 @@ function derive(clubId) {
       case "seen": rd.seen.set(e.a, { s: e.s || 0, name: e.n }); break;
       case "say": if (e.sk) (s.talk[e.sk] ||= []).push(e); else rd.says.push(e); break;
       case "sug": if (e.m && e.d) s.sugs.push({ id: e.i, m: e.m, a: e.a, by: e.n || "Someone", to: e.to, d: e.d, wk: !!e.wk, at: e.t }); break;
+      case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
       case "wl": if (e.m) { const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
       case "wldrop": if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
       case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "" }); break;
@@ -221,7 +224,7 @@ async function reseed(clubId, inWindow) {
   const s = derive(clubId), keepFrom = s.cur - 1;
   const all = Object.values(evs(clubId));
   const latestMeta = all.filter(e => e.k === "meta").sort((a, b) => b.t - a.t)[0];
-  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
+  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "acc" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
   if (!missing.length) return;
   try { await send(clubId, missing); } catch {}
@@ -541,7 +544,20 @@ function sugDays(g, from, to) {
   for (; d <= to; d = isoAdd(d, 7)) out.push(d);
   return out;
 }
-const sugDueToday = (g, today = iso(new Date())) => g.d === today || (g.wk && g.d < today && dayDiff(today, g.d) % 7 === 0);
+// Accepting a suggestion means watching it within a week of accepting.
+const accAt = (s, g, id) => { const x = s.acc[g.id]?.get(id); return x?.v ? x.at : 0; };
+const accBy = (s, g, id) => accAt(s, g, id) ? iso(new Date(accAt(s, g, id) + 7 * 864e5)) : "";
+const sugNew = (s, g) => !accAt(s, g, me.id);
+const sugDueToday = (g, today = iso(new Date())) => { const s = lastState; return !!s && !!accAt(s, g, me.id) && sugOpen(s, g, me.id) && accBy(s, g, me.id) <= isoAdd(today, 2); };
+const byLabel = d => new Date(d + "T12:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+function acceptSug(s, g) {
+  const by = iso(new Date(Date.now() + 7 * 864e5));
+  act("acc", { sg: g.id, v: 1 }, { to: [g.a], title: `${me.name} accepted ${g.m.n}`, body: `Watching it this week (by ${byLabel(by)}).` });
+  // One friendly nudge the evening before the week is up, only if it still isn't marked as seen by then (marking it seen cancels it).
+  const at = new Date(by + "T18:00"); at.setDate(at.getDate() - 1);
+  window.MarqueePush?.send({ to: [me.id], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), at: +at, title: `Still on for ${g.m.n}?`, body: `You said you'd watch ${g.by}'s suggestion this week. Tap Seen? when you have.` });
+  M.toast(`Accepted. Watch ${g.m.n} by ${byLabel(by)}.`);
+}
 const whoLabel = (s, g) => g.to.includes("*") ? "everyone" : sugTo(s, g).map(id => id === me.id ? "you" : s.members.get(id)?.name || "someone").join(", ");
 
 function calEvents(s, mode) {
@@ -892,24 +908,24 @@ async function fillProv(items) {
 // ---------- suggestions (At home) ----------
 function forYouCard(s) {
   const mine = sugForMe(s), sent = sugSent(s), today = iso(new Date());
-  const due = mine.filter(g => sugDueToday(g, today) || (!g.wk && g.d < today));
+  const due = mine.filter(g => accAt(s, g, me.id)), fresh = mine.filter(g => !accAt(s, g, me.id));
   const row = (g, out) => {
     const rec = sugTo(s, g), done = out ? rec.length && rec.every(id => !sugOpen(s, g, id)) : !sugOpen(s, g, me.id);
     const rv = id => s.saw[seenKey(g.m.n)]?.get(id);
-    const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? "" : " ok"}"${rv(id)?.x ? ` title="${esc(rv(id).x)}"` : ""}>${sugOpen(s, g, id) ? "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}${rv(id)?.v && rv(id).s ? ` ${rv(id).s}★` : ""}</span>`).join("");
-    const when = g.d === today ? "today" : g.d < today ? (g.wk ? DAYS[new Date(g.d + "T12:00").getDay()] + "s" : "overdue") : nightLabel(new Date(g.d + "T12:00"));
-    return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="${out ? "Everyone watched it" : "You watched it"}">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
+    const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? accAt(s, g, id) ? " acc" : "" : " ok"}"${rv(id)?.x ? ` title="${esc(rv(id).x)}"` : accAt(s, g, id) && sugOpen(s, g, id) ? ` title="Accepted, watching by ${esc(byLabel(accBy(s, g, id)))}"` : ""}>${sugOpen(s, g, id) ? accAt(s, g, id) ? "👍 " : "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}${rv(id)?.v && rv(id).s ? ` ${rv(id).s}★` : ""}</span>`).join("");
+    const by = accBy(s, g, me.id), late = by && by < today;
+    return `<div class="wl-i sug-i${!out && !done && by && by <= isoAdd(today, 2) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="${out ? "Everyone watched it" : "You watched it"}">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${g.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
       ${out ? `<span class="whos">${who}</span>` : ""}<small class="hint">${[out ? (done ? "Everyone watched it" : g.to.includes("*") ? "To everyone" : "") : `From ${esc(g.by)}`,
-        done ? (out ? "" : "You watched it") : g.wk ? `🔔 every ${esc(DAYS[new Date(g.d + "T12:00").getDay()])}` : `📅 ${esc(when)}`,
+        done ? (out ? "" : "You watched it") : out ? "" : by ? (late ? `⏰ was due ${esc(byLabel(by))}` : `👍 Watch by ${esc(byLabel(by))}`) : "New",
         (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""].filter(Boolean).join(" · ")}</small>
-    </div>${out ? "" : seenTag(g.m.n, true)}</div>`;
+    </div>${out ? "" : !done && !by ? `<button class="acc-btn" data-acc="${esc(g.id)}">Accept</button>` : seenTag(g.m.n, true)}</div>`;
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
-    <div class="pulp-head"><span class="chapter">${mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
+    <div class="pulp-head"><span class="chapter">${fresh.length ? `${fresh.length} new` : mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
-    ${due.length ? `<div class="sug-due">🔔 <b>Watch today:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}
-    <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
+    ${due.length ? `<div class="sug-due">👍 <b>This week:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}${fresh.length ? `<p class="hint fy-new">Tap Accept on a suggestion if you'll watch it in the coming week.</p>` : ""}
+    <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here. Accept it if you'll watch it this week.</p>`}</div>
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
@@ -944,10 +960,10 @@ function openTitle(s, m, focusSuggest) {
       <small class="hint">${seen.length ? `Seen by ${esc(seen.join(", "))}` : "Nobody has seen it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
-    ${forMe.map(g => `<div class="sug-due">From ${esc(g.by)} · ${g.wk ? "every week from" : "on"} ${esc(nightLabel(new Date(g.d + "T12:00")))}</div>`).join("")}
+    ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept, I'll watch it this week</button>`}</div>`).join("")}
     <h4 class="wl-sec">Suggest it</h4>
     ${others.length ? `<div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
-      <small class="hint">They get a weekly reminder until they've seen it.</small>
+      <small class="hint">They can accept it, which means they'll watch it in the coming week.</small>
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button>`
       : `<p class="hint">Invite friends to the club first, then you can suggest titles to them.</p>`}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}`).join(" · ")}</small>` : ""}
@@ -970,9 +986,9 @@ function openTitle(s, m, focusSuggest) {
   };
   bg.querySelectorAll("[data-to]").forEach(b => b.onclick = () => { const id = b.dataset.to; if (id === "*") { to.has("*") ? to.clear() : (to.clear(), to.add("*")); } else { to.delete("*"); to.has(id) ? to.delete(id) : to.add(id); } sync(); });
   go?.addEventListener("click", () => {
-    const d = iso(new Date()), wk = 1, list = [...to];
+    const d = iso(new Date()), wk = 0, list = [...to];
     const names = list.includes("*") ? "everyone" : list.map(id => s.members.get(id)?.name).join(", ");
-    close(); act("sug", { m, to: list, d, wk }, { to: list.includes("*") ? undefined : list, title: `${me.name} suggests ${m.n}`, body: `For ${names}. You'll get a weekly reminder until you've seen it.` });
+    close(); act("sug", { m, to: list, d, wk }, { to: list.includes("*") ? undefined : list, title: `${me.name} suggests ${m.n}`, body: `Open Marquee to accept it if you'll watch it this week.` });
     M.toast(`Suggested ${m.n} to ${names}.`);
   });
   const say = () => { const i = bg.querySelector("#tsSay"), x = i.value.trim(); if (!x) return; i.value = ""; act("say", { sk, x }, { title: `${me.name} on ${m.n}`, body: x.slice(0, 200) }).then(() => { const n = derive(active().id); close(); openTitle(n, m); }); };
@@ -999,9 +1015,9 @@ async function addDemo() {
   const titles = {};
   for (const f of DEMO) { ev(f, "join"); for (const q of f.wl) { const m = titles[q] ||= await find(q); if (!m) continue; ev(f, "wl", { m }); if (f.saw.includes(q)) ev(f, "saw", { sk: seenKey(m.n), v: 1 }); } }
   const today = iso(new Date());
-  if (titles["Past Lives"]) ev(DEMO[0], "sug", { m: titles["Past Lives"], to: [me.id], d: today, wk: 1 });
-  if (titles["Dune: Part Two"]) ev(DEMO[1], "sug", { m: titles["Dune: Part Two"], to: ["*"], d: isoAdd(today, 3), wk: 1 });
-  if (titles["Poor Things"]) { ev(DEMO[2], "sug", { m: titles["Poor Things"], to: [me.id, "demo_jonas"], d: isoAdd(today, -7), wk: 1 }); ev(DEMO[1], "say", { sk: seenKey(titles["Poor Things"].n), x: "Saw the trailer, looks wild. Let's do it this week?" }); }
+  if (titles["Past Lives"]) ev(DEMO[0], "sug", { m: titles["Past Lives"], to: [me.id], d: today });
+  if (titles["Dune: Part Two"]) ev(DEMO[1], "sug", { m: titles["Dune: Part Two"], to: ["*"], d: today });
+  if (titles["Poor Things"]) { ev(DEMO[2], "sug", { m: titles["Poor Things"], to: [me.id, "demo_jonas"], d: isoAdd(today, -3) }); ev(DEMO[1], "say", { sk: seenKey(titles["Poor Things"].n), x: "Saw the trailer, looks wild. Let's do it this week?" }); }
   const wk = titles["Wicked: For Good"] ||= await find("Wicked: For Good");
   if (wk) { const sc = { c: "Kinepolis Gent", d: "", h: "", u: KP_URL }; ev(DEMO[2], "nom", { tr: "m", r: monthOf(new Date()), m: wk, sc }); ev(DEMO[1], "in", { ok: ckey({ m: wk, sc }), v: 1 }); }
   if (titles["Aftersun"]) ev(DEMO[0], "say", { sk: seenKey(titles["Aftersun"].n), x: "That ending wrecked me. Everyone needs to see this." });
@@ -1233,7 +1249,7 @@ function renderClub() {
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["weekly", "At home", sugForMe(s).some(g => sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
+    <div class="club-tabs" role="tablist">${[["weekly", "At home", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c1"><h2 class="sec-h">At home <small>suggest, watch, talk</small></h2>
 
@@ -1357,11 +1373,13 @@ function openReview(s, sk) {
     const from = s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
     const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
     act("saw", { sk, v: 1, ...(sc ? { s: sc } : {}), ...(x ? { x } : {}) }, news);
-    // Recommend: it goes on the club watchlist under "Seen it, recommend" and everyone else gets a weekly nudge until they've seen it.
+    // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
+    for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
+    // Recommend: it goes on the club watchlist under "Seen it, recommend" and lands in everyone else's For you to accept.
     if (rec && m) {
       const s2 = derive(active().id), others = realIds(s2).filter(id => id !== me.id && !s2.saw[sk]?.get(id)?.v);
       if (!s2.wl.has(key(m))) act("wl", { m });
-      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 1 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Seen it and says you should too." } : null);
+      act("sug", { m, to: ["*"], d: iso(new Date()), wk: 0 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Seen it and says you should too." } : null);
       M.toast(`Recommended ${m.n} to your friends.`);
     }
     if (m && (sc || x)) {
@@ -1414,6 +1432,12 @@ render();
 live();
 refresh();
 loadCine(); loadKp();
+// Accept buttons (For you rows and the title sheet).
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-acc]"); if (!b || !lastState) return;
+  e.stopPropagation(); const g = lastState.sugs.find(x => x.id === b.dataset.acc); if (!g) return;
+  acceptSug(lastState, g); if (titleSheet && b.closest(".title-sheet")) { titleSheet.remove(); setTimeout(() => openTitle(derive(active().id), g.m), 60); }
+}, true);
 // One tap handler for every "Seen it?" tag, wherever it is drawn.
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-saw]"); if (!b || !lastState) return;
