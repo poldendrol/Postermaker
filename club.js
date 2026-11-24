@@ -1411,13 +1411,12 @@ function openReview(s, sk, m0) {
   let score = prev?.s || 0; const picked = new Set(ssList(prev?.ss));
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
     <h3>${prev ? `Update ${esc(name)}` : `How was ${esc(name)}?`}</h3>
-    <div class="seg rev-when" role="group"><button data-when="now" aria-pressed="${!prev?.old}">Just watched</button><button data-when="old" aria-pressed="${!!prev?.old}">Seen it before</button></div>
     <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${isTv ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
-    <label class="rev-d">Watched on <input type="date" id="revD" value="${today}" max="${today}"></label>
+    <label class="rev-d">Just watched on <input type="date" id="revD" value="${today}" max="${today}"></label>
     ${m && s.members.size > 1 ? `<label class="rev-rec"><input type="checkbox" id="revRec"> Recommend this to your friends</label>` : ""}
-    <button class="primary" id="revGo">Save</button>${prev ? `<button id="revUn">Unwatch</button>` : `<button id="revSkip">Just mark as watched</button>`}</div></div>`);
+    <div class="rev-btns"><button class="primary" data-when="now">Just watched</button><button data-when="old">Seen it before</button></div>${prev ? `<button class="link" id="revUn">Unwatch</button>` : ""}</div></div>`);
   document.body.appendChild(bg);
   if (isTv) M.tm(`/tv/${m.i}`).then(j => {
     const list = (j.seasons || []).map(x => x.season_number).filter(n => n > 0);
@@ -1427,9 +1426,8 @@ function openReview(s, sk, m0) {
     grid.querySelectorAll("[data-ss]").forEach(b => b.onclick = () => { const k = +b.dataset.ss; picked.has(k) ? picked.delete(k) : picked.add(k); b.classList.toggle("on", picked.has(k)); });
     grid.querySelector("[data-ssall]")?.addEventListener("click", () => { n.forEach(k => picked.add(k)); grid.querySelectorAll("[data-ss]").forEach(b => b.classList.add("on")); });
   }).catch(() => { const g = bg.querySelector(".ss-grid"); if (g) g.innerHTML = `<small class="hint">Couldn't load the seasons.</small>`; });
-  let old = !!prev?.old;
-  const setWhen = () => { bg.querySelectorAll("[data-when]").forEach(b => b.setAttribute("aria-pressed", (b.dataset.when === "old") === old)); bg.querySelector(".rev-d").hidden = old; const h = bg.querySelector(".rev-ss .hint"); if (h) h.textContent = old ? "Seasons you've seen" : "Seasons you've watched"; };
-  bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => { old = b.dataset.when === "old"; setWhen(); }); setWhen();
+  let old = false;
+  bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => { old = b.dataset.when === "old"; save(true); });
   bg.querySelector("#revUn")?.addEventListener("click", () => { bg.remove(); act("saw", { sk, v: 0 }); });
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
@@ -1456,9 +1454,7 @@ function openReview(s, sk, m0) {
     }
   };
   bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = +b.dataset.s; bg.querySelectorAll(".mstars button").forEach(o => o.classList.toggle("on", +o.dataset.s <= score)); });
-  bg.querySelector("#revGo").onclick = () => save(true);
-  bg.querySelector("#revSkip")?.addEventListener("click", () => save(false));
-  bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
+  bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) { old = false; save(true); } });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) bg.querySelectorAll(".mstars button").forEach(o => o.classList.toggle("on", +o.dataset.s <= score));
   setTimeout(() => bg.querySelector(".mstars button")?.focus(), 50);
