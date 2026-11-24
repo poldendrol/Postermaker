@@ -669,6 +669,7 @@ function renderClub() {
     </div>
     <div class="club-tabs" role="tablist">${[["week", movie ? "This week" : "Start", false], ["vote", "Next week", cands.length && !myVote], ["cine", "Cinema", cineDot], ["cal", "Calendar", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
+    <div class="ccol c1">
 
     ${movie ? `<div class="fr-card pulp" data-tab="week">
       <div class="pulp-head"><span class="chapter">Chapter ${chapterWord(cur + 1)}</span><h2 class="bang">This week</h2></div>
@@ -696,6 +697,7 @@ function renderClub() {
       <button class="primary" id="cbFirst">Choose the first movie</button>
     </div>`}
 
+    </div><div class="ccol c2">
     <div class="fr-card pulp${vsStill ? " vs-still" : ""}" data-tab="vote">
       <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Next week" : "Opening night"}</h2></div>
       ${vs ? faceoff(cands[0], cands[1], myVote) : ""}
@@ -717,6 +719,7 @@ function renderClub() {
         <p class="hint">Do this on movie night once everyone has voted. Most votes wins; a tie goes to whatever was nominated first.</p>` : ""}
     </div>
 
+    </div><div class="ccol c3">
     ${cinemaCard(s, members)}
 
     <div class="fr-card" data-tab="cal">
@@ -739,6 +742,7 @@ function renderClub() {
           <button class="link" id="cbLeave">Leave this club on this device</button>
         </div>
       </details>
+    </div>
     </div>`;
 
   hist.innerHTML = historyHtml(s);

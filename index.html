@@ -504,6 +504,31 @@ footer { padding-left: 0; }
   .vchart .donut { width: 96px; height: 96px; }
   .sheet { max-height: 88vh; overflow: auto; }
 }
+
+/* ---- wide screens: the club as a three-column dashboard, no tabs ---- */
+.ccol { display: contents; }
+@media (min-width: 1100px) {
+  header { display: none; }
+  body { padding-top: 20px; }
+  body[data-view=club] .app { grid-template-columns: minmax(0, 1fr); }
+  #clubView { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 18px; align-items: start; background: none; border: 0; padding: 0; }
+  #clubView > .fr-card:first-child { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+  #clubView > .fr-card:first-child .fr-row { flex: 1 1 300px; }
+  .club-tabs { display: none !important; }
+  .ccol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .ccol > .fr-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  #clubView [data-tab] { display: flex !important; }
+  #clubView:not([data-tab=set]) [data-tab=set] { display: none !important; }
+  .pulp-head .bang { font-size: clamp(40px, 4.2vw, 72px); }
+  .fo-side img, .fo-side i.ph { max-width: 120px; }
+  .vchart .donut { width: 100px; height: 100px; }
+  .cal-d { aspect-ratio: 1 / 1; }
+  body:not([data-view=make]):not([data-view=club]):not([data-view=history]) .app { grid-template-columns: minmax(0, 760px); }
+  body[data-view=history] .app { grid-template-columns: minmax(0, 1100px); }
+  #histView { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; align-items: start; background: none; border: 0; padding: 0; }
+  #histView > .fr-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  #histView > .fr-card:first-child { grid-column: 1 / -1; }
+}
 </style>
 </head>
 <body>
