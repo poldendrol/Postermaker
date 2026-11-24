@@ -129,7 +129,7 @@ function derive(clubId) {
       case "sug": if (e.m && e.d) s.sugs.push({ id: e.i, m: e.m, a: e.a, by: e.n || "Someone", to: e.to, d: e.d, wk: !!e.wk, at: e.t }); break;
       case "wl": if (e.m) { const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
       case "wldrop": if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
-      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t }); break;
+      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "" }); break;
     }
   }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
@@ -779,7 +779,8 @@ function forYouCard(s) {
   const due = mine.filter(g => sugDueToday(g, today) || (!g.wk && g.d < today));
   const row = (g, out) => {
     const rec = sugTo(s, g), done = out ? rec.length && rec.every(id => !sugOpen(s, g, id)) : !sugOpen(s, g, me.id);
-    const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? "" : " ok"}">${sugOpen(s, g, id) ? "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}</span>`).join("");
+    const rv = id => s.saw[seenKey(g.m.n)]?.get(id);
+    const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? "" : " ok"}"${rv(id)?.x ? ` title="${esc(rv(id).x)}"` : ""}>${sugOpen(s, g, id) ? "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}${rv(id)?.v && rv(id).s ? ` ${rv(id).s}★` : ""}</span>`).join("");
     const when = g.d === today ? "today" : g.d < today ? (g.wk ? DAYS[new Date(g.d + "T12:00").getDay()] + "s" : "overdue") : nightLabel(new Date(g.d + "T12:00"));
     return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="${out ? "Everyone watched it" : "You watched it"}">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${g.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
@@ -790,6 +791,7 @@ function forYouCard(s) {
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
     <div class="pulp-head"><span class="chapter">${mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
+    ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     ${due.length ? `<div class="sug-due">🔔 <b>Watch today:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}
     <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
@@ -832,6 +834,7 @@ function openTitle(s, m, focusSuggest) {
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button>`
       : `<p class="hint">Invite friends to the club first, then you can suggest titles to them.</p>`}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}`).join(" · ")}</small>` : ""}
+    ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); return rs.length ? `<h4 class="wl-sec">Reviews <i>${rs.length}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${"★".repeat(x.s)}${"☆".repeat(5 - x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>` : ""; })()}
     <h4 class="wl-sec">Talk about it <i>${talk.length || ""}</i></h4>
     <div class="ts-talk">${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || `<small class="hint">No thoughts yet.</small>`}</div>
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
@@ -1101,6 +1104,7 @@ function bind(c, s, cands, movie) {
   document.querySelectorAll("#clubView .say input, #histView .say input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) sendSay(+i.id.slice(4)); }));
   hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbDemo")?.addEventListener("click", addDemo);
+  $("revRead")?.addEventListener("click", () => { LS.set(revReadKey(c.id), now()); render(); });
   view.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { b.disabled = true; addDemo(); });
   $("cbDemoOff")?.addEventListener("click", removeDemo);
   $("cbSaveSet").onclick = () => {
@@ -1122,6 +1126,45 @@ function bind(c, s, cands, movie) {
     LS.set("marqueeClubs", clubs().filter(x => x.id !== c.id)); try { localStorage.removeItem(evKey(c.id)); } catch {}
     delete store[c.id]; activeId = clubs()[0]?.id || null; LS.set("marqueeClubActive", activeId); live(); render();
   };
+}
+
+// Marking something as seen asks for a quick score and review; whoever suggested it to you gets told.
+function titleBySk(s, sk) {
+  const all = [...[...s.wl.values()].map(w => w.m), ...s.sugs.map(g => g.m), ...Object.values(s.picks), ...Object.values(s.mon).flatMap(mo => [mo.pick, ...mo.noms.map(n => n.m)]).filter(Boolean)];
+  return all.find(m => seenKey(m.n) === sk) || null;
+}
+function openReview(s, sk) {
+  const m = titleBySk(s, sk), name = m?.n || "it";
+  let score = 0;
+  const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
+    <h3>How was ${esc(name)}?</h3>
+    <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
+    <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done">
+    <button class="primary" id="revGo">Save</button><button id="revSkip">Just mark as seen</button></div></div>`);
+  document.body.appendChild(bg);
+  const save = (withReview) => {
+    const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
+    bg.remove();
+    const from = s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
+    const news = from.length ? { title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
+    act("saw", { sk, v: 1, ...(sc ? { s: sc } : {}), ...(x ? { x } : {}) }, news);
+  };
+  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = +b.dataset.s; bg.querySelectorAll(".mstars button").forEach(o => o.classList.toggle("on", +o.dataset.s <= score)); });
+  bg.querySelector("#revGo").onclick = () => save(true);
+  bg.querySelector("#revSkip").onclick = () => save(false);
+  bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  setTimeout(() => bg.querySelector(".mstars button")?.focus(), 50);
+}
+// Reviews of my suggestions that I haven't looked at yet.
+const revReadKey = id => "marqueeRevRead_" + id;
+function newReviews(s) {
+  const since = LS.get(revReadKey(active().id), 0), out = [];
+  for (const g of s.sugs.filter(g => g.a === me.id)) for (const id of sugTo(s, g)) {
+    const x = s.saw[seenKey(g.m.n)]?.get(id);
+    if (x?.v && x.at > since && x.at > g.at && !out.some(o => o.id === id && o.m.n === g.m.n)) out.push({ id, name: x.name, m: g.m, s: x.s, x: x.x, at: x.at });
+  }
+  return out.sort((a, b) => b.at - a.at);
 }
 
 function openSeen(s, movie) {
@@ -1154,7 +1197,7 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-saw]"); if (!b || !lastState) return;
   e.stopPropagation();
   const mine = !!lastState.saw[b.dataset.saw]?.get(me.id)?.v;
-  act("saw", { sk: b.dataset.saw, v: mine ? 0 : 1 });
+  if (mine) act("saw", { sk: b.dataset.saw, v: 0 }); else openReview(lastState, b.dataset.saw);
 }, true);
 // Quietly keep the other clubs topped up too.
 clubs().filter(c => c.id !== active()?.id).forEach(c => pull(c.id));
