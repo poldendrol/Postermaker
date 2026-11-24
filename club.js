@@ -485,12 +485,12 @@ function cineHtml(dayIso) {
   const kpHtml = opens.length || running.length ? `<div class="cine-c"><span class="cine-name">Kinepolis Gent <small class="hint">times on Kinepolis</small></span>${opens.map(f => kpFilm(f, "Opens")).join("")}${running.slice(0, kpAll ? 99 : 8).map(f => kpFilm(f, "Showing")).join("")}${!kpAll && running.length > 8 ? `<button class="link" id="kpMore">+ ${running.length - 8} more</button>` : ""}</div>` : "";
   const chips = `<div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>`;
   const list = cineByDay[dayIso] || [];
-  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${kpHtml || `<small class="hint">No screenings listed for this day.</small>`}<a class="link kp-link" href="https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a></div>`;
+  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${kpHtml || `<small class="hint">No screenings listed for this day.</small>`}<a class="link kp-link" href="https://kinepolis.be/nl/bioscopen/kinepolis-gent" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a></div>`;
   const by = {};
   for (const x of list) { const f = ((by[x.c] ||= {})[x.t] ||= { t: x.t, u: x.u, h: [] }); if (x.h && !f.h.includes(x.h)) f.h.push(x.h); }
   return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
     ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><span class="cf-acts"><button class="link" data-cn="${esc(JSON.stringify({ c, d: dayIso, t: f.t, u: f.u, h: f.h }))}" title="Suggest this screening for cinema night" aria-label="Suggest for cinema night">+🎟</button></span></div>`).join("")}</div>`).join("")}${kpHtml}
-    <a class="link kp-link" href="https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a>
+    <a class="link kp-link" href="https://kinepolis.be/nl/bioscopen/kinepolis-gent" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a>
     <small class="hint">From the cinemas' own sites and UiT in Vlaanderen, updated every morning. Kinepolis films from TMDB release dates.</small></div>`;
 }
 const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -596,7 +596,7 @@ async function matchMovie(title) {
   let h = 0; for (const ch of q) h = (h * 31 + ch.charCodeAt(0)) | 0;
   return { t: "movie", i: -Math.abs(h) || -1, n: q, y: yr || "", p: "" };
 }
-const KP_URL = "https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/";
+const KP_URL = "https://kinepolis.be/nl/bioscopen/kinepolis-gent";
 function openScreenings(onPick, initial = "") {
   const soon = new Date(); soon.setDate(soon.getDate() + 60);
   const today = iso(new Date()), until = iso(soon);
