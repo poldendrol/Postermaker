@@ -785,6 +785,7 @@ function forYouCard(s) {
     <div class="pulp-head"><span class="chapter">${mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
     ${due.length ? `<div class="sug-due">🔔 <b>Watch today:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}
     <div class="wl-list">${mine.map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
+    ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
 }
@@ -871,7 +872,7 @@ async function addDemo() {
   if (titles["Dune: Part Two"]) ev(DEMO[1], "sug", { m: titles["Dune: Part Two"], to: ["*"], d: isoAdd(today, 3), wk: 1 });
   if (titles["Poor Things"]) { ev(DEMO[2], "sug", { m: titles["Poor Things"], to: [me.id, "demo_jonas"], d: isoAdd(today, -7), wk: 1 }); ev(DEMO[1], "say", { sk: seenKey(titles["Poor Things"].n), x: "Saw the trailer, looks wild. Let's do it this week?" }); }
   if (titles["Aftersun"]) ev(DEMO[0], "say", { sk: seenKey(titles["Aftersun"].n), x: "That ending wrecked me. Everyone needs to see this." });
-  merge(c.id, list); render(); M.toast("Lotte, Jonas and Emma joined (only on this device).");
+  merge(c.id, list); setClubTab("weekly"); render(); M.toast(Object.keys(titles).some(k => titles[k]) ? "Lotte, Jonas and Emma joined (only on this device)." : "Test friends joined, but their films couldn't load. Check your connection.");
 }
 function removeDemo() {
   const c = active(); if (!c) return;
@@ -1093,6 +1094,7 @@ function bind(c, s, cands, movie) {
   document.querySelectorAll("#clubView .say input, #histView .say input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) sendSay(+i.id.slice(4)); }));
   hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbDemo")?.addEventListener("click", addDemo);
+  view.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { b.disabled = true; addDemo(); });
   $("cbDemoOff")?.addEventListener("click", removeDemo);
   $("cbSaveSet").onclick = () => {
     const n = $("cbMe").value.trim(), cn = $("cbRename").value.trim(), day = +$("cbNight").value;
