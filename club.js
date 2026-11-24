@@ -36,6 +36,9 @@ function seenTag(title) {
 }
 const monthOf = d => d.getFullYear() * 12 + d.getMonth();
 const monthName = r => new Date(Math.floor(r / 12), r % 12, 1, 12).toLocaleDateString(undefined, { month: "long" });
+// IMDb has no public API for writing lists, so the next best thing: a link to mark it there yourself.
+const imdbUrl = m => /^tt\d+$/.test(m.im || "") ? `https://www.imdb.com/title/${m.im}/` : `https://www.imdb.com/find/?q=${encodeURIComponent(m.n + (m.y ? " " + m.y : ""))}&s=tt`;
+const imdbLink = m => `<a class="link imdb-l" href="${esc(imdbUrl(m))}" target="_blank" rel="noopener" title="Open on IMDb to mark it there">IMDb ↗</a>`;
 const scLabel = sc => { if (!sc || !sc.d) return sc?.c || ""; const [y, m, d] = sc.d.split("-").map(Number); return `${sc.c} · ${new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}${sc.h ? " " + sc.h : ""}`; };
 const stars = n => n ? "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n)) : "";
 
@@ -620,7 +623,7 @@ function cinemaCard(s, members) {
         <b class="t">${esc(pick.n)}${pick.y ? ` <small class="hint">(${esc(pick.y)})</small>` : ""}</b>
         ${pick.sc?.d ? `<span class="ticket-line">🎟 ${esc(scLabel(pick.sc))}</span>` : `<span class="ticket-line">📅 No date yet</span>`}
         <button class="link" id="cnDate">${pick.sc?.d ? "Change date" : "Set a date"}</button>
-        ${pick.sc?.u ? `<a class="link" href="${esc(pick.sc.u)}" target="_blank" rel="noopener">Tickets and info</a>` : ""}
+        <span>${pick.sc?.u ? `<a class="link" href="${esc(pick.sc.u)}" target="_blank" rel="noopener">Tickets and info</a> · ` : ""}${imdbLink(pick)}</span>
         <small class="hint">${going.length ? `Going: ${going.map(([, g]) => esc(g.name)).join(", ")}` : "Nobody has said they're going yet"}</small>
         ${scPast ? `<small class="hint">That screening has passed.</small>` : `<div class="acts">
           <button class="${mine?.v ? "on vote" : "primary"}" data-go="1">${mine?.v ? "✓ I'm going" : "I'm going"}</button>
@@ -629,7 +632,7 @@ function cinemaCard(s, members) {
     <h3 class="mon-h">Vote on ${pick ? "the outing after that" : "what we go see"} <small>${total ? total + " vote" + (total === 1 ? "" : "s") : ""}</small></h3>
     ${cands.length ? cands.map((x, i) => `<div class="cand">${poster(x.m.p, "w92")}<div class="body">
         <b>${esc(x.m.n)}${x.m.y ? ` <small>(${esc(x.m.y)})</small>` : ""}</b>
-        <small>${x.sc ? "🎟 " + esc(scLabel(x.sc)) + " · " : ""}by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"}${x.a === me.id && !x.votes ? ` · <button class="link" data-mdrop="${esc(ckey(x))}">remove</button>` : ""}</small>
+        <small>${x.sc ? "🎟 " + esc(scLabel(x.sc)) + " · " : ""}by ${esc(x.a === me.id ? "you" : x.by)} · ${x.votes} vote${x.votes === 1 ? "" : "s"} · ${imdbLink(x.m)}${x.a === me.id && !x.votes ? ` · <button class="link" data-mdrop="${esc(ckey(x))}">remove</button>` : ""}</small>
         <div class="bar"><i style="width:${total ? Math.round(x.votes / total * 100) : 0}%;background:${CHART[i % CHART.length]}"></i></div>${seenTag(x.m.n)}
       </div><button class="vote${myVote === ckey(x) ? " on" : ""}" data-mvote="${esc(ckey(x))}">${myVote === ckey(x) ? "✓ Voted" : "Vote"}</button></div>`).join("")
       : `<p class="hint">Pick a screening in a Ghent cinema (or any movie) for the group to go see together.</p>`}
@@ -701,7 +704,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       const voted = myVote === key(w.m), sb = seenBy(w.m.n);
       return `<div class="wl-i">${poster(w.m.p, "w92")}<div class="body">
         <b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-        <small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""}${w.nom ? ` · <b>${w.nom.votes}★</b>` : ""}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
+        <small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""}${w.nom ? ` · <b>${w.nom.votes}★</b>` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
       </div>${seenTag(w.m.n)}<button class="vote${voted ? " on" : ""}" data-wlvote="${esc(key(w.m))}">${voted ? "✓" : "Vote"}</button></div>`;
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="wlCard">
@@ -766,7 +769,7 @@ function bindWl(s, cands) {
     const worker = async () => { while (work.length) { const tt = work.shift(); try {
       const f = await M.tm("/find/" + tt, { external_source: "imdb_id" });
       const x = (f.movie_results || [])[0] || (f.tv_results || [])[0];
-      if (x) ms.push({ t: x.title ? "movie" : "tv", i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }); else missed++;
+      if (x) ms.push({ t: x.title ? "movie" : "tv", i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "", im: tt }); else missed++;
     } catch { missed++; } done++; if (done % 10 === 0) status(`Matching IMDb titles… ${done} of ${tts.length}`); } };
     await Promise.all([worker(), worker(), worker(), worker()]);
     status(`${ms.length} of ${tts.length} IMDb titles found${missed ? ` (${missed} couldn't be matched)` : ""}.`);
@@ -867,7 +870,7 @@ function renderClub() {
       <div class="pulp-head"><span class="chapter">Chapter ${chapterWord(cur + 1)}</span><h2 class="bang">Now watching</h2></div>
       <div class="club-hero">${poster(movie.p, "w185")}<div class="body">
         <b class="t">${esc(movie.n)}${movie.y ? ` <small class="hint">(${esc(movie.y)})</small>` : ""}</b>
-        <small class="hint">Watch it before ${esc(nightLabel(night))}</small>
+        <small class="hint">Watch it before ${esc(nightLabel(night))} · ${imdbLink(movie)}</small>
         <small class="hint">${rd.seen.size ? `${rd.seen.size} of ${members.length} watched${avg ? ` · ${avg.toFixed(1)} ★ average` : ""}` : "Nobody has watched it yet"}</small>
         ${scores.length ? scoreChart(scores) : ""}
         <div class="acts" id="seenActs">
