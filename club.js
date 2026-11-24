@@ -397,13 +397,15 @@ function scoreChart(scores) {
 // ---------- calendar ----------
 let calOff = 0, calSel = null, calNominate = () => {};
 // Ghent cinema listings: screenings.json is refreshed daily by a GitHub Action (scripts/cinemas.mjs).
-const CINEMAS = ["KASKcinema", "Sphinx", "Studio Skoop"];
+const CINEMAS = ["KASKcinema", "Sphinx", "Studio Skoop", "Kinepolis Gent", "Elsewhere"];
+// One-off screenings (o: 1) come from UiT in Vlaanderen and are grouped under one filter chip.
+const chipOf = x => x.o ? (/kinepolis/i.test(x.c) ? "Kinepolis Gent" : "Elsewhere") : x.c;
 let cine = null, cineByDay = {};
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const cineOff = () => new Set(LS.get("marqueeCinemasOff", []));
 function indexCine() {
   const off = cineOff(); cineByDay = {};
-  for (const x of cine?.screenings || []) if (!off.has(x.c)) (cineByDay[x.d] ||= []).push(x);
+  for (const x of cine?.screenings || []) if (!off.has(chipOf(x))) (cineByDay[x.d] ||= []).push(x);
 }
 async function loadCine() {
   for (const u of ["https://raw.githubusercontent.com/poldendrol/Postermaker/main/screenings.json", "screenings.json"]) {
@@ -413,14 +415,15 @@ async function loadCine() {
 function cineHtml(dayIso) {
   if (!cine) return "";
   const off = cineOff();
-  const chips = `<div class="cine-chips">${CINEMAS.map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>`;
+  const have = new Set((cine.screenings || []).map(chipOf));
+  const chips = `<div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>`;
   const list = cineByDay[dayIso] || [];
-  if (!list.length) return `<div class="cine"><b class="cine-h">In Ghent cinemas</b>${chips}<small class="hint">No screenings listed for this day.</small></div>`;
+  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}<small class="hint">No screenings listed for this day.</small></div>`;
   const by = {};
   for (const x of list) { const f = ((by[x.c] ||= {})[x.t] ||= { t: x.t, u: x.u, h: [] }); if (x.h && !f.h.includes(x.h)) f.h.push(x.h); }
-  return `<div class="cine"><b class="cine-h">In Ghent cinemas</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
+  return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
     ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><span class="cf-acts"><button class="link" data-nomt="${esc(f.t)}" title="Nominate for the weekly movie">+ Week</button><button class="link" data-cn="${esc(JSON.stringify({ c, d: dayIso, t: f.t, u: f.u, h: f.h }))}" title="Nominate this screening for cinema night">🎟 Cinema night</button></span></div>`).join("")}</div>`).join("")}
-    <small class="hint">Listings from the cinemas' own sites, updated daily.</small></div>`;
+    <small class="hint">From the cinemas' own sites and UiT in Vlaanderen, updated every morning.</small></div>`;
 }
 const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 function calEvents(s, cands, movie) {
