@@ -924,8 +924,9 @@ function forYouCard(s) {
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
     <div class="pulp-head"><span class="chapter">${fresh.length ? `${fresh.length} new` : mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
-    ${due.length ? `<div class="sug-due">👍 <b>This week:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}${fresh.length ? `<p class="hint fy-new">Tap Accept on a suggestion if you'll watch it in the coming week.</p>` : ""}
-    <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here. Accept it if you'll watch it this week.</p>`}</div>
+    <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
+    <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
+    ${(() => { const seenL = sugForMeSeen(s); return due.length || seenL.length ? `<h4 class="wl-sec">Accepted <i>${due.length || ""}</i></h4><div class="wl-list">${[...due, ...seenL].map(g => row(g, false)).join("")}</div>` : ""; })()}
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
@@ -960,10 +961,9 @@ function openTitle(s, m, focusSuggest) {
       <small class="hint">${seen.length ? `Seen by ${esc(seen.join(", "))}` : "Nobody has seen it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
-    ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept, I'll watch it this week</button>`}</div>`).join("")}
+    ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
     <h4 class="wl-sec">Suggest it</h4>
     ${others.length ? `<div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
-      <small class="hint">They can accept it, which means they'll watch it in the coming week.</small>
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button>`
       : `<p class="hint">Invite friends to the club first, then you can suggest titles to them.</p>`}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}`).join(" · ")}</small>` : ""}
@@ -988,7 +988,7 @@ function openTitle(s, m, focusSuggest) {
   go?.addEventListener("click", () => {
     const d = iso(new Date()), wk = 0, list = [...to];
     const names = list.includes("*") ? "everyone" : list.map(id => s.members.get(id)?.name).join(", ");
-    close(); act("sug", { m, to: list, d, wk }, { to: list.includes("*") ? undefined : list, title: `${me.name} suggests ${m.n}`, body: `Open Marquee to accept it if you'll watch it this week.` });
+    close(); act("sug", { m, to: list, d, wk }, { to: list.includes("*") ? undefined : list, title: `${me.name} suggests ${m.n}`, body: "Open Marquee to accept it." });
     M.toast(`Suggested ${m.n} to ${names}.`);
   });
   const say = () => { const i = bg.querySelector("#tsSay"), x = i.value.trim(); if (!x) return; i.value = ""; act("say", { sk, x }, { title: `${me.name} on ${m.n}`, body: x.slice(0, 200) }).then(() => { const n = derive(active().id); close(); openTitle(n, m); }); };
