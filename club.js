@@ -874,7 +874,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
     <div class="wl-tools">${wlMode === "mine" && mineN ? `<button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button>` : ""}
       ${mixed ? `<span class="seg">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${wlType === k ? "on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</span>` : ""}
-      ${items.length > 1 ? `<label class="wl-sort"><select id="wlSort" aria-label="Sort">${[["genre", "By genre"], ["az", "A–Z"], ["year", "By year"]].map(([k, l]) => `<option value="${k}"${wlSort === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
+      ${items.length > 1 ? `<label class="wl-sort"><select id="wlSort" aria-label="Sort">${[["az", "A–Z"], ["genre", "By genre"], ["year", "By year"]].map(([k, l]) => `<option value="${k}"${wlSort === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}<button class="primary" id="cwAdd">+ Add</button></div>
     ${tiles(shown)}${items.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
     ${!grouped && !wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
@@ -883,7 +883,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
 const genreOpen = new Set(); // genre sections you opened (folded by default so a long list stays a short overview)
-let fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort", "genre");
+let fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
 async function fillGenres(items) {
   if (genreBusy) return;
   const work = items.filter(w => !genreCache[key(w.m)]).slice(0, 400); if (!work.length) return;
@@ -1130,7 +1130,7 @@ function bindWl(s, cands) {
     M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your To watch list.`);
   };
   const fromSearch = () => openSearch("Add to your To watch list", m => addAll([m], m.n));
-  { const so = view.querySelector("#wlSort"); if (so) so.onchange = () => { wlSort = so.value; LS.set("marqueeWlSort", wlSort); wlAll = true; render(); }; }
+  { const so = view.querySelector("#wlSort"); if (so) so.onchange = () => { wlSort = so.value; LS.set("marqueeWlSort2", wlSort); wlAll = true; render(); }; }
   view.querySelectorAll("[data-wlt]").forEach(b => b.onclick = () => { wlType = b.dataset.wlt; render(); });
   const fromSaved = () => addAll(LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv")).map(x => ({ t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" })), "From their Marquee watchlist");
   const fromFile = () => { status("Pick the file you exported from IMDb or Letterboxd."); $("wlFile").click(); };
