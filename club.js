@@ -70,7 +70,7 @@ const defaultName = () => me?.name || LS.get("marqueeMe", null)?.name || "";
 // Event: { i: id, k: kind, a: author id, n: author name, t: time, r: round, ... }
 // Kinds: meta {name, day} · join · nom {m} · drop {m} · vote {v: movie key or ""} · pick {m} · unpick
 //        say {x} · seen {s}. Nominations and votes in round r choose the movie for round r + 1.
-const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate"]);
+const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot"]);
 // Cinema outings: a "nom" with tr: "m" is a suggested outing (key ok = ckey). "in" { ok, v: 1|0 } joins it, "odate" { ok, sc } sets the date.
 // "sug" { m, to: [member ids] or ["*"] for everyone, d: "YYYY-MM-DD" first watch date, wk: 1 = remind weekly until seen }
 // "say" with sk: seenKey(title) is a comment on that title (talked about per film or series, not per week).
@@ -89,6 +89,7 @@ function merge(clubId, list) {
     if (e.x) e.x = String(e.x).slice(0, 600);
     if (e.n) e.n = String(e.n).slice(0, 40);
     if (e.sk) e.sk = String(e.sk).slice(0, 120);
+    if (e.k === "ospot") { e.ok = String(e.ok || "").slice(0, 200); e.x = String(e.x || "").slice(0, 80); }
     if (e.k === "in" || e.k === "odate") { e.ok = String(e.ok || "").slice(0, 200); e.v = e.v ? 1 : 0; }
     if (e.k === "sug") { e.to = Array.isArray(e.to) ? e.to.slice(0, 30).map(x => String(x).slice(0, 16)) : []; e.d = /^\d{4}-\d\d-\d\d$/.test(e.d) ? e.d : ""; e.wk = e.wk ? 1 : 0; }
     if (e.sc) e.sc = typeof e.sc === "object" ? { c: String(e.sc.c || "").slice(0, 40), d: /^\d{4}-\d\d-\d\d$/.test(e.sc.d) ? e.sc.d : "", h: /^\d\d:\d\d$/.test(e.sc.h) ? e.sc.h : "", u: /^https:\/\//.test(e.sc.u) ? String(e.sc.u).slice(0, 300) : "" } : null;
@@ -107,8 +108,9 @@ function derive(clubId) {
   for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
   for (const e of E) {
     s.members.set(e.a, { name: e.n || "Someone", last: e.t });
-    if (e.k === "in" || e.k === "odate") {
+    if (e.k === "in" || e.k === "odate" || e.k === "ospot") {
       const o = s.outs.get(e.ok); if (!o) continue;
+      if (e.k === "ospot") { o.spot = e.x; o.spotBy = e.n; continue; }
       if (e.k === "in") { if (e.v) o.ins.set(e.a, e.n || "Someone"); else o.ins.delete(e.a); }
       else if (e.sc) o.sc = e.sc;
       continue;
@@ -219,7 +221,7 @@ async function reseed(clubId, inWindow) {
   const s = derive(clubId), keepFrom = s.cur - 1;
   const all = Object.values(evs(clubId));
   const latestMeta = all.filter(e => e.k === "meta").sort((a, b) => b.t - a.t)[0];
-  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "in" || e.k === "odate" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
+  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
   if (!missing.length) return;
   try { await send(clubId, missing); } catch {}
@@ -254,7 +256,7 @@ async function act(kind, fields = {}, news) {
   merge(c.id, [e]); markRead(); render();
   try {
     await send(c.id, [e]);
-    if (news) post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=club", tags: ["clapper"] }).catch(() => {});
+    if (news) { post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=club", tags: ["clapper"] }).catch(() => {}); pushNews(s, news); }
   } catch { M.toast("Saved here. It'll reach the club when you're back online."); }
 }
 
@@ -266,8 +268,16 @@ async function actMany(items, news) {
   merge(c.id, list); markRead(); render();
   try {
     await send(c.id, list);
-    if (news) post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=club", tags: ["clapper"] }).catch(() => {});
+    if (news) { post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=club", tags: ["clapper"] }).catch(() => {}); pushNews(s, news); }
   } catch { M.toast("Saved here. It'll reach the club when you're back online."); }
+}
+
+// Push notifications (when Marquee is closed) go through push.js: a queue in Firestore that a GitHub job sends every few minutes.
+const realIds = s => [...s.members.keys()].filter(id => id !== me.id && !id.startsWith("demo_"));
+function pushNews(s, news) {
+  const to = (news.to || realIds(s)).filter(id => id !== me.id && !id.startsWith("demo_"));
+  if (!to.length || !window.MarqueePush) return;
+  window.MarqueePush.send({ to, title: `${s.name || "Movie club"}: ${news.title}`, body: news.body || "Tap to open the club.", ...(news.at ? { at: news.at } : {}), ...(news.id ? { id: news.id } : {}) });
 }
 
 // ---------- unread badge & alerts ----------
@@ -688,6 +698,24 @@ function outings(s) {
   const today = iso(new Date());
   return [...s.outs.values()].filter(o => !o.sc?.d || o.sc.d >= today).sort((a, b) => (a.sc?.d || "9999").localeCompare(b.sc?.d || "9999") || b.at - a.at);
 }
+// Day-before reminder: queued with a send time; the same id per outing, so a new date replaces the old reminder.
+function scheduleOutingReminder(s, o, plus) {
+  if (!o.sc?.d || !window.MarqueePush) return;
+  const at = new Date(o.sc.d + "T18:00"); at.setDate(at.getDate() - 1);
+  if (at.getTime() < now()) return;
+  const to = [...new Set([...o.ins.keys(), ...(plus ? [plus] : []), me.id])].filter(id => !id.startsWith("demo_"));
+  let h = 0; for (const ch of active().id + o.ok) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  window.MarqueePush.send({ id: "rem_" + (h >>> 0).toString(36), to, at: at.getTime(), title: `Tomorrow: ${o.m.n}`, body: `${scLabel(o.sc)}${o.spot ? ` · after: ${o.spot}` : ""}. Got your ticket?` });
+}
+function outingIcs(o) {
+  const d = o.sc.d.replace(/-/g, ""), [hh, mm] = (o.sc.h || "20:00").split(":"), stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const clean = t => String(t).replace(/[,;\n]/g, " ");
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Marquee//Movie club//EN", "BEGIN:VEVENT", `UID:${encodeURIComponent(o.ok).slice(0, 60)}@marquee`, `DTSTAMP:${stamp}`,
+    `DTSTART:${d}T${hh}${mm}00`, `DURATION:PT3H`, `SUMMARY:${clean(o.m.n)} at ${clean(o.sc.c || "the cinema")}`, `LOCATION:${clean(o.sc.c || "")}`, `DESCRIPTION:${clean([...o.ins.values()].join(", "))}${o.spot ? clean(" · after: " + o.spot) : ""}`,
+    "BEGIN:VALARM", "TRIGGER:-P1D", "ACTION:DISPLAY", `DESCRIPTION:Tomorrow: ${clean(o.m.n)}`, "END:VALARM", "END:VEVENT", "END:VCALENDAR"];
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/calendar" })); a.download = "outing.ics";
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
 function cinemaCard(s, members) {
   const list = outings(s);
   const row = o => {
@@ -695,10 +723,12 @@ function cinemaCard(s, members) {
     return `<div class="out-i${mine ? " in" : ""}">${poster(o.m.p, "w92")}<div class="body">
       <b>${esc(o.m.n)}${o.m.y ? ` <small>${esc(o.m.y)}</small>` : ""}</b>
       <span class="ticket-line">${o.sc?.d ? `🎟 ${esc(scLabel(o.sc))}` : `📅 No date yet${o.sc?.c ? ` · ${esc(o.sc.c)}` : ""}`}</span>
+      ${o.spot ? `<span class="spot">🍻 After: <b>${esc(o.spot)}</b></span>` : ""}
       <span class="whos">${going.map(([id, n]) => `<span class="who ok">✓ ${esc(id === me.id ? "You" : n)}</span>`).join("")}</span>
       <small class="hint">Suggested by ${esc(o.a === me.id ? "you" : o.by)}${o.sc?.u ? ` · <a class="link" href="${esc(o.sc.u)}" target="_blank" rel="noopener">Tickets</a>` : ""} · ${imdbLink(o.m)}${o.a === me.id ? ` · <button class="link" data-odrop="${esc(o.ok)}">remove</button>` : ""}</small>
       <div class="acts"><button class="${mine ? "vote on" : "primary"}" data-in="${esc(o.ok)}">${mine ? "✓ I'm in" : "I'm in"}</button>
-        ${mine ? `<button data-odate="${esc(o.ok)}">${o.sc?.d ? "Change date" : "Pick a date"}</button>` : ""}</div>
+        ${mine ? `<button data-odate="${esc(o.ok)}">${o.sc?.d ? "Change date" : "Pick a date"}</button><button data-ospot="${esc(o.ok)}">${o.spot ? "Change spot" : "🍻 Drinks/dinner"}</button>` : ""}
+        ${mine && o.sc?.d ? `<button data-oics="${esc(o.ok)}" aria-label="Add to my calendar">📅</button>` : ""}</div>
     </div></div>`;
   };
   return `<div class="fr-card pulp cinema" data-tab="monthly">
@@ -719,12 +749,19 @@ function bindCinema(s) {
   $("cnSuggest")?.addEventListener("click", () => openScreenings((sc, title, m) => sc ? nom(sc, title, m) : openSearch("Suggest a film to go see", m => nom(null, m.n, m))));
   view.querySelectorAll("[data-in]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.in); if (!o) return; const v = o.ins.has(me.id) ? 0 : 1;
+    if (v && o.sc?.d) scheduleOutingReminder(s, o, me.id);
     act("in", { ok: o.ok, v }, v ? { title: `${me.name} is in for ${o.m.n}`, body: o.sc?.d ? scLabel(o.sc) : "Pick a date in the club." } : null);
   });
   view.querySelectorAll("[data-odate]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.odate); if (!o) return;
-    openDate({ ...o.m, sc: o.sc }, sc => act("odate", { ok: o.ok, sc }, { title: `${o.m.n}: we're going ${scLabel(sc)}`, body: `${[...o.ins.values()].join(", ")} so far. Tap "I'm in" to join.` }));
+    openDate({ ...o.m, sc: o.sc }, sc => (scheduleOutingReminder(s, { ...o, sc }), act("odate", { ok: o.ok, sc }, { title: `${o.m.n}: we're going ${scLabel(sc)}`, body: `${[...o.ins.values()].join(", ")} so far. Tap "I'm in" to join.` })));
   });
+  view.querySelectorAll("[data-ospot]").forEach(b => b.onclick = () => {
+    const o = s.outs.get(b.dataset.ospot); if (!o) return;
+    const x = prompt("Drinks or dinner after? Where:", o.spot || ""); if (x == null) return;
+    act("ospot", { ok: o.ok, x: x.trim() }, x.trim() ? { to: [...o.ins.keys()], title: `${o.m.n}: after, ${x.trim()}`, body: `${me.name} suggests ${x.trim()} after the film.` } : null);
+  });
+  view.querySelectorAll("[data-oics]").forEach(b => b.onclick = () => { const o = s.outs.get(b.dataset.oics); if (o) outingIcs(o); });
   view.querySelectorAll("[data-odrop]").forEach(b => b.onclick = () => { const o = s.outs.get(b.dataset.odrop); if (o && confirm(`Remove ${o.m.n}?`)) act("drop", { tr: "m", r: monthOf(new Date()), m: o.m, sc: o.sc }); });
 }
 
@@ -753,7 +790,9 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const common = base.filter(w => !seenBy(w.m.n));
   let items = wlView === "common" ? common : wlView === "all" ? base : base.filter(w => w.adders.has(wlView));
   const nTv = items.filter(w => w.m.t === "tv").length, mixed = nTv && nTv < items.length;
-  items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || w.m.t === wlType))
+  const svc = myServices(), onMine = w => (provCache[key(w.m)]?.l || []).some(p => svc.has(p.id));
+  if (wlStream) { const all = items; setTimeout(() => fillProv(all), 0); }
+  items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || w.m.t === wlType) && (!wlStream || onMine(w)))
     .sort((a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const shown = wlAll || wlQ ? items : items.slice(0, 20);
   const person = wlView !== "common" && wlView !== "all";
@@ -764,7 +803,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       const sb = seenBy(w.m.n);
       return `<div class="wl-i"><button class="wl-open" data-open="${esc(key(w.m))}" aria-label="Open ${esc(w.m.n)}">${poster(w.m.p, "w92")}</button><div class="body" data-open="${esc(key(w.m))}">
         <b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-        <small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
+        ${wlStream && provCache[key(w.m)]?.l?.length ? `<span class="provs">${provLogos(provCache[key(w.m)].l.filter(p => svc.has(p.id)), svc)}</span>` : ""}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · seen by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
       </div>${seenTag(w.m.n)}</div>`;
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
@@ -772,6 +811,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${base.length ? `<div class="wl-views">${chip("common", "Nobody's seen", common.length)}${chip("all", "Everything", base.length)}${people.map(p => chip(p.id, p.name, p.n)).join("")}</div>` : ""}
+    ${base.length ? `<div class="wl-tools"><button class="chip${wlStream ? " on" : ""}" id="wlStream">📺 On my services${wlStream && provBusy ? "…" : ""}</button><button class="link" id="wlSvc">${svc.size ? `${svc.size} service${svc.size === 1 ? "" : "s"}` : "Pick services"}</button></div>` : ""}
     ${mixed || items.length > 12 || wlQ ? `<div class="wl-tools">${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Filter" value="${esc(wlQ)}" autocomplete="off">` : ""}
       ${mixed ? `<span class="seg">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${wlType === k ? "on" : ""}" data-wlt="${k}">${l}</button>`).join("")}</span>` : ""}</div>` : ""}
     ${person ? (() => {
@@ -782,6 +822,49 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${!wlAll && !wlQ && items.length > shown.length ? `<button class="link" id="wlMore">Show all ${items.length}</button>` : ""}`}
   </div>`;
 }
+// ---------- where to stream (Belgium) ----------
+const PROV_TTL = 3 * 864e5;
+let provCache = LS.get("marqueeProv", {});
+const myServices = () => new Set(LS.get("marqueeMyServices", []));
+async function getProv(m) {
+  const k = key(m), c = provCache[k];
+  if (c && now() - c.t < PROV_TTL) return c;
+  const j = await M.tm(`/${m.t}/${m.i}/watch/providers`), be = j.results?.BE || {};
+  const l = [...(be.flatrate || []), ...(be.free || []), ...(be.ads || [])].filter((x, i, a) => a.findIndex(y => y.provider_id === x.provider_id) === i).map(x => ({ id: x.provider_id, n: x.provider_name, logo: x.logo_path }));
+  provCache[k] = { t: now(), l, u: be.link || "" };
+  const keys = Object.keys(provCache); if (keys.length > 400) for (const x of keys.sort((a, b) => provCache[a].t - provCache[b].t).slice(0, 100)) delete provCache[x];
+  LS.set("marqueeProv", provCache);
+  return provCache[k];
+}
+const provLogos = (l, mine) => l.map(p => `<img class="prov${mine?.has(p.id) ? " mine" : ""}" src="${M.IMG}w92${esc(p.logo)}" alt="${esc(p.n)}" title="${esc(p.n)}">`).join("");
+let allServices = null;
+async function loadServices() {
+  if (allServices) return allServices;
+  const [a, b] = await Promise.all(["movie", "tv"].map(t => M.tm(`/watch/providers/${t}`, { watch_region: "BE" }).catch(() => ({ results: [] }))));
+  const map = new Map();
+  for (const x of [...(a.results || []), ...(b.results || [])]) if (!map.has(x.provider_id)) map.set(x.provider_id, { id: x.provider_id, n: x.provider_name, logo: x.logo_path, pr: x.display_priorities?.BE ?? x.display_priority ?? 99 });
+  return (allServices = [...map.values()].sort((x, y) => x.pr - y.pr).slice(0, 24));
+}
+async function openServices(done) {
+  const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="My streaming services"><h3>My streaming services</h3><p class="hint">Pick what you pay for. Titles on these get marked, and you can filter the watchlist on them.</p><div class="svc-grid"><p class="hint">Loading…</p></div><button class="primary" id="svcDone">Done</button></div></div>`);
+  document.body.appendChild(bg);
+  const mine = myServices(), grid = bg.querySelector(".svc-grid");
+  const list = await loadServices();
+  grid.innerHTML = list.map(p => `<button class="svc${mine.has(p.id) ? " on" : ""}" data-svc="${p.id}"><img src="${M.IMG}w92${esc(p.logo)}" alt=""><span>${esc(p.n)}</span></button>`).join("") || `<p class="hint">Couldn't load the services. Try again later.</p>`;
+  grid.querySelectorAll("[data-svc]").forEach(b => b.onclick = () => { const id = +b.dataset.svc; mine.has(id) ? mine.delete(id) : mine.add(id); b.classList.toggle("on", mine.has(id)); });
+  const close = () => { LS.set("marqueeMyServices", [...mine]); bg.remove(); done?.(); };
+  bg.querySelector("#svcDone").onclick = close;
+  bg.addEventListener("click", e => { if (e.target === bg) close(); });
+}
+let wlStream = false, provBusy = false;
+async function fillProv(items) {
+  if (provBusy) return; provBusy = true;
+  const todo = items.filter(w => !(provCache[key(w.m)] && now() - provCache[key(w.m)].t < PROV_TTL));
+  const work = todo.slice();
+  await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const w = work.shift(); try { await getProv(w.m); } catch {} } }));
+  provBusy = false; if (todo.length) render();
+}
+
 // ---------- suggestions (At home) ----------
 function forYouCard(s) {
   const mine = sugForMe(s), sent = sugSent(s), today = iso(new Date());
@@ -798,8 +881,10 @@ function forYouCard(s) {
         (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""].filter(Boolean).join(" · ")}</small>
     </div>${out ? "" : seenTag(g.m.n, true)}</div>`;
   };
+  const pushBtn = window.MarqueePush?.ready && !window.MarqueePush.on() ? `<button class="push-on" id="pushOn">🔔 Turn on notifications</button>` : "";
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
     <div class="pulp-head"><span class="chapter">${mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
+    ${pushBtn}
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your suggestions got watched</b>${nr.slice(0, 5).map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${"★".repeat(r.s)}${"☆".repeat(5 - r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     ${due.length ? `<div class="sug-due">🔔 <b>Watch today:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}
     <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
@@ -836,6 +921,7 @@ function openTitle(s, m, focusSuggest) {
       <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? `On the list of ${esc([...wl.adders.entries()].map(([a, n]) => a === me.id ? "you" : n).join(", "))}` : ""}</small>
       <small class="hint">${seen.length ? `Seen by ${esc(seen.join(", "))}` : "Nobody has seen it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
+    <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${forMe.map(g => `<div class="sug-due">From ${esc(g.by)} · ${g.wk ? "every week from" : "on"} ${esc(nightLabel(new Date(g.d + "T12:00")))} <button class="link" data-ics="${esc(g.id)}">📅 Add to my calendar</button></div>`).join("")}
     <h4 class="wl-sec">Suggest it</h4>
     ${others.length ? `<div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
@@ -849,6 +935,12 @@ function openTitle(s, m, focusSuggest) {
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     <button id="tsClose">Close</button></div></div>`);
   document.body.appendChild(bg); titleSheet = bg;
+  getProv(m).then(pv => {
+    const box = bg.querySelector(".ts-prov"); if (!box) return; const mine = myServices();
+    box.innerHTML = pv.l.length ? `<span class="provs">${provLogos(pv.l, mine)}</span><small class="hint">${pv.l.some(p => mine.has(p.id)) ? "On your services" : "Streaming in Belgium"}${pv.u ? ` · <a class="link" href="${esc(pv.u)}" target="_blank" rel="noopener">all options ↗</a>` : ""} · <button class="link" data-svcs>my services</button></small>`
+      : `<small class="hint">Not streaming in Belgium right now${pv.u ? ` · <a class="link" href="${esc(pv.u)}" target="_blank" rel="noopener">rent or buy ↗</a>` : ""}</small>`;
+    box.querySelector("[data-svcs]")?.addEventListener("click", () => openServices(() => { bg.remove(); openTitle(derive(active().id), m); }));
+  }).catch(() => { const box = bg.querySelector(".ts-prov"); if (box) box.innerHTML = ""; });
   const to = new Set();
   const go = bg.querySelector("#tsGo");
   const sync = () => {
@@ -859,7 +951,7 @@ function openTitle(s, m, focusSuggest) {
   go?.addEventListener("click", () => {
     const d = iso(new Date()), wk = 1, list = [...to];
     const names = list.includes("*") ? "everyone" : list.map(id => s.members.get(id)?.name).join(", ");
-    close(); act("sug", { m, to: list, d, wk }, { title: `${me.name} suggests ${m.n}`, body: `For ${names}. You'll get a weekly reminder until you've seen it.` });
+    close(); act("sug", { m, to: list, d, wk }, { to: list.includes("*") ? undefined : list, title: `${me.name} suggests ${m.n}`, body: `For ${names}. You'll get a weekly reminder until you've seen it.` });
     M.toast(`Suggested ${m.n} to ${names}.`);
   });
   const say = () => { const i = bg.querySelector("#tsSay"), x = i.value.trim(); if (!x) return; i.value = ""; act("say", { sk, x }, { title: `${me.name} on ${m.n}`, body: x.slice(0, 200) }).then(() => { const n = derive(active().id); close(); openTitle(n, m); }); };
@@ -999,6 +1091,8 @@ function bindWl(s, cands) {
   $("wlQ")?.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   view.querySelectorAll("[data-wlv]").forEach(x => x.onclick = () => { wlView = x.dataset.wlv; wlAll = false; render(); });
   $("wlMore")?.addEventListener("click", () => { wlAll = true; render(); });
+  $("wlStream")?.addEventListener("click", () => { if (!myServices().size) return openServices(() => { if (myServices().size) { wlStream = true; render(); } }); wlStream = !wlStream; render(); });
+  $("wlSvc")?.addEventListener("click", () => openServices(render));
   view.querySelectorAll("[data-wldrop]").forEach(b => b.onclick = () => { const w = s.wl.get(b.dataset.wldrop); if (w) act("wldrop", { m: w.m }); });
   view.querySelectorAll("[data-sug]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.sug, true));
   view.querySelectorAll("#clubView [data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-wldrop], [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
@@ -1013,6 +1107,35 @@ function faceoff(a, b, myVote) {
 }
 
 // ---------- history ----------
+let wrapData = null;
+// The wrap-up as a 1080×1350 image (posters + stats), shared with the phone's share sheet or downloaded.
+async function shareWrap() {
+  const w = wrapData; if (!w) return;
+  const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const g = c.getContext("2d");
+  g.fillStyle = "#ffd400"; g.fillRect(0, 0, 1080, 1350);
+  const load = p => new Promise(ok => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => ok(i); i.onerror = () => ok(null); i.src = M.IMG + "w342" + p; });
+  const imgs = await Promise.all(w.posters.slice(0, 10).map(load));
+  // Posters fit a fixed band (y 300–860) so they never run into the stats below.
+  const n = imgs.length, rowsN = n > 4 ? 2 : 1, cols = Math.max(1, Math.ceil(n / rowsN)), gap = 18, y0 = 300, H = 560;
+  const ph = Math.min(rowsN === 1 ? 420 : (H - gap) / 2, ((940 - (cols - 1) * gap) / cols) * 1.5), pw = ph / 1.5;
+  const x0 = (1080 - cols * pw - (cols - 1) * gap) / 2, yT = y0 + (H - (rowsN * ph + (rowsN - 1) * gap)) / 2;
+  imgs.forEach((im, i) => { const x = x0 + (i % cols) * (pw + gap), y = yT + Math.floor(i / cols) * (ph + gap); g.fillStyle = "#111"; g.fillRect(x + 6, y + 6, pw, ph); if (im) g.drawImage(im, x, y, pw, ph); else { g.fillStyle = "#333"; g.fillRect(x, y, pw, ph); } });
+  g.fillStyle = "#111"; g.textAlign = "left";
+  g.font = "900 44px Impact, 'Arial Black', sans-serif"; g.fillText(w.name.toUpperCase(), 70, 110);
+  g.fillStyle = "#e2231a"; g.font = "900 140px Impact, 'Arial Black', sans-serif"; g.fillText(String(w.yr), 70, 250);
+  g.fillStyle = "#111"; g.font = "800 40px system-ui, sans-serif"; g.fillText("WRAPPED", 430, 240);
+  const line = (label, val, y) => { g.font = "700 28px system-ui, sans-serif"; g.fillStyle = "#5a4a00"; g.fillText(label.toUpperCase(), 70, y); g.font = "800 40px system-ui, sans-serif"; g.fillStyle = "#111"; g.fillText(val.length > 34 ? val.slice(0, 33) + "…" : val, 70, y + 46); };
+  let y = y0 + H + 50;
+  line("Watched together", `${w.titles} titles · ${w.outs} cinema outing${w.outs === 1 ? "" : "s"}`, y); y += 100;
+  line("Most watched", w.most.n, y); y += 100;
+  if (w.best) { line("Best rated", `${w.best.n} · ${w.bestAvg.toFixed(1)} ★`, y); y += 100; }
+  if (w.top) line("Top reviewer", `${w.top} · ${w.topN} review${w.topN === 1 ? "" : "s"}`, y);
+  let blob; try { blob = await new Promise(ok => c.toBlob(ok, "image/png")); } catch { blob = null; }
+  if (!blob) { M.toast("Couldn't make the image."); return; }
+  const file = new File([blob], `marquee-${w.yr}.png`, { type: "image/png" });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: `${w.name} ${w.yr}` }); return; } catch {} }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
 // History: everything the club has watched (newest first) with stars and reviews, plus past cinema outings.
 function historyHtml(s) {
   const items = [];
@@ -1037,7 +1160,23 @@ function historyHtml(s) {
       ${it.avg ? `<span class="stars">${"★".repeat(Math.round(it.avg))}${"☆".repeat(5 - Math.round(it.avg))}</span><small class="hint">${it.avg.toFixed(1)} from ${it.who.filter(([, x]) => x.s).length}</small>` : ""}
       <div class="hrev">${it.who.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${"★".repeat(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>
     </div></div></div>`;
-  return head
+  const yr = new Date().getFullYear(), y0 = new Date(yr, 0, 1).getTime();
+  const yItems = items.map(it => ({ ...it, who: it.who.filter(([, x]) => (x.at || 0) >= y0) })).filter(it => it.who.length);
+  const wrap = yItems.length ? (() => {
+    const most = [...yItems].sort((a, b) => b.who.length - a.who.length || b.last - a.last)[0];
+    const rated = yItems.map(it => { const sc = it.who.map(([, x]) => x.s).filter(Boolean); return { it, avg: sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : 0 }; }).filter(x => x.avg).sort((a, b) => b.avg - a.avg)[0];
+    const rev = {}; for (const it of yItems) for (const [id, x] of it.who) if (x.s || x.x) rev[id] = { n: x.name, c: (rev[id]?.c || 0) + 1 };
+    const top = Object.entries(rev).sort((a, b) => b[1].c - a[1].c)[0];
+    const outs = past.filter(o => o.sc.d >= `${yr}-01-01`).length;
+    wrapData = { yr, name: s.name || "Movie club", titles: yItems.length, most: most.m, mostN: most.who.length, best: rated?.it.m, bestAvg: rated?.avg, top: top ? (top[0] === me.id ? me.name : top[1].n) : "", topN: top?.[1].c || 0, outs, posters: [...new Set(yItems.map(it => it.m.p).filter(Boolean))].slice(0, 10) };
+    return `<div class="fr-card wrapup"><h3>${yr} wrap-up</h3><div class="wrap-grid">
+      <div><small>Watched</small><b>${yItems.length}</b></div><div><small>Outings</small><b>${outs}</b></div>
+      <div><small>Most watched</small><b>${esc(most.m.n)}</b><i>${most.who.length} of you</i></div>
+      ${rated ? `<div><small>Best rated</small><b>${esc(rated.it.m.n)}</b><i>${rated.avg.toFixed(1)} ★</i></div>` : ""}
+      ${top ? `<div><small>Top reviewer</small><b>${esc(top[0] === me.id ? "You" : top[1].n)}</b><i>${top[1].c} review${top[1].c === 1 ? "" : "s"}</i></div>` : ""}
+    </div><button class="primary" id="wrapShare">Share as an Instagram post</button></div>`;
+  })() : "";
+  return head + wrap
     + (items.length ? items.map(card).join("") : `<div class="fr-card"><p class="hint">Nothing watched yet. When someone taps Seen? on a title, it lands here with their stars and review.</p></div>`)
     + (past.length ? `<div class="fr-card"><h3>Past outings</h3>${past.map(o => `<div class="out-i">${poster(o.m.p, "w92")}<div class="body"><b>${esc(o.m.n)}</b><span class="ticket-line">🎟 ${esc(scLabel(o.sc))}</span><span class="whos">${[...o.ins.values()].map(n => `<span class="who ok">${esc(n)}</span>`).join("")}</span></div></div>`).join("")}</div>` : "");
 }
@@ -1149,9 +1288,11 @@ function bind(c, s, cands, movie) {
   };
   document.querySelectorAll("#clubView [data-say], #histView [data-say]").forEach(b => b.onclick = () => sendSay(+b.dataset.say));
   document.querySelectorAll("#clubView .say input, #histView .say input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) sendSay(+i.id.slice(4)); }));
+  $("wrapShare")?.addEventListener("click", shareWrap);
   hist.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
   hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbDemo")?.addEventListener("click", addDemo);
+  $("pushOn")?.addEventListener("click", async () => { const r = await window.MarqueePush.enable(me.id); M.toast(r === true ? "Notifications on. You'll hear about suggestions, reviews and outings." : r); render(); });
   $("revRead")?.addEventListener("click", () => { LS.set(revReadKey(c.id), now()); render(); });
   view.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { b.disabled = true; addDemo(); });
   $("cbDemoOff")?.addEventListener("click", removeDemo);
@@ -1194,7 +1335,7 @@ function openReview(s, sk) {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
     bg.remove();
     const from = s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
-    const news = from.length ? { title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
+    const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
     act("saw", { sk, v: 1, ...(sc ? { s: sc } : {}), ...(x ? { x } : {}) }, news);
     if (m && (sc || x)) {
       const t = el(`<div class="post-offer"><span>Saved. Share it on Instagram?</span><button class="primary">Make a post</button><button class="link" aria-label="No thanks">✕</button></div>`);

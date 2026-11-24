@@ -655,6 +655,21 @@ footer { padding-left: 0; }
 .post-offer .primary { padding: 7px 12px; }
 #histView .hrow > img, #histView .hrow > .ph { width: 72px !important; height: 108px !important; flex: none; }
 #histView .hrow .t { font-size: 18px; }
+.push-on { width: 100%; background: #111; color: #ffd400; border: 0; border-radius: 10px; padding: 9px; font-weight: 800; }
+.provs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+img.prov { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; opacity: .55; }
+img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
+.ts-prov { display: flex; flex-direction: column; gap: 4px; }
+.svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.svc { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 2px solid transparent; border-radius: 12px; background: var(--field); font-size: 11px; font-weight: 700; color: inherit; }
+.svc img { width: 40px; height: 40px; border-radius: 9px; }
+.svc.on { border-color: #1e9e4a; }
+.spot { font-size: 13px; }
+.wrap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px; }
+.wrap-grid > div { background: var(--field); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.wrap-grid small { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.wrap-grid b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wrap-grid i { font-style: normal; font-size: 12px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -2202,6 +2217,7 @@ footer { padding-left: 0; }
 <script src="firebase-config.js"></script>
 <script type="module" src="friends.js"></script>
 <script type="module" src="account.js"></script>
+<script type="module" src="push.js"></script>
 <script type="module" src="club.js"></script>
 </body>
 </html>

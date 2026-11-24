@@ -10,7 +10,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const toast = t => (M?.toast || alert)(t);
 
 const FIXED = ["marqueeClubMe", "marqueeMe", "marqueeClubs", "marqueeClubActive", "marqueeWatchlist", "marqueeHistory", "marqueeTop",
-  "marqueeRatings", "marqueePrefs", "marqueeCinemasOff", "handle", "marqueeFriends", "marqueeSent", "marqueeInbox"];
+  "marqueeRatings", "marqueePrefs", "marqueeCinemasOff", "marqueeMyServices", "handle", "marqueeFriends", "marqueeSent", "marqueeInbox"];
 const IDENTITY = new Set(["marqueeClubMe", "marqueeMe"]); // the same "you" everywhere: the account's copy wins
 const synced = k => FIXED.includes(k) || k.startsWith("marqueeClubEv_");
 const raw = k => { try { return localStorage.getItem(k); } catch { return null; } };

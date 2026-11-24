@@ -13,3 +13,6 @@ window.MARQUEE_ACCOUNT = {
   messagingSenderId: "863842073044",
   appId: "1:863842073044:web:1b2904babe5902964bfe41"
 };
+
+// Push notifications: the public "Web Push certificate" key from Firebase console → Project settings → Cloud Messaging. Leave null to keep them off.
+window.MARQUEE_VAPID = null;

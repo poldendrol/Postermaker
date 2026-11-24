@@ -34,6 +34,22 @@ service cloud.firestore {
       allow read, write: if signedIn() && uid() == userId;
     }
 
+    // Push notifications: each device registers under its club member id; nobody can read tokens from the app.
+    match /tokens/{memberId}/devices/{deviceId} {
+      allow create, update: if signedIn() && uid() == deviceId && request.resource.data.token is string && request.resource.data.token.size() < 400;
+      allow delete: if signedIn() && uid() == deviceId;
+      allow read: if false;
+    }
+    // Queue of notifications to send (scripts/push.mjs sends and deletes them). Write-only from the app.
+    match /pushes/{id} {
+      allow create, update: if signedIn()
+        && request.resource.data.to is list && request.resource.data.to.size() <= 60
+        && request.resource.data.title is string && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() <= 300
+        && request.resource.data.at is number;
+      allow read, delete: if false;
+    }
+
     // Friend codes point to a user id. Codes can't be changed or taken over.
     match /codes/{code} {
       allow read: if signedIn();
