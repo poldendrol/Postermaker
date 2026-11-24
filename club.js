@@ -1292,7 +1292,7 @@ function bind(c, s, cands, movie) {
   hist.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
   hist.querySelectorAll("details[data-past]").forEach(d => d.addEventListener("toggle", () => { const r = +d.dataset.past; d.open ? openPast.add(r) : openPast.delete(r); }));
   $("cbDemo")?.addEventListener("click", addDemo);
-  $("pushOn")?.addEventListener("click", async () => { const r = await window.MarqueePush.enable(me.id); M.toast(r === true ? "Notifications on. You'll hear about suggestions, reviews and outings." : r); render(); });
+  $("pushOn")?.addEventListener("click", async () => { const r = await window.MarqueePush.enable(me.id); M.toast(r === true ? "Notifications on. A test one arrives within a few minutes." : r); if (r === true) window.MarqueePush.send({ to: [me.id], title: "Marquee notifications work 🎬", body: "You'll hear about suggestions, reviews and outings, even when Marquee is closed." }); render(); });
   $("revRead")?.addEventListener("click", () => { LS.set(revReadKey(c.id), now()); render(); });
   view.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { b.disabled = true; addDemo(); });
   $("cbDemoOff")?.addEventListener("click", removeDemo);
