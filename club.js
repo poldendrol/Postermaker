@@ -99,8 +99,8 @@ function merge(clubId, list) {
     if (e.sk) e.sk = String(e.sk).slice(0, 120);
     if (e.k === "ospot") { e.ok = String(e.ok || "").slice(0, 200); e.x = String(e.x || "").slice(0, 80); }
     if (e.k === "saw") {
-      if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1;
-      if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && /^\d{4}-\d\d-\d\d$/.test(d)) o[+n] = d; e.ss = o; }
+      if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1;
+      if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && (d === "" || /^\d{4}-\d\d-\d\d$/.test(d))) o[+n] = d; e.ss = o; }
     }
     if (e.k === "sugdrop") e.sg = String(e.sg || "").slice(0, 16);
     if (e.k === "acc") { e.sg = String(e.sg || "").slice(0, 16); e.v = e.v ? 1 : 0; }
@@ -157,7 +157,7 @@ function derive(clubId) {
       case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
       case "wl": if (e.m) { const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
       case "wldrop": if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
-      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, m: e.m || null, ss: e.v ? e.ss || null : null }); break;
+      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, +e.s || 0)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
@@ -1377,12 +1377,12 @@ function titleBySk(s, sk) {
   return all.find(m => seenKey(m.n) === sk) || [...(s.saw[sk]?.values() || [])].find(x => x.m)?.m || null;
 }
 // My watched list: the date I watched it (picked in the review sheet), else the day I tapped Watched. Bulk imports without a date don't count.
-const watchedOn = x => x.d || (x.imp ? "" : iso(new Date(x.at || 0)));
+const watchedOn = x => x.old ? "" : x.d || (x.imp ? "" : iso(new Date(x.at || 0)));
 function myWatched(s) {
   const out = [];
   for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue;
     const ss = ssList(x.ss);
-    if (ss.length) { const byDay = {}; for (const n of ss) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) out.push({ sk, m, d, s: x.s, x: x.x, ss: ns }); continue; }
+    if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) out.push({ sk, m, d, s: x.s, x: x.x, ss: ns }); continue; }
     const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x }); }
   return out.sort((a, b) => b.d.localeCompare(a.d));
 }
@@ -1411,6 +1411,7 @@ function openReview(s, sk, m0) {
   let score = prev?.s || 0; const picked = new Set(ssList(prev?.ss));
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
     <h3>${prev ? `Update ${esc(name)}` : `How was ${esc(name)}?`}</h3>
+    <div class="seg rev-when" role="group"><button data-when="now" aria-pressed="${!prev?.old}">Just watched</button><button data-when="old" aria-pressed="${!!prev?.old}">Seen it before</button></div>
     <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${isTv ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
@@ -1426,15 +1427,18 @@ function openReview(s, sk, m0) {
     grid.querySelectorAll("[data-ss]").forEach(b => b.onclick = () => { const k = +b.dataset.ss; picked.has(k) ? picked.delete(k) : picked.add(k); b.classList.toggle("on", picked.has(k)); });
     grid.querySelector("[data-ssall]")?.addEventListener("click", () => { n.forEach(k => picked.add(k)); grid.querySelectorAll("[data-ss]").forEach(b => b.classList.add("on")); });
   }).catch(() => { const g = bg.querySelector(".ss-grid"); if (g) g.innerHTML = `<small class="hint">Couldn't load the seasons.</small>`; });
+  let old = !!prev?.old;
+  const setWhen = () => { bg.querySelectorAll("[data-when]").forEach(b => b.setAttribute("aria-pressed", (b.dataset.when === "old") === old)); bg.querySelector(".rev-d").hidden = old; const h = bg.querySelector(".rev-ss .hint"); if (h) h.textContent = old ? "Seasons you've seen" : "Seasons you've watched"; };
+  bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => { old = b.dataset.when === "old"; setWhen(); }); setWhen();
   bg.querySelector("#revUn")?.addEventListener("click", () => { bg.remove(); act("saw", { sk, v: 0 }); });
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
     const rec = !!bg.querySelector("#revRec")?.checked, d = bg.querySelector("#revD").value || today;
     bg.remove();
-    const from = prev ? [] : s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
-    const ss = {}; for (const k of picked) ss[k] = prev?.ss?.[k] || d;
+    const from = prev || old ? [] : s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
+    const ss = {}; for (const k of picked) ss[k] = prev?.ss && k in prev.ss ? prev.ss[k] : old ? "" : d;
     const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + "★".repeat(sc) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
-    act("saw", { sk, v: 1, d, ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m && !titleBySk(s, sk) ? { m } : {}) }, news);
+    act("saw", { sk, v: 1, ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m && !titleBySk(s, sk) ? { m } : {}) }, news);
     // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
     for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
     // Recommend: it goes on the club watchlist under "Watched it, recommend" and lands in everyone else's For you to accept.
@@ -1444,7 +1448,7 @@ function openReview(s, sk, m0) {
       act("sug", { m, to: ["*"], d: iso(new Date()), wk: 0 }, others.length ? { to: others, title: `${me.name} recommends ${m.n}${sc ? " " + "★".repeat(sc) : ""}`, body: x || "Watched it and says you should too." } : null);
       M.toast(`Recommended ${m.n} to your friends.`);
     }
-    if (m && (sc || x)) {
+    if (m && (sc || x) && !old) {
       const t = el(`<div class="post-offer"><span>Saved. Share it on Instagram?</span><button class="primary">Make a post</button><button class="link" aria-label="No thanks">✕</button></div>`);
       document.body.appendChild(t); const bye = () => t.remove(); setTimeout(bye, 9000);
       t.querySelector(".link").onclick = bye;
