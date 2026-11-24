@@ -28,11 +28,11 @@ const key = m => m ? m.t + ":" + m.i : "";
 const ckey = x => x ? key(x.m) + "@" + (x.sc ? `${x.sc.c}|${x.sc.d}|${x.sc.h}` : "") : "";
 const seenKey = t => "t:" + String(t || "").toLowerCase().replace(/\s*\(\d{4}\)\s*$/, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 let lastState = null;
-function seenTag(title) {
+function seenTag(title, undo) {
   const s = lastState; if (!s || !me) return "";
   const k = seenKey(title), who = [...(s.saw[k] || new Map()).entries()].filter(([, x]) => x.v), mine = who.some(([a]) => a === me.id);
   const others = who.filter(([a]) => a !== me.id).map(([, x]) => x.name);
-  return `<button class="seen-tag${mine ? " on" : ""}" data-saw="${esc(k)}" aria-pressed="${mine}" title="${esc(who.length ? "Seen by " + who.map(([a, x]) => a === me.id ? "you" : x.name).join(", ") : "Tap if you've already seen it")}">${mine ? "✓ Seen" : "Seen?"}</button>`;
+  return `<button class="seen-tag${mine ? " on" : ""}" data-saw="${esc(k)}" aria-pressed="${mine}" title="${esc(who.length ? "Seen by " + who.map(([a, x]) => a === me.id ? "you" : x.name).join(", ") : "Tap if you've already seen it")}">${mine ? (undo ? "Unsee" : "✓ Seen") : "Seen?"}</button>`;
 }
 const monthOf = d => d.getFullYear() * 12 + d.getMonth();
 const monthName = r => new Date(Math.floor(r / 12), r % 12, 1, 12).toLocaleDateString(undefined, { month: "long" });
@@ -500,6 +500,8 @@ const sawAt = (s, m, id) => { const x = s.saw[seenKey(m.n)]?.get(id); return x?.
 const sugOpen = (s, g, id) => !sawAt(s, g.m, id);
 const sugForMe = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && sugOpen(s, g, me.id)).sort((a, b) => a.d.localeCompare(b.d));
 const sugMine = s => s.sugs.filter(g => g.a === me.id && sugTo(s, g).some(id => sugOpen(s, g, id)));
+// Suggestions to me that I've already seen stay visible (greyed, with "✓ Seen" to undo a misclick).
+const sugForMeSeen = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && !sugOpen(s, g, me.id)).sort((a, b) => sawAt(s, b.m, me.id) - sawAt(s, a.m, me.id)).slice(0, 10);
 const sugSent = s => s.sugs.filter(g => g.a === me.id).sort((a, b) => b.at - a.at).slice(0, 20); // including ones everybody has watched
 const isoAdd = (d, n) => { const x = new Date(d + "T12:00"); x.setDate(x.getDate() + n); return iso(x); };
 function sugDays(g, from, to) {
@@ -776,20 +778,20 @@ function forYouCard(s) {
   const mine = sugForMe(s), sent = sugSent(s), today = iso(new Date());
   const due = mine.filter(g => sugDueToday(g, today) || (!g.wk && g.d < today));
   const row = (g, out) => {
-    const rec = sugTo(s, g), done = out && rec.length && rec.every(id => !sugOpen(s, g, id));
+    const rec = sugTo(s, g), done = out ? rec.length && rec.every(id => !sugOpen(s, g, id)) : !sugOpen(s, g, me.id);
     const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? "" : " ok"}">${sugOpen(s, g, id) ? "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}</span>`).join("");
     const when = g.d === today ? "today" : g.d < today ? (g.wk ? DAYS[new Date(g.d + "T12:00").getDay()] + "s" : "overdue") : nightLabel(new Date(g.d + "T12:00"));
-    return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="Everyone watched it">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
+    return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="${out ? "Everyone watched it" : "You watched it"}">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${g.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
       ${out ? `<span class="whos">${who}</span>` : ""}<small class="hint">${[out ? (done ? "Everyone watched it" : g.to.includes("*") ? "To everyone" : "") : `From ${esc(g.by)}`,
-        done ? "" : g.wk ? `🔔 every ${esc(DAYS[new Date(g.d + "T12:00").getDay()])}` : `📅 ${esc(when)}`,
+        done ? (out ? "" : "You watched it") : g.wk ? `🔔 every ${esc(DAYS[new Date(g.d + "T12:00").getDay()])}` : `📅 ${esc(when)}`,
         (s.talk[seenKey(g.m.n)] || []).length ? `💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""].filter(Boolean).join(" · ")}</small>
-    </div>${out ? "" : seenTag(g.m.n)}</div>`;
+    </div>${out ? "" : seenTag(g.m.n, true)}</div>`;
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
     <div class="pulp-head"><span class="chapter">${mine.length ? `${mine.length} to watch` : "Suggestions"}</span><h2 class="bang">For you</h2></div>
     ${due.length ? `<div class="sug-due">🔔 <b>Watch today:</b> ${due.map(g => esc(g.m.n)).join(", ")}</div>` : ""}
-    <div class="wl-list">${mine.map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
+    <div class="wl-list">${[...mine, ...sugForMeSeen(s)].map(g => row(g, false)).join("") || `<p class="hint">Nothing suggested to you right now. When a friend suggests something, it shows up here with its reminder.</p>`}</div>
     ${!hasDemo(active().id) && s.members.size < 3 ? `<button class="fy-demo" data-demo="1">Try it out: add test friends</button>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
