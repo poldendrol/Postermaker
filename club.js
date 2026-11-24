@@ -440,6 +440,25 @@ const CINEMAS = ["KASKcinema", "Sphinx", "Studio Skoop", "Kinepolis Gent", "Else
 // One-off screenings (o: 1) come from UiT in Vlaanderen and are grouped under one filter chip.
 const chipOf = x => x.o ? (/kinepolis/i.test(x.c) ? "Kinepolis Gent" : "Elsewhere") : x.c;
 let cine = null, cineByDay = {};
+// Kinepolis Gent's own programme can't be read automatically, so its films come from TMDB's Belgian release dates:
+// a film shows as "Opens" on its release day and as "Showing" for five weeks after. Times are on Kinepolis's site.
+let kp = [], kpAll = false;
+const KP_RUN = 35;
+const kpOn = () => !cineOff().has("Kinepolis Gent");
+const dayDiff = (a, b) => Math.round((new Date(a + "T12:00") - new Date(b + "T12:00")) / 864e5);
+const kpOpening = d => kpOn() ? kp.filter(f => f.d === d) : [];
+const kpRunning = d => kpOn() ? kp.filter(f => f.d < d && dayDiff(d, f.d) <= KP_RUN) : [];
+async function loadKp() {
+  const seen = new Set(), out = [];
+  for (const [path, page] of [["/movie/now_playing", 1], ["/movie/now_playing", 2], ["/movie/upcoming", 1], ["/movie/upcoming", 2]]) {
+    try {
+      const j = await M.tm(path, { region: "BE", language: "nl-BE", page });
+      for (const x of j.results || []) if (x.release_date && !seen.has(x.id)) { seen.add(x.id); out.push({ d: x.release_date, m: { t: "movie", i: x.id, n: x.title, y: x.release_date.slice(0, 4), p: x.poster_path || "" } }); }
+    } catch {}
+  }
+  kp = out.sort((a, b) => a.d.localeCompare(b.d) || a.m.n.localeCompare(b.m.n));
+  const box = $("cbCal"); if (box && box._redraw) box._redraw();
+}
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const cineOff = () => new Set(LS.get("marqueeCinemasOff", []));
 function indexCine() {
@@ -452,18 +471,21 @@ async function loadCine() {
   }
 }
 function cineHtml(dayIso) {
-  if (!cine) return "";
+  if (!cine && !kp.length) return "";
   const off = cineOff();
-  const have = new Set((cine.screenings || []).map(chipOf));
+  const have = new Set((cine?.screenings || []).map(chipOf)); if (kp.length) have.add("Kinepolis Gent");
+  const opens = kpOpening(dayIso), running = kpRunning(dayIso);
+  const kpFilm = (f, tag) => `<div class="cine-f"><span class="ct">${tag}</span><a href="${esc(KP_URL)}" target="_blank" rel="noopener">${esc(f.m.n)}</a><span class="cf-acts"><button class="link" data-cn="${esc(JSON.stringify({ c: "Kinepolis Gent", d: dayIso, t: f.m.n, u: KP_URL, h: [] }))}" title="Suggest for cinema night" aria-label="Suggest for cinema night">+🎟</button></span></div>`;
+  const kpHtml = opens.length || running.length ? `<div class="cine-c"><span class="cine-name">Kinepolis Gent <small class="hint">times on Kinepolis</small></span>${opens.map(f => kpFilm(f, "Opens")).join("")}${running.slice(0, kpAll ? 99 : 8).map(f => kpFilm(f, "Showing")).join("")}${!kpAll && running.length > 8 ? `<button class="link" id="kpMore">+ ${running.length - 8} more</button>` : ""}</div>` : "";
   const chips = `<div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>`;
   const list = cineByDay[dayIso] || [];
-  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}<small class="hint">No screenings listed for this day.</small><a class="link kp-link" href="https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a></div>`;
+  if (!list.length) return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${kpHtml || `<small class="hint">No screenings listed for this day.</small>`}<a class="link kp-link" href="https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a></div>`;
   const by = {};
   for (const x of list) { const f = ((by[x.c] ||= {})[x.t] ||= { t: x.t, u: x.u, h: [] }); if (x.h && !f.h.includes(x.h)) f.h.push(x.h); }
   return `<div class="cine"><b class="cine-h">Film in Ghent</b>${chips}${Object.entries(by).map(([c, films]) => `<div class="cine-c"><span class="cine-name">${esc(c)}</span>
-    ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><span class="cf-acts"><button class="link" data-cn="${esc(JSON.stringify({ c, d: dayIso, t: f.t, u: f.u, h: f.h }))}" title="Suggest this screening for cinema night" aria-label="Suggest for cinema night">+🎟</button></span></div>`).join("")}</div>`).join("")}
+    ${Object.values(films).map(f => `<div class="cine-f"><span class="ct">${f.h.join(" · ") || "–"}</span><a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.t)}</a><span class="cf-acts"><button class="link" data-cn="${esc(JSON.stringify({ c, d: dayIso, t: f.t, u: f.u, h: f.h }))}" title="Suggest this screening for cinema night" aria-label="Suggest for cinema night">+🎟</button></span></div>`).join("")}</div>`).join("")}${kpHtml}
     <a class="link kp-link" href="https://www.cinenews.be/nl/bioscoop/kinepolis-gent-decascoop/" target="_blank" rel="noopener">Kinepolis Gent full programme ↗</a>
-    <small class="hint">From the cinemas' own sites and UiT in Vlaanderen, updated every morning.</small></div>`;
+    <small class="hint">From the cinemas' own sites and UiT in Vlaanderen, updated every morning. Kinepolis films from TMDB release dates.</small></div>`;
 }
 const ymd = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 function calEvents(s, cands, movie) {
@@ -488,7 +510,7 @@ function calHtml(s, ev) {
     const day = new Date(start); day.setDate(start.getDate() + i);
     const d = day.getDate(), k = ymd(day), e = ev[k], cls = `${k === today ? " today" : ""}${k === calSel ? " sel" : ""}`;
     const lbl = d === 1 || i === 0 ? day.toLocaleDateString(undefined, { month: "short" }) + " " + d : d;
-    const nc = (cineByDay[iso(day)] || []).length, cnt = nc ? `<i class="cnt" title="${nc} screenings in Ghent">${nc}</i>` : "";
+    const nc = (cineByDay[iso(day)] || []).length + kpOpening(iso(day)).length, cnt = nc ? `<i class="cnt" title="${nc} screenings in Ghent">${nc}</i>` : "";
     if (!e) { cells += nc ? `<button class="cal-d cn${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}, ${nc} screenings"><em>${lbl}</em>${cnt}</button>` : `<span class="cal-d${cls}"><em>${lbl}</em></span>`; continue; }
     const thumbs = e.k === "vote" ? (e.list.length ? e.list.slice(0, 2).map(x => poster(x.m.p, "w92")).join("") + (e.list.length > 1 ? `<b class="vs">VS</b>` : "") : `<i class="q">?</i>`) : poster(e.m.p, "w92");
     cells += `<button class="cal-d ev ${e.k}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(e.d))}"><em>${lbl}</em><span class="th">${thumbs}</span>${e.k === "cine" || e.cine ? `<i class="tk" title="Cinema night">🎟</i>` : ""}${cnt}</button>`;
@@ -512,7 +534,7 @@ function calHtml(s, ev) {
   return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
     <div class="cal-key"><span><i class="k past"></i>Watched</span><span><i class="k now"></i>Now watching</span><span><i class="k vote"></i>Up for vote</span><span>🎟 Cinema night</span>${cine ? `<span><i class="k cnt">3</i>Screenings in Ghent</span>` : ""}</div>
-    ${info || (selDay && cine) ? `<div class="cal-info">${info || `<b>${esc(nightLabel(selDay))}</b>`}${selDay ? cineHtml(iso(selDay)) : ""}</div>` : ""}`;
+    ${info || (selDay && (cine || kp.length)) ? `<div class="cal-info">${info || `<b>${esc(nightLabel(selDay))}</b>`}${selDay ? cineHtml(iso(selDay)) : ""}</div>` : ""}`;
 }
 function bindCal(s, ev) {
   const box = $("cbCal"); if (!box) return;
@@ -521,7 +543,8 @@ function bindCal(s, ev) {
   box.querySelectorAll("[data-cn]").forEach(b => b.onclick = () => { const x = JSON.parse(b.dataset.cn); pickTime(x, h => cineNominate({ c: x.c, d: x.d, h, u: x.u }, x.t)); });
   box.querySelectorAll("[data-nomt]").forEach(b => b.onclick = () => calNominate(b.dataset.nomt.replace(/\s*\(\d{4}\)\s*$/, "")));
   box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { calOff += +b.dataset.cm; redraw(); });
-  box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { calSel = b.dataset.cal; redraw(); });
+  box.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => { calSel = b.dataset.cal; kpAll = false; redraw(); });
+  box.querySelector("#kpMore")?.addEventListener("click", () => { kpAll = true; redraw(); });
 }
 
 // ---------- cinema night (monthly) ----------
@@ -1011,7 +1034,7 @@ async function refresh() { const c = active(); if (!me || !c) return; const fres
 render();
 live();
 refresh();
-loadCine();
+loadCine(); loadKp();
 // One tap handler for every "Seen it?" tag, wherever it is drawn.
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-saw]"); if (!b || !lastState) return;
