@@ -850,7 +850,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       const sb = seenBy(w.m.n);
       return `<div class="wl-i"><button class="wl-open" data-open="${esc(key(w.m))}" aria-label="Open ${esc(w.m.n)}">${poster(w.m.p, "w92")}</button><div class="body" data-open="${esc(key(w.m))}">
         <b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${w.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-        ${(() => { const l = provCache[key(w.m)]?.l || [], m = l.filter(p => svc.has(p.id)), show = (m.length ? m : l).slice(0, 3); return show.length ? `<span class="provs${m.length ? " on-mine" : ""}">${provLogos(show, svc)}${!m.length && l.length > 3 ? `<i>+${l.length - 3}</i>` : ""}</span>` : ""; })()}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · watched by ${sb}` : ""} · ${imdbLink(w.m)}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
+        ${(() => { const l = provCache[key(w.m)]?.l || [], m = l.filter(p => svc.has(p.id)), show = (m.length ? m : l).slice(0, 3); return show.length ? `<span class="provs${m.length ? " on-mine" : ""}">${provLogos(show, svc)}${!m.length && l.length > 3 ? `<i>+${l.length - 3}</i>` : ""}</span>` : ""; })()}<small class="hint">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2}` : ""}${sb ? ` · watched by ${sb}` : ""}${mine ? ` · <button class="link" data-wldrop="${esc(key(w.m))}">remove</button>` : ""}</small>
       </div>${seenTag(w.m.n)}</div>`;
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
