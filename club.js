@@ -540,9 +540,10 @@ function calHtml(s, ev, mode) {
     const sg = sugBy[di] || [];
     const nc = home ? sg.length : (cineByDay[di] || []).length + kpOpening(di).length;
     const cnt = nc ? `<i class="cnt" title="${nc} ${home ? "to watch" : "screenings in Ghent"}">${nc}</i>` : "";
-    const th = e ? poster(e.m.p, "w92") : sg.length ? poster(sg[0].m.p, "w92") : "";
+    const startSg = sg.filter(g => g.d === di); // the poster only on the day it was suggested; reminders after that are just a number
+    const th = e ? poster(e.m.p, "w92") : startSg.length ? poster(startSg[0].m.p, "w92") : "";
     if (!th && !nc) { cells += `<button class="cal-d${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}"><em>${lbl}</em></button>`; continue; }
-    cells += `<button class="cal-d ${e ? "ev " + e.k : sg.length ? "ev sug" : "cn"}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}"><em>${lbl}</em>${th ? `<span class="th">${th}</span>` : ""}${e?.k === "cine" ? `<i class="tk" title="Cinema night">🎟</i>` : ""}${cnt}</button>`;
+    cells += `<button class="cal-d ${e ? "ev " + e.k : startSg.length ? "ev sug" : "cn"}${cls}" data-cal="${k}" aria-label="${esc(nightLabel(day))}"><em>${lbl}</em>${th ? `<span class="th">${th}</span>` : ""}${e?.k === "cine" ? `<i class="tk" title="Cinema night">🎟</i>` : ""}${cnt}</button>`;
   }
   const fmt = d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
   const [sy, sm, sd] = st.sel.split("-").map(Number), selDay = new Date(sy, sm - 1, sd, 12), selIso = iso(selDay), e = ev[st.sel];
@@ -551,12 +552,12 @@ function calHtml(s, ev, mode) {
   if (e?.k === "past") info += `<span>Watched together: ${esc(e.m.n)}${e.m.y ? ` (${esc(e.m.y)})` : ""}</span>`;
   if (home) {
     const sg = sugBy[selIso] || [];
-    info += sg.length ? sg.map(g => `<div class="cal-sug" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}<span><b>${esc(g.m.n)}</b><small class="hint">${g.a === me.id ? `You → ${esc(whoLabel(s, g))}` : `From ${esc(g.by)}`}${g.wk ? " · weekly" : ""}</small></span></div>`).join("")
+    info += sg.length ? sg.map(g => `<div class="cal-sug" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}<span><b>${esc(g.m.n)}</b><small class="hint">${g.a === me.id ? `You → ${esc(whoLabel(s, g))}` : `From ${esc(g.by)}`} · ${g.d === selIso ? "suggested" : "weekly reminder"}</small></span></div>`).join("")
       : `<small class="hint">Nothing to watch this day. Tap a title on the club watchlist to suggest it.</small>`;
   }
   return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
-    <div class="cal-key">${home ? `<span><i class="k cnt">2</i>To watch</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Cinema night</span><span><i class="k cnt">3</i>Screenings in Ghent</span>`}</div>
+    <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Cinema night</span><span><i class="k cnt">3</i>Screenings in Ghent</span>`}</div>
     <div class="cal-info">${info}${home ? "" : cineHtml(selIso)}</div>`;
 }
 function bindCal(s, ev, mode) {
@@ -778,7 +779,7 @@ function forYouCard(s) {
     const when = g.d === today ? "today" : g.d < today ? (g.wk ? DAYS[new Date(g.d + "T12:00").getDay()] + "s" : "overdue") : nightLabel(new Date(g.d + "T12:00"));
     return `<div class="wl-i sug-i${!out && due.includes(g) ? " due" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}</button><div class="body" data-open="${esc(key(g.m))}">
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${g.m.t === "tv" ? ` <span class="tv-tag">Series</span>` : ""}</b>
-      <small class="hint">${out ? `To ${esc(whoLabel(s, g))}${left.length && !g.to.includes("*") ? "" : ""} · waiting on ${esc(left.slice(0, 3).join(", "))}${left.length > 3 ? ` +${left.length - 3}` : ""}` : `From ${esc(g.by)}`} · ${g.wk ? `🔁 ${esc(when)}` : `📅 ${esc(when)}`}${(s.talk[seenKey(g.m.n)] || []).length ? ` · 💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""}</small>
+      <small class="hint">${out ? `To ${esc(whoLabel(s, g))}${left.length && !g.to.includes("*") ? "" : ""} · waiting on ${esc(left.slice(0, 3).join(", "))}${left.length > 3 ? ` +${left.length - 3}` : ""}` : `From ${esc(g.by)}`} · ${g.wk ? `🔔 every ${esc(DAYS[new Date(g.d + "T12:00").getDay()])}` : `📅 ${esc(when)}`}${(s.talk[seenKey(g.m.n)] || []).length ? ` · 💬 ${(s.talk[seenKey(g.m.n)] || []).length}` : ""}</small>
     </div>${out ? "" : seenTag(g.m.n)}</div>`;
   };
   return `<div class="fr-card pulp" data-tab="weekly" id="fyCard">
@@ -821,7 +822,7 @@ function openTitle(s, m, focusSuggest) {
     ${forMe.map(g => `<div class="sug-due">From ${esc(g.by)} · ${g.wk ? "every week from" : "on"} ${esc(nightLabel(new Date(g.d + "T12:00")))} <button class="link" data-ics="${esc(g.id)}">📅 Add to my calendar</button></div>`).join("")}
     <h4 class="wl-sec">Suggest it</h4>
     ${others.length ? `<div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
-      <div class="ts-row"><label>Watch on <input type="date" id="tsD" value="${next}" min="${iso(new Date())}"></label><label class="ts-chk"><input type="checkbox" id="tsWk" checked> Remind weekly until seen</label></div>
+      <small class="hint">They get a weekly reminder until they've seen it.</small>
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button>`
       : `<p class="hint">Invite friends to the club first, then you can suggest titles to them.</p>`}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}`).join(" · ")}</small>` : ""}
@@ -838,9 +839,9 @@ function openTitle(s, m, focusSuggest) {
   };
   bg.querySelectorAll("[data-to]").forEach(b => b.onclick = () => { const id = b.dataset.to; if (id === "*") { to.has("*") ? to.clear() : (to.clear(), to.add("*")); } else { to.delete("*"); to.has(id) ? to.delete(id) : to.add(id); } sync(); });
   go?.addEventListener("click", () => {
-    const d = bg.querySelector("#tsD").value || next, wk = bg.querySelector("#tsWk").checked ? 1 : 0, list = [...to];
+    const d = iso(new Date()), wk = 1, list = [...to];
     const names = list.includes("*") ? "everyone" : list.map(id => s.members.get(id)?.name).join(", ");
-    close(); act("sug", { m, to: list, d, wk }, { title: `${me.name} suggests ${m.n}`, body: `For ${names}. Watch it ${wk ? "from" : "on"} ${nightLabel(new Date(d + "T12:00"))}.` });
+    close(); act("sug", { m, to: list, d, wk }, { title: `${me.name} suggests ${m.n}`, body: `For ${names}. You'll get a weekly reminder until you've seen it.` });
     M.toast(`Suggested ${m.n} to ${names}.`);
   });
   const say = () => { const i = bg.querySelector("#tsSay"), x = i.value.trim(); if (!x) return; i.value = ""; act("say", { sk, x }, { title: `${me.name} on ${m.n}`, body: x.slice(0, 200) }).then(() => { const n = derive(active().id); close(); openTitle(n, m); }); };
