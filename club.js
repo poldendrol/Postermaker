@@ -944,7 +944,7 @@ function openTitle(s, m, focusSuggest) {
       <small class="hint">${seen.length ? `Seen by ${esc(seen.join(", "))}` : "Nobody has seen it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
-    ${forMe.map(g => `<div class="sug-due">From ${esc(g.by)} · ${g.wk ? "every week from" : "on"} ${esc(nightLabel(new Date(g.d + "T12:00")))} <button class="link" data-ics="${esc(g.id)}">📅 Add to my calendar</button></div>`).join("")}
+    ${forMe.map(g => `<div class="sug-due">From ${esc(g.by)} · ${g.wk ? "every week from" : "on"} ${esc(nightLabel(new Date(g.d + "T12:00")))}</div>`).join("")}
     <h4 class="wl-sec">Suggest it</h4>
     ${others.length ? `<div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
       <small class="hint">They get a weekly reminder until they've seen it.</small>
@@ -978,7 +978,6 @@ function openTitle(s, m, focusSuggest) {
   const say = () => { const i = bg.querySelector("#tsSay"), x = i.value.trim(); if (!x) return; i.value = ""; act("say", { sk, x }, { title: `${me.name} on ${m.n}`, body: x.slice(0, 200) }).then(() => { const n = derive(active().id); close(); openTitle(n, m); }); };
   bg.querySelector("#tsSend").onclick = say;
   bg.querySelector("#tsSay").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) say(); });
-  bg.querySelectorAll("[data-ics]").forEach(b => b.onclick = () => { const g = sugs.find(x => x.id === b.dataset.ics); if (g) icsFor(g); });
   const close = () => { bg.remove(); if (titleSheet === bg) titleSheet = null; };
   bg.addEventListener("click", e => { if (e.target === bg || e.target.id === "tsClose") close(); });
   if (focusSuggest) setTimeout(() => bg.querySelector(".ts-to")?.scrollIntoView({ block: "center" }), 50);
