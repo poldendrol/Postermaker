@@ -1025,7 +1025,7 @@ function openTitle(s, m, focusSuggest) {
   const next = iso(nightAfter(now(), s.day));
   const bg = el(`<div class="sheet-bg"><div class="sheet title-sheet" role="dialog" aria-label="${esc(m.n)}">
     <div class="ts-head">${poster(m.p, "w154")}<div><h3>${esc(m.n)}${m.y ? ` <small class="hint">${esc(m.y)}</small>` : ""}</h3>
-      <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? `On the list of ${esc([...wl.adders.entries()].map(([a, n]) => a === me.id ? "you" : n).join(", "))}` : ""}${wl?.adders.has(me.id) ? ` · <button class="link" data-tsdrop>remove from my list</button>` : ` · <button class="link" data-tsadd>add to my list</button>`}</small>
+      <small class="hint">${m.t === "tv" ? "Series · " : ""}${wl ? (() => { const o = [...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n), mine = wl.adders.has(me.id); return esc(mine ? (o.length ? `On your list and ${o.join(", ")}'s` : "On your list") : `On ${o.join(", ")}'s list`); })() : ""}${wl?.adders.has(me.id) ? ` · <button class="link" data-tsdrop>remove from my list</button>` : ` · <button class="link" data-tsadd>add to my list</button>`}</small>
       <small class="hint">${seen.length ? `Watched by ${esc(seen.join(", "))}` : "Nobody has watched it yet"}</small>
       <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
     <div class="ts-info"><small class="hint">Loading info…</small></div>
@@ -1604,14 +1604,17 @@ function openReview(s, sk, m0, opts = {}) {
   const prev = s.saw[sk]?.get(me.id)?.v ? s.saw[sk].get(me.id) : null, isTv = m?.t === "tv";
   let score = prev?.s || 0; const picked = new Set(ssList(prev?.ss));
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
-    <h3>${prev ? `Update ${esc(name)}` : `How was ${esc(name)}?`}</h3>
+    <h3>${prev ? `Update ${esc(name)}` : esc(name)}</h3>
+    <div class="rev-btns rev-pick"><button class="primary" data-when="now">Just watched</button><button data-when="old">Seen it before</button></div>
+    <p class="rev-mode" hidden><b></b> <button class="link" id="revMode">change</button></p>
+    <div class="rev-step2" hidden>
     <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
     <small class="hint rev-tip">Tap a star twice for a half star.</small>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${isTv ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
     <label class="rev-d">Just watched on <input type="date" id="revD" value="${today}" max="${today}"></label>
     ${m && s.members.size > 1 ? `<label class="rev-rec"><input type="checkbox" id="revRec"${opts.rec ? " checked" : ""}> Recommend this to your friends</label>` : ""}
-    <div class="rev-btns"><button class="primary" data-when="now">Just watched</button><button data-when="old">Seen it before</button></div>${prev ? `<button class="link" id="revUn">Unwatch</button>` : ""}</div></div>`);
+    <button class="primary" id="revSave">Save</button></div>${prev ? `<button class="link" id="revUn">Unwatch</button>` : ""}</div></div>`);
   document.body.appendChild(bg);
   if (isTv) M.tm(`/tv/${m.i}`).then(j => {
     const list = (j.seasons || []).map(x => x.season_number).filter(n => n > 0);
@@ -1621,8 +1624,18 @@ function openReview(s, sk, m0, opts = {}) {
     grid.querySelectorAll("[data-ss]").forEach(b => b.onclick = () => { const k = +b.dataset.ss; picked.has(k) ? picked.delete(k) : picked.add(k); b.classList.toggle("on", picked.has(k)); });
     grid.querySelector("[data-ssall]")?.addEventListener("click", () => { n.forEach(k => picked.add(k)); grid.querySelectorAll("[data-ss]").forEach(b => b.classList.add("on")); });
   }).catch(() => { const g = bg.querySelector(".ss-grid"); if (g) g.innerHTML = `<small class="hint">Couldn't load the seasons.</small>`; });
+  // Step 1: when did you watch it? Step 2 (stars, review, seasons, recommend) only shows after that choice.
   let old = false;
-  bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => { old = b.dataset.when === "old"; save(true); });
+  const step = o => {
+    old = o; bg.querySelector(".rev-pick").hidden = true; bg.querySelector(".rev-step2").hidden = false;
+    const md = bg.querySelector(".rev-mode"); md.hidden = false; md.querySelector("b").textContent = old ? "Seen it before" : "Just watched";
+    bg.querySelector(".rev-d").hidden = old; bg.querySelector(".rev-tip").hidden = !!score;
+    setTimeout(() => bg.querySelector(".mstars button")?.focus(), 50);
+  };
+  bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => step(b.dataset.when === "old"));
+  bg.querySelector("#revMode").onclick = () => { bg.querySelector(".rev-pick").hidden = false; bg.querySelector(".rev-step2").hidden = true; bg.querySelector(".rev-mode").hidden = true; };
+  bg.querySelector("#revSave").onclick = () => save(true);
+  if (prev) step(!!prev.old);
   bg.querySelector("#revUn")?.addEventListener("click", () => { bg.remove(); act("saw", { sk, v: 0 }); });
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
@@ -1648,10 +1661,9 @@ function openReview(s, sk, m0, opts = {}) {
     }
   };
   bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
-  bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) { old = false; save(true); } });
+  bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) paintStars(bg, score);
-  setTimeout(() => bg.querySelector(".mstars button")?.focus(), 50);
 }
 // Reviews of my suggestions that I haven't looked at yet.
 const revReadKey = id => "marqueeRevRead_" + id;
