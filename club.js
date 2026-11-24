@@ -439,13 +439,13 @@ function calEvents(s, cands, movie) {
   return ev;
 }
 function calHtml(s, ev) {
-  // Six weeks: three back, this week, two ahead (so next week's vote night is always in view). Arrows move four weeks.
-  const start = new Date(); start.setHours(12, 0, 0, 0); start.setDate(start.getDate() - (start.getDay() + 6) % 7 - 21 + calOff * 28);
-  const end = new Date(start); end.setDate(end.getDate() + 41);
+  // Five weeks: last week, this week and three ahead (next week's vote night is always in view). Arrows move four weeks.
+  const start = new Date(); start.setHours(12, 0, 0, 0); start.setDate(start.getDate() - (start.getDay() + 6) % 7 - 7 + calOff * 28);
+  const end = new Date(start); end.setDate(end.getDate() + 34);
   const today = ymd(new Date());
   if (!calSel) calSel = Object.keys(ev).find(k => ev[k].k === "vote");
   let cells = "";
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < 35; i++) {
     const day = new Date(start); day.setDate(start.getDate() + i);
     const d = day.getDate(), k = ymd(day), e = ev[k], cls = `${k === today ? " today" : ""}${k === calSel ? " sel" : ""}`;
     const lbl = d === 1 || i === 0 ? day.toLocaleDateString(undefined, { month: "short" }) + " " + d : d;
@@ -545,7 +545,7 @@ function cinemaCard(s, members) {
   const myVote = vm?.votes.get(me.id) || "", total = cands.reduce((a, x) => a + x.votes, 0);
   const going = pick ? [...mo.go.entries()].filter(([, g]) => g.v) : [], mine = pick ? mo.go.get(me.id) : null;
   const scPast = pick?.sc?.d && pick.sc.d < iso(new Date());
-  return `<div class="fr-card pulp cinema">
+  return `<div class="fr-card pulp cinema" data-tab="cine">
     <div class="pulp-head mon"><span class="chapter">Cinema night · ${esc(monthName(cm))}</span><h2 class="bang">This month</h2></div>
     ${pick ? `<div class="club-hero">${poster(pick.p, "w185")}<div class="body">
         <b class="t">${esc(pick.n)}${pick.y ? ` <small class="hint">(${esc(pick.y)})</small>` : ""}</b>
@@ -635,6 +635,9 @@ function historyHtml(s) {
 
 const CH_WORDS = ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const chapterWord = n => CH_WORDS[n - 1] || String(n);
+// The club page is split into tabs so nothing needs a long scroll on a phone.
+let clubTab = (() => { try { return sessionStorage.getItem("marqueeClubTab") || "week"; } catch { return "week"; } })();
+function setClubTab(t) { clubTab = t; try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
 function renderClub() {
   const c = active(), s = derive(c.id);
   if (s.name !== c.name || s.day !== c.day) { const l = clubs(); const x = l.find(y => y.id === c.id); x.name = s.name || x.name; x.day = s.day; LS.set("marqueeClubs", l); }
@@ -653,16 +656,21 @@ function renderClub() {
   const vsStill = !vs || vsSeen.has(vsKey) || !!myVote;
   if (vs) vsSeen.add(vsKey);
   const calEv = calEvents(s, cands, movie);
+  const cvR = s.mon[monthOf(new Date())]?.pick ? monthOf(new Date()) + 1 : monthOf(new Date());
+  const cineDot = tallyM(s.mon[cvR]).length > 0 && !s.mon[cvR]?.votes.get(me.id);
+  view.dataset.tab = clubTab;
 
   view.innerHTML = `
     <div class="fr-card">
       <div class="fr-row"><div style="flex:1;min-width:0"><h2 style="margin:0">${esc(s.name || c.name)}</h2><small class="hint">Movie night: ${DAYS[s.day]} · ${members.length} member${members.length === 1 ? "" : "s"}</small></div>
-        <button id="cbInvite">Invite</button></div>
+        <button id="cbInvite">Invite</button><button id="cbGear" class="gear${clubTab === "set" ? " on" : ""}" aria-label="Club settings">⚙</button></div>
       <div class="faces">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
+    <div class="club-tabs" role="tablist">${[["week", movie ? "This week" : "Start", false], ["vote", "Next week", cands.length && !myVote], ["cine", "Cinema", cineDot], ["cal", "Calendar", false]]
+      .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
 
-    ${movie ? `<div class="fr-card pulp">
+    ${movie ? `<div class="fr-card pulp" data-tab="week">
       <div class="pulp-head"><span class="chapter">Chapter ${chapterWord(cur + 1)}</span><h2 class="bang">This week</h2></div>
       <div class="club-hero">${poster(movie.p, "w185")}<div class="body">
         <b class="t">${esc(movie.n)}${movie.y ? ` <small class="hint">(${esc(movie.y)})</small>` : ""}</b>
@@ -677,18 +685,18 @@ function renderClub() {
       </div></div>
     </div>
 
-    <div class="fr-card">
+    <div class="fr-card" data-tab="week">
       <h3>Discussion <small>${rd.says.length || ""}</small></h3>
       ${locked && rd.says.length ? `<p class="hint">Spoilers are hidden until you've watched it. <button class="link" id="cbPeek">Show anyway</button></p>` : ""}
       ${chatHtml(s, cur, locked)}
       ${sayBox(cur)}
-    </div>` : `<div class="fr-card">
+    </div>` : `<div class="fr-card" data-tab="week">
       <h3>Pick your first movie</h3>
       <p class="hint">Choose it yourself, or let everyone nominate and vote below.</p>
       <button class="primary" id="cbFirst">Choose the first movie</button>
     </div>`}
 
-    <div class="fr-card pulp${vsStill ? " vs-still" : ""}">
+    <div class="fr-card pulp${vsStill ? " vs-still" : ""}" data-tab="vote">
       <div class="pulp-head alt"><span class="chapter">Chapter ${chapterWord(cur + 2)}${totalVotes ? ` · ${totalVotes} vote${totalVotes === 1 ? "" : "s"}` : ""}</span><h2 class="bang">${movie ? "Next week" : "Opening night"}</h2></div>
       ${vs ? faceoff(cands[0], cands[1], myVote) : ""}
       <div class="vote-rest">
@@ -711,14 +719,13 @@ function renderClub() {
 
     ${cinemaCard(s, members)}
 
-    <div class="fr-card">
-      <h3>Calendar</h3>
+    <div class="fr-card" data-tab="cal">
       <div id="cbCal">${calHtml(s, calEv)}</div>
     </div>
 
 
-    <div class="fr-card">
-      <details class="more"><summary>Club settings</summary>
+    <div class="fr-card" data-tab="set">
+      <details class="more" open><summary>Club settings</summary>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
           <label>Your name <input type="text" id="cbMe" maxlength="40" value="${esc(me.name)}"></label>
           <label>Club name <input type="text" id="cbRename" maxlength="40" value="${esc(s.name || c.name)}"></label>
@@ -742,6 +749,8 @@ function renderClub() {
 
 function bind(c, s, cands, movie) {
   const cur = s.cur;
+  view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => setClubTab(b.dataset.ct));
+  $("cbGear").onclick = () => setClubTab(clubTab === "set" ? "week" : "set");
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first movie", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate for next week" : "Nominate the first movie", m => {
