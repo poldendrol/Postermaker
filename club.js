@@ -1018,16 +1018,14 @@ function renderClub() {
     <div class="club-tabs" role="tablist">${[["weekly", "At home", sugForMe(s).some(g => sugDueToday(g))], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c1"><h2 class="sec-h">At home <small>suggest, watch, talk</small></h2>
+    <div class="fr-card" data-tab="weekly"><h3>At home calendar</h3><div id="cbCalH">${calHtml(s, calH, "home")}</div></div>
 
     ${forYouCard(s)}
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
-    <div class="fr-card" data-tab="weekly"><h3>At home calendar</h3><div id="cbCalH">${calHtml(s, calH, "home")}</div></div>
     </div><div class="ccol c2"><h2 class="sec-h">At the cinema <small>go see it together</small></h2>
+    <div class="fr-card" data-tab="monthly"><h3>Cinema calendar</h3><div id="cbCal">${calHtml(s, calC, "cine")}</div></div>
     ${cinemaCard(s, members)}
 
-    <div class="fr-card" data-tab="monthly">
-      <h3>Cinema calendar</h3><div id="cbCal">${calHtml(s, calC, "cine")}</div>
-    </div>
 
 
     <div class="fr-card" data-tab="set">
