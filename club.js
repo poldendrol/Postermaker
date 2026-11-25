@@ -1885,7 +1885,7 @@ function myWatched(s, who = me.id) {
 // Seen before: everything you marked as watched without a date ("Seen it before" and list imports), A–Z.
 function seenBefore(s) {
   const out = [], seenK = new Set();
-  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v || watchedOn(x)) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s }); }
+  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s }); } // everything you've seen: logged with a date, seen before, or imported
   return out.sort((a, b) => a.m.n.localeCompare(b.m.n));
 }
 let sbQ = "", sbSort = LS.get("marqueeSbSort", "az"), sbType = "all";
@@ -1901,7 +1901,7 @@ function seenBeforeCard(s) {
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
   return `<div id="sbCard"><div class="wl-tools">${all.length > 12 ? `<input type="search" id="sbQ" placeholder="Search" value="${esc(sbQ)}" autocomplete="off">` : ""}<button class="primary" id="sbAdd">+ Add</button></div>
     ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
-    <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen before (no date)${list.length !== all.length ? ` · ${list.length} shown` : ""}` : `Nothing yet. Titles you mark as "Seen it before", or import from IMDb or Letterboxd, land here.`}</p>
+    <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen${list.length !== all.length ? ` · ${list.length} shown` : ""}` : `Nothing yet. Everything you mark as watched, or import from IMDb or Letterboxd, lands here.`}</p>
     ${body}</div>`;
 }
 let mwYear = new Date().getFullYear(), mwAll = false, mwWho = LS.get("marqueeMwWho", "*");
