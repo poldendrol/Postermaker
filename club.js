@@ -1259,8 +1259,8 @@ function bindWl(s, cands) {
     const head = rows[0].map(h => h.trim().toLowerCase()), ci = head.indexOf("const"), ri = head.indexOf("your rating"), di = head.indexOf("date rated");
     const seen = new Map(), dates = new Map(); for (const r of rows.slice(1)) { const tt = (r[ci] || "").trim(); if (/^tt\d+$/.test(tt) && !seen.has(tt)) { seen.set(tt, ri >= 0 ? Math.round(+r[ri] || 0) / 2 : 0); if (di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "")) dates.set(tt, r[di].slice(0, 10)); } }
     const { out, missed } = await pool([...seen.keys()], async tt => {
-      const f = await M.tm("/find/" + tt, { external_source: "imdb_id" }), x = (f.movie_results || [])[0] || (f.tv_results || [])[0];
-      return x ? { t: x.title ? "movie" : "tv", i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "", im: tt, _s: seen.get(tt) || 0, _d: dates.get(tt) || "" } : null;
+      const f = await M.tm("/find/" + tt, { external_source: "imdb_id" }), mv = (f.movie_results || [])[0], x = mv || (f.tv_results || [])[0];
+      return x ? { t: mv ? "movie" : "tv", i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "", im: tt, _s: seen.get(tt) || 0, _d: dates.get(tt) || "" } : null;
     }, "IMDb titles");
     return { out, missed, total: seen.size, seenIt: ri >= 0, src: ri >= 0 ? "IMDb ratings" : "IMDb watchlist" };
   };
