@@ -921,7 +921,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="wl-pick three" role="tablist">${[["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"], ["mine", `${mineN} to watch`, "Personal watchlist"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+    <div class="wl-pick three" role="tablist">${[["mine", `${mineN} to watch`, "Personal watchlist"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
