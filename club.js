@@ -1131,7 +1131,7 @@ function openTitle(s, m, focusSuggest) {
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
     ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
-      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev"><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
+      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev${id === me.id ? " mine" : ""}"${id === me.id ? " data-tsedit" : ""}><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}${id === me.id ? ` <button class="link ts-edit">✎ change</button>` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     <div class="ts-foot">${imdbLink(m)} · <button class="link" data-tsmore>fix this title</button></div>
     <div class="ts-fix" hidden><button class="chip" data-tsfix>Wrong match? Pick the right one</button>${m.t === "tv" ? `<button class="chip" data-tsfilm>${isTv(m) ? "🎬 It's a film" : "📺 It's a series"}</button>` : ""}</div>
@@ -1180,7 +1180,8 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("[data-tsfilm]")?.addEventListener("click", () => { const f = isTv(m); act("film", { from: key(m), v: f ? 1 : 0 }); M.toast(`${m.n} now shows as a ${f ? "film" : "series"} for everyone.`); bg.remove(); });
   const reopen = () => setTimeout(() => { if (!bg.isConnected) return; close(); openTitle(derive(active().id), m); }, 80);
   bg.querySelector("[data-tslist]")?.addEventListener("click", () => { const on = !!wl?.adders.has(me.id); act(on ? "wldrop" : "wl", { m }); M.toast(on ? `${m.n} removed from your list.` : `${m.n} added to your list.`); reopen(); });
-  bg.querySelector("[data-tsw]")?.addEventListener("click", e => { const x = s.saw[sk]?.get(me.id), mine = !!x?.v && (!x.m || key(x.m) === key(m)); if (mine && !isTv(m)) { act("saw", { sk, v: 0 }); M.toast(`${m.n} is no longer marked as watched.`); reopen(); } else { close(); openReview(s, sk); } });
+  bg.querySelector("[data-tsw]")?.addEventListener("click", e => { const x = s.saw[sk]?.get(me.id), mine = !!x?.v && (!x.m || key(x.m) === key(m)); close(); openReview(s, sk, m); });
+  bg.querySelector("[data-tsedit]")?.addEventListener("click", () => { close(); openReview(s, sk, m); });
   const sugOpenBtn = bg.querySelector("#tsSugOpen"), sugBox = bg.querySelector(".ts-sug");
   sugOpenBtn?.addEventListener("click", () => { sugBox.hidden = !sugBox.hidden; sugOpenBtn.classList.toggle("on", !sugBox.hidden); if (!sugBox.hidden) sugBox.scrollIntoView({ block: "nearest" }); });
   if (focusSuggest && sugOpenBtn) { sugOpenBtn.click(); setTimeout(() => bg.querySelector(".ts-to")?.scrollIntoView({ block: "center" }), 50); }
@@ -1282,7 +1283,7 @@ function bindWl(s, cands) {
     document.body.appendChild(bg);
     bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "saved") fromSaved(); });
   };
-  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your Personal list", m => addAll([m], m.n), "", { html: `<button class="link imp-link" data-foot="import">Import a whole list from IMDb or Letterboxd</button>`, on: openImport }));
+  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your Personal list", m => addAll([m], m.n), "", { html: `<button class="imp-card" data-foot="import"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import a whole list</b><small>Your watchlist or ratings from IMDb or Letterboxd</small></span><span class="imp-go">›</span></button>`, on: openImport }));
   // Imports: IMDb CSV (watchlist or ratings) and Letterboxd (watchlist, ratings, watched or diary CSV, or the whole export ZIP).
   const pool = async (list, fn, label) => {
     const work = list.slice(), out = []; let done = 0, missed = 0;
@@ -1740,9 +1741,9 @@ function openReview(s, sk, m0, opts = {}) {
     <small class="hint rev-tip">Tap a star twice for a half star.</small>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${tvish ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
-    <label class="rev-d">Just watched on <input type="date" id="revD" value="${today}" max="${today}"></label>
+    <label class="rev-d">Just watched on <input type="date" id="revD" value="${prev?.d || today}" max="${today}"></label>
     ${m && s.members.size > 1 ? `<label class="rev-rec"><input type="checkbox" id="revRec"${opts.rec ? " checked" : ""}> Recommend this to your friends</label>` : ""}
-    <button class="primary" id="revSave">Save</button></div>${prev ? `<button class="link" id="revUn">Unwatch</button>` : ""}</div></div>`);
+    <button class="primary" id="revSave">Save</button></div>${prev ? `<button class="link" id="revUn">Mark as not watched</button>` : ""}</div></div>`);
   document.body.appendChild(bg);
   if (tvish) M.tm(`/tv/${m.i}`).then(j => {
     const list = (j.seasons || []).map(x => x.season_number).filter(n => n > 0);

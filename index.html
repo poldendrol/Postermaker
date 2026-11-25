@@ -632,6 +632,13 @@ footer { padding-left: 0; }
 .wl-filt .seg button.on { background: var(--accent); color: #fff; }
 .fy-n { font-style: normal; font-size: 11px; background: var(--accent); color: #fff; border-radius: 99px; padding: 2px 7px; vertical-align: 2px; margin-left: 4px; }
 .imp-link { align-self: center; font-size: 13px; margin: 4px 0; }
+.imp-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin: 4px 0; border: 1.5px dashed var(--line); border-radius: 14px; background: var(--field); color: var(--fg); text-align: left; font: inherit; cursor: pointer; }
+.imp-card:hover { border-color: var(--accent); }
+.imp-ic { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.imp-ic .imdb { background: #f5c518; color: #111; font: 900 11px/1 Inter, sans-serif; font-style: normal; padding: 3px 5px; border-radius: 4px; }
+.imp-ic .lb { display: flex; gap: 2px; } .imp-ic .lb b { width: 9px; height: 9px; border-radius: 50%; background: #ff8000; } .imp-ic .lb b:nth-child(2) { background: #00e054; } .imp-ic .lb b:nth-child(3) { background: #40bcf4; }
+.imp-tx { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; } .imp-tx b { font-size: 15px; } .imp-tx small { color: var(--muted); font-size: 12px; white-space: normal; line-height: 1.3; }
+.imp-go { font-size: 26px; color: var(--muted); line-height: 1; }
 .imp-steps { margin: 0 0 4px; padding-left: 20px; font-size: 14px; line-height: 1.5; }
 .imp-steps li { margin-bottom: 4px; }
 .g-sec summary:focus:not(:focus-visible) { outline: none; }
@@ -707,6 +714,8 @@ footer { padding-left: 0; }
 .ts-btn { padding: 11px 6px; border-radius: 12px; font-weight: 800; font-size: 14px; border: 1.5px solid var(--line); background: var(--field); color: var(--fg); white-space: nowrap; }
 .ts-btn.on { background: #111; border-color: #111; color: #ffd400; }
 .ts-foot { font-size: 12px; color: var(--muted); text-align: center; }
+.ts-rev.mine { cursor: pointer; }
+.ts-edit { font-size: 12px; margin-left: 6px; }
 .ts-foot .link { font-size: 12px; }
 .ts-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .ts-row label { flex: 1 1 140px; }
