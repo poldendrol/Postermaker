@@ -1250,7 +1250,7 @@ function bindWl(s, cands) {
         status("Opening the Letterboxd export…");
         if (!window.JSZip) await new Promise((ok, no) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
         const zip = await window.JSZip.loadAsync(file), read = async n => { const f = zip.file(n); return f ? parseCsv(await f.async("string")) : null; };
-        const wl = await read("watchlist.csv"), rated = await read("ratings.csv"), watched = await read("watched.csv");
+        const wl = await read("watchlist.csv"), rated = await read("ratings.csv"), watched = await read("watched.csv"), diary = await read("diary.csv");
         if (!wl && !rated && !watched) { status("That ZIP doesn't look like a Letterboxd export."); return; }
         const msg = [];
         if (wl && wl.length > 1) { const r = await fromLbRows(wl, "want"); addAll(r.out, "From their Letterboxd watchlist"); msg.push(`${r.out.length} of ${r.total} watchlist films found.`); }
@@ -1259,7 +1259,10 @@ function bindWl(s, cands) {
         if (seenRows || extra) {
           const r1 = seenRows ? await fromLbRows(seenRows, "seen") : { out: [], missed: 0, total: 0 };
           const r2 = extra ? await fromLbRows(extra, "seen") : { out: [], missed: 0, total: 0 };
-          const have = new Set(r1.out.map(key)), all = [...r1.out, ...r2.out.filter(m => !have.has(key(m)))];
+          // The diary is the only file with real watch dates ("Watched Date"); use the latest one per film.
+          const r3 = diary && diary.length > 1 ? await fromLbRows(diary, "seen") : { out: [] }, dd = new Map();
+          for (const m of r3.out) if (m._d && (!dd.has(key(m)) || m._d > dd.get(key(m)))) dd.set(key(m), m._d);
+          const have = new Set(r1.out.map(key)), all = [...r1.out, ...r2.out.filter(m => !have.has(key(m)))].map(m => dd.has(key(m)) ? { ...m, _d: dd.get(key(m)), _w: true } : { ...m, _d: "" });
           addAll(all, "From their Letterboxd films", true);
           msg.push(`${all.length} films marked as watched.`);
         }
@@ -1592,7 +1595,10 @@ function titleBySk(s, sk) {
 const watchedOn = x => x.old ? "" : x.imp ? x.wd || "" : x.d || iso(new Date(x.at || 0));
 function myWatched(s, who = me.id) {
   const out = [];
-  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue;
+  // Old imports weren't flagged: anything logged in a burst (5+ titles within milliseconds) came from a file, so only a diary date counts for it.
+  const xs = Object.values(s.saw).map(mp => mp.get(who)).filter(x => x?.v).sort((a, b) => a.at - b.at), bulk = new Set();
+  for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].at - xs[j - 1].at <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulk.add(xs[k]); }
+  for (const [sk, mp] of Object.entries(s.saw)) { let x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue; if (bulk.has(x) && !x.imp) x = { ...x, imp: true };
     const ss = ssList(x.ss);
     if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) out.push({ sk, m, d, s: x.s, x: x.x, ss: ns }); continue; }
     const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x }); }
