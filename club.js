@@ -880,10 +880,12 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || (wlType === "tv") === isTv(w.m)) && (wlMode === "club" || !wlStream || onMine(w)) && (!wlNobody || nobodySaw(w.m)))
     .sort(wlSort === "az" ? (a, b) => a.m.n.localeCompare(b.m.n)
       : wlSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n)
+      : wlSort === "rate" ? (a, b) => rateOf(b.m) - rateOf(a.m) || a.m.n.localeCompare(b.m.n)
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const done = mineDone.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || (wlType === "tv") === isTv(w.m)) && !wlNobody);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
   const shown = items;
+  if (wlSort === "rate" && items.some(w => !(key(w.m) in rateCache))) setTimeout(() => fillGenres(items), 0);
   { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
   const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const fchip = (id, l, n, on) => `<button class="chip${on ? " on" : ""}" data-wlf="${esc(id)}">${esc(l)}${n != null ? ` <i>${n}</i>` : ""}</button>`;
@@ -894,7 +896,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}
       ${pv ? `<img class="tile-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}
       ${mineSaw ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}
-      <span class="tile-t"><b>${esc(w.m.n)}</b>${w.m.y || n > 1 ? `<small>${esc(w.m.y || "")}${n > 1 ? ` · ${n} want it` : ""}</small>` : ""}</span></button>`;
+      <span class="tile-t"><b>${esc(w.m.n)}</b>${(() => { const r = (wlMode === "pop" || wlSort === "rate") && rateOf(w.m) ? `★ ${rateOf(w.m).toFixed(1)}` : "", bits = [w.m.y || "", r, n > 1 ? `${n} want it` : ""].filter(Boolean); return bits.length ? `<small>${esc(bits.join(" · "))}</small>` : ""; })()}</span></button>`;
   };
   // Long lists become Netflix-style rows per genre (each title in its main genre); short ones stay a simple grid.
   const tiles = list => {
@@ -915,38 +917,43 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : `<button class="primary" id="cwAdd">+ Add</button>`}</div>
     ${preStream.length > 1 ? (() => { const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
       const tog = (attr, on, l) => `<button class="tog${on ? " on" : ""}" ${attr}="${on ? 0 : 1}" aria-pressed="${on}">${l}</button>`;
-      return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"]], wlSort)}${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}</div>
+      return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], wlSort)}${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}</div>
         <div class="wl-frow">${wlMode === "mine" ? tog("data-st", wlStream, "📺 My services" + (wlStream && provBusy ? "…" : "")) : ""}${tog("data-nb", wlNobody, "👀 Nobody's seen")}</div></div>`; })() : ""}
     ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
   </div>`;
 }
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
-let popList = null, popBusy = false, popType = "movie";
+let popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
   if (popBusy) return; popBusy = true;
   try {
     const pages = await Promise.all([1, 2].map(page => M.tm(`/trending/${popType}/week`, { page })));
-    popList = pages.flatMap(d => d.results || []).filter(x => x.poster_path).map(x => ({ t: popType, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" })).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i);
+    popList = pages.flatMap(d => d.results || []).filter(x => x.poster_path).map(x => ({ t: popType, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "", _r: x.vote_count >= 5 ? +(+x.vote_average || 0).toFixed(1) : 0 })).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i);
+    for (const m of popList) { rateCache[key(m)] = m._r; delete m._r; }
   } catch { popList = popList || []; }
   popBusy = false; render();
 }
 function popHtml(s, tile) {
   if (!popList) { loadPop(); return `<p class="hint">Loading what's popular this week…</p>`; }
   if (!popList.length) return `<p class="hint">Couldn't load the popular list. Check your connection.</p>`;
-  const seg = `<div class="wl-filt"><div class="wl-frow"><div class="seg">${[["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === popType ? "on" : ""}" data-popt="${k}">${l}</button>`).join("")}</div></div></div>`;
-  return `${seg}<div class="wl-grid pop-grid">${popList.map((m, i) => { const w = s.wl.get(key(m)) || { m, adders: new Map() }; return tile({ ...w, m: w.m || m }).replace('<button class="wl-tile"', `<button class="wl-tile" data-rank="${i + 1}"`); }).join("")}</div>`;
+  const sg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
+  const seg = `<div class="wl-filt"><div class="wl-frow">${sg("data-pops", [["pop", "Most popular"], ["rate", "★ Rating"]], popSort)}${sg("data-popt", [["movie", "Films"], ["tv", "Series"]], popType)}</div></div>`;
+  const ranked = popList.map((m, i) => ({ m, i })); if (popSort === "rate") ranked.sort((a, b) => rateOf(b.m) - rateOf(a.m));
+  return `${seg}<div class="wl-grid pop-grid">${ranked.map(({ m }, i) => { const w = s.wl.get(key(m)) || { m, adders: new Map() }; return tile({ ...w, m: w.m || m }).replace('<button class="wl-tile"', `<button class="wl-tile" data-rank="${i + 1}"`); }).join("")}</div>`;
 }
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
+const rateCache = LS.get("marqueeRates", {}); // TMDB score per title, for the Rating sort and badges
+const rateOf = m => rateCache[key(m)] || 0;
 const genreShut = new Set(); // genre sections you folded (all open by default)
 let cinePane = "cal", mwPane = "list", fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
 async function fillGenres(items) {
   if (genreBusy) return;
-  const work = items.filter(w => !genreCache[key(w.m)]).slice(0, 400); if (!work.length) return;
+  const work = items.filter(w => !genreCache[key(w.m)] || !(key(w.m) in rateCache)).slice(0, 400); if (!work.length) return;
   genreBusy = true;
-  await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const w = work.shift(); try { const j = await M.tm(`/${w.m.t}/${w.m.i}`); genreCache[key(w.m)] = (j.genres || []).map(g => g.name).slice(0, 3); if (!genreCache[key(w.m)].length) genreCache[key(w.m)] = ["Other"]; } catch {} } }));
-  try { LS.set("marqueeGenres", genreCache); } catch {}
+  await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const w = work.shift(); try { const j = await M.tm(`/${w.m.t}/${w.m.i}`); genreCache[key(w.m)] = (j.genres || []).map(g => g.name).slice(0, 3); rateCache[key(w.m)] = j.vote_count >= 5 ? +(+j.vote_average || 0).toFixed(1) : 0; if (!genreCache[key(w.m)].length) genreCache[key(w.m)] = ["Other"]; } catch {} } }));
+  try { LS.set("marqueeGenres", genreCache); LS.set("marqueeRates", rateCache); } catch {}
   genreBusy = false; render();
 }
 const genreOf = m => (genreCache[key(m)] || [])[0]?.replace(/^Sci-Fi & Fantasy$/, "Science Fiction").replace(/^Action & Adventure$/, "Action") || "";
@@ -961,7 +968,7 @@ async function titleInfo(m) {
     const len = m.t === "tv" ? [j.number_of_seasons ? `${j.number_of_seasons} season${j.number_of_seasons === 1 ? "" : "s"}` : "", j.status === "Ended" ? "ended" : j.in_production ? "still running" : ""].filter(Boolean).join(", ")
       : j.runtime ? `${Math.floor(j.runtime / 60)}h ${String(j.runtime % 60).padStart(2, "0")}m` : "";
     const yt = (j.videos?.results || []).filter(v => v.site === "YouTube"), tr = yt.find(v => v.type === "Trailer" && v.official) || yt.find(v => v.type === "Trailer") || yt[0];
-    return (infoCache[k] = { genres: (j.genres || []).map(g => g.name).slice(0, 3).join(", "), len, rate: j.vote_count > 20 && j.vote_average ? j.vote_average.toFixed(1) : "",
+    return (infoCache[k] = { genres: (j.genres || []).map(g => g.name).slice(0, 3).join(", "), len, rate: j.vote_count && j.vote_average ? j.vote_average.toFixed(1) : "", votes: j.vote_count || 0,
       by, cast: (j.credits?.cast || []).slice(0, 4).map(x => x.name).join(", "), plot: j.overview || "", trailer: tr?.key || "" });
   } catch { return null; }
 }
@@ -1105,8 +1112,11 @@ function openTitle(s, m, focusSuggest) {
   titleInfo(m).then(i => {
     const box = bg.querySelector(".ts-info"); if (!box) return;
     if (!i) { box.innerHTML = ""; return; }
-    const facts = [i.genres, i.len, i.rate ? `★ ${i.rate}/10 on TMDB` : ""].filter(Boolean).join(" · ");
-    box.innerHTML = `${facts ? `<small class="ts-facts">${esc(facts)}</small>` : ""}
+    const facts = [i.genres, i.len].filter(Boolean).join(" · ");
+    const fmtN = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
+    const club = [...(s.saw[sk] || new Map()).values()].map(x => x.v && x.s).filter(Boolean), cAvg = club.length ? club.reduce((a, b) => a + b, 0) / club.length : 0;
+    box.innerHTML = `${i.rate || cAvg ? `<div class="ts-rate">${i.rate ? `<span><b>★ ${esc(i.rate)}</b>/10 <small>TMDB · ${fmtN(i.votes)} vote${i.votes === 1 ? "" : "s"}</small></span>` : ""}${cAvg ? `<span><b>${starStr(cAvg)}</b> <small>club · ${cAvg.toFixed(1)} from ${club.length}</small></span>` : ""}</div>` : ""}
+      ${facts ? `<small class="ts-facts">${esc(facts)}</small>` : ""}
       ${i.by ? `<small class="hint">${m.t === "tv" ? "Created by" : "Directed by"} <b>${esc(i.by)}</b></small>` : ""}
       ${i.cast ? `<small class="hint">With ${esc(i.cast)}</small>` : ""}
       ${i.plot ? `<p class="ts-plot">${esc(i.plot)}</p>` : ""}
@@ -1310,6 +1320,7 @@ function bindWl(s, cands) {
   $("wlQ")?.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   view.querySelectorAll("[data-cnv]").forEach(x => x.onclick = () => { cinePane = x.dataset.cnv; render(); });
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
+  view.querySelectorAll("[data-pops]").forEach(x => x.onclick = () => { popSort = x.dataset.pops; render(); });
   view.querySelectorAll("[data-popt]").forEach(x => x.onclick = () => { if (popType === x.dataset.popt) return; popType = x.dataset.popt; popList = null; render(); });
   view.querySelectorAll("[data-wlm]").forEach(x => x.onclick = () => { wlMode = x.dataset.wlm; LS.set("marqueeWlMode", wlMode); wlAll = false; render(); });
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
