@@ -866,7 +866,7 @@ function bindCinema(s) {
 }
 
 // ---------- club watchlist ----------
-let wlAll = false, wlQ = "", wlMsg = "", wlType = "all", wlView = "common";
+let wlAll = false, wlQ = "", wlMsg = "", wlType = "all", wlView = "common", wlNobody = false;
 // Watchlist: "mine" (what I added) or "club" (what the friends I pick added). wlFriends empty = all friends.
 let wlMode = LS.get("marqueeWlMode", "club"), wlFriends = new Set(LS.get("marqueeWlFriends", [])), wlUnseen = LS.get("marqueeWlUnseen", true);
 function parseCsv(text) {
@@ -901,11 +901,12 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const nTv = items.filter(w => isTv(w.m)).length, mixed = nTv && nTv < items.length;
   const svc = myServices(), onMine = w => (provCache[key(w.m)]?.l || []).some(p => svc.has(p.id));
   const preStream = items;
-  items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || w.m.t === wlType) && (wlMode === "club" || !wlStream || onMine(w)))
+  const nobodySaw = m => ![...(s.saw[seenKey(m.n)]?.values() || [])].some(x => x.v);
+  items = items.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || (wlType === "tv") === isTv(w.m)) && (wlMode === "club" || !wlStream || onMine(w)) && (!wlNobody || nobodySaw(w.m)))
     .sort(wlSort === "az" ? (a, b) => a.m.n.localeCompare(b.m.n)
       : wlSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n)
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
-  const done = mineDone.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || w.m.t === wlType));
+  const done = mineDone.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || (wlType === "tv") === isTv(w.m)) && !wlNobody);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
   const shown = items;
   { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
@@ -936,8 +937,10 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${`
     ${wlMode === "club" && friends.length ? `<div class="wl-views">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
-    <div class="wl-tools">${preStream.length > 1 ? `<button class="chip wl-sf${(wlStream && wlMode === "mine") || (mixed && wlType !== "all") ? " on" : ""}" id="wlSF" data-mixed="${mixed ? 1 : ""}">⇅ ${esc([{ az: "A–Z", genre: "Genre", year: "Year" }[wlSort], mixed && wlType !== "all" ? { movie: "Films", tv: "Series" }[wlType] : "", wlStream && wlMode === "mine" ? "My services" : ""].filter(Boolean).join(" · "))}${wlStream && provBusy ? "…" : ""}</button>` : ""}
+    <div class="wl-tools">
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}<button class="primary" id="cwAdd">+ Add</button></div>
+    ${preStream.length > 1 ? (() => { const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
+      return `<div class="wl-filt">${seg("data-so", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"]], wlSort)}${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}${wlMode === "mine" ? seg("data-st", [["0", "All"], ["1", "📺 My services" + (wlStream && provBusy ? "…" : "")]], wlStream ? "1" : "0") : ""}${seg("data-nb", [["0", "Anyone"], ["1", "👀 Nobody's seen"]], wlNobody ? "1" : "0")}</div>`; })() : ""}
     ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
   </div>`;
@@ -1231,22 +1234,13 @@ function bindWl(s, cands) {
   };
   const fromSearch = () => openSearch("Add to your Personal list", m => addAll([m], m.n));
   // One small button holds sorting and the filters (films/series, on my services).
-  $("wlSF")?.addEventListener("click", e => {
-    const mixed = !!e.currentTarget.dataset.mixed, grp = (t, items) => `<h4 class="wl-sec">${t}</h4><div class="wl-views">${items.join("")}</div>`;
-    const ch = (attr, v, l, on) => `<button class="chip${on ? " on" : ""}" ${attr}="${v}">${l}</button>`;
-    const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Sort and filter"><h3>Sort and filter</h3>
-      ${grp("Sort", [["az", "A–Z"], ["genre", "By genre"], ["year", "By year"]].map(([k, l]) => ch("data-so", k, l, wlSort === k)))}
-      ${mixed ? grp("Show", [["all", "Everything"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => ch("data-ty", k, l, wlType === k))) : ""}
-      ${wlMode === "mine" ? grp("Streaming", [ch("data-st", "0", "Everything", !wlStream), ch("data-st", "1", "📺 On my services", wlStream)]) : ""}
-      <button class="primary" data-x="1">Done</button></div></div>`);
-    document.body.appendChild(bg);
-    bg.addEventListener("click", ev => {
-      const b = ev.target.closest("button"); if (ev.target === bg || b?.dataset.x) return bg.remove(); if (!b) return;
-      if (b.dataset.so) { wlSort = b.dataset.so; LS.set("marqueeWlSort2", wlSort); wlAll = wlSort !== "genre"; }
-      if (b.dataset.ty) wlType = b.dataset.ty;
-      if (b.dataset.st) { if (b.dataset.st === "1" && !myServices().size) { bg.remove(); M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = b.dataset.st === "1"; }
-      b.parentElement.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b)); render();
-    });
+  // Sort and filter sit right above the tiles: one tap each.
+  view.querySelectorAll(".wl-filt button").forEach(b => b.onclick = () => {
+    if (b.dataset.so) { wlSort = b.dataset.so; LS.set("marqueeWlSort2", wlSort); wlAll = wlSort !== "genre"; }
+    if (b.dataset.ty) wlType = b.dataset.ty;
+    if (b.dataset.nb) wlNobody = b.dataset.nb === "1";
+    if (b.dataset.st) { if (b.dataset.st === "1" && !myServices().size) { M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = b.dataset.st === "1"; }
+    render();
   });
   view.querySelectorAll("[data-wlt]").forEach(b => b.onclick = () => { wlType = b.dataset.wlt; render(); });
   const fromSaved = () => addAll(LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv")).map(x => ({ t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" })), "From their Marquee watchlist");
