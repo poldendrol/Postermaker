@@ -854,6 +854,8 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const sel = wlFriends.size ? [...wlFriends] : friends.map(f => f.id);
   if (wlMode === "fy") wlMode = "mine";
   const mineAll = base.filter(w => w.adders.has(me.id) && !iSaw(w)), mineN = mineAll.length;
+  // Everything you logged as watched in Marquee also shows on your Personal list, with a ✓, in a Watched section at the bottom (imports stay out).
+  const mineDone = []; if (wlMode === "mine") { const seenK = new Set(); for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v || x.imp) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); mineDone.push({ m, adders: new Map([[me.id, me.name]]), at: x.at }); } mineDone.sort((a, b) => b.at - a.at); }
   let items = wlMode === "mine" ? mineAll : base.filter(w => !iSaw(w) && sel.some(id => w.adders.has(id)));
   const nTv = items.filter(w => w.m.t === "tv").length, mixed = nTv && nTv < items.length;
   const svc = myServices(), onMine = w => (provCache[key(w.m)]?.l || []).some(p => svc.has(p.id));
@@ -862,6 +864,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     .sort(wlSort === "az" ? (a, b) => a.m.n.localeCompare(b.m.n)
       : wlSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n)
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
+  const done = mineDone.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || w.m.t === wlType));
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
   const shown = items;
   { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
@@ -894,7 +897,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
     <div class="wl-tools">${preStream.length > 1 ? `<button class="chip wl-sf${(wlStream && wlMode === "mine") || (mixed && wlType !== "all") ? " on" : ""}" id="wlSF" data-mixed="${mixed ? 1 : ""}">⇅ ${esc([{ az: "A–Z", genre: "Genre", year: "Year" }[wlSort], mixed && wlType !== "all" ? { movie: "Films", tv: "Series" }[wlType] : "", wlStream && wlMode === "mine" ? "My services" : ""].filter(Boolean).join(" · "))}${wlStream && provBusy ? "…" : ""}</button>` : ""}
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}<button class="primary" id="cwAdd">+ Add</button></div>
-    ${tiles(shown)}${items.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
+    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
   </div>`;
 }
