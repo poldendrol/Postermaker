@@ -1750,21 +1750,21 @@ function renderClub() {
         <button id="cbInvite">Invite</button><button id="cbGear" class="gear${clubTab === "set" ? " on" : ""}" aria-label="Club settings">⚙</button></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["lists", "Lists", false]]
+    <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop") mwPane = "list";
       return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
       ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1">
-    ${(() => { const nf = new Set([...s.wl.values()].flatMap(w => [...w.adders.keys()]).filter(id => id !== me.id)).size;
-      return `<div class="fr-card" data-tab="weekly">${pulpPick([["club", `${nf} friend${nf === 1 ? "" : "s"}`, "Club list"], ["pop", "This week", "Popular"]], clubPane, "data-cpv")}
-      ${clubPane === "pop" ? popHtml(s) : wlCard(s, cands, "club")}</div>`; })()}
-    </div><div class="ccol c2">
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
       return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
+    </div><div class="ccol c2">
+    ${(() => { const nf = new Set([...s.wl.values()].flatMap(w => [...w.adders.keys()]).filter(id => id !== me.id)).size;
+      return `<div class="fr-card" data-tab="weekly">${pulpPick([["club", `${nf} friend${nf === 1 ? "" : "s"}`, "Club list"], ["pop", "This week", "Popular"]], clubPane, "data-cpv")}
+      ${clubPane === "pop" ? popHtml(s) : wlCard(s, cands, "club")}</div>`; })()}
     </div>
 
 
