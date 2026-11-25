@@ -1595,9 +1595,8 @@ function renderClub() {
     <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
-      // One column: suggestions waiting for you on top, then the watched wall, then what you suggested.
-      return `<div class="fr-card" data-tab="mine"><div class="wl-pick one"><div class="pulp-head on"><span class="chapter">${nW} in ${new Date().getFullYear()}${nNew ? ` · ${nNew} suggested` : ""}</span><span class="bang">Watched</span></div></div>
-      ${forYouCard(s, "top")}${myWatchedCard(s)}${forYouCard(s, "sent")}</div>`; })()}
+      return `<div class="fr-card" data-tab="mine"><div class="wl-pick" role="tablist">${[["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${mwPane === k ? " on" : ""}${k === "fy" && nNew ? " dot" : ""}" data-mwv="${k}" role="tab" aria-selected="${mwPane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+      ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1">
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
     </div><div class="ccol c2">    ${(() => { const n = outings(s).length;
