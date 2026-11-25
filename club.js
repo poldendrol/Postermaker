@@ -110,7 +110,7 @@ function merge(clubId, list) {
     if (e.k === "fix") e.from = String(e.from || "").slice(0, 40);
     if (e.k === "ospot") { e.ok = String(e.ok || "").slice(0, 200); e.x = String(e.x || "").slice(0, 80); }
     if (e.k === "saw") {
-      if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1;
+      if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1; if (e.wd) e.wd = 1;
       if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && (d === "" || /^\d{4}-\d\d-\d\d$/.test(d))) o[+n] = d; e.ss = o; }
     }
     if (e.k === "sugdrop") e.sg = String(e.sg || "").slice(0, 16);
@@ -174,7 +174,7 @@ function derive(clubId) {
       } break;
       case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
       case "wldrop": if (e.m && fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
-      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
+      case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
@@ -1171,10 +1171,10 @@ function bindWl(s, cands) {
     if (!fresh.length) { M.toast("Those are all on the club watchlist already."); return; }
     if (seenIt) {
       // Imported ratings/diary only mark titles as watched (with stars and dates); they don't go on anyone's to-watch list.
-      actMany(fresh.map(({ _s, _d, ...m }) => ["saw", { sk: seenKey(m.n), v: 1, imp: 1, m, ...(_d ? { d: _d } : {}), ...(_s ? { s: _s } : {}) }]), null);
+      actMany(fresh.map(({ _s, _d, _w, ...m }) => ["saw", { sk: seenKey(m.n), v: 1, imp: 1, m, ...(_d ? { d: _d, ...(_w ? { wd: 1 } : {}) } : {}), ...(_s ? { s: _s } : {}) }]), null);
       M.toast(`${fresh.length === 1 ? fresh[0].n : fresh.length + " titles"} marked as watched.`); return;
     }
-    actMany(fresh.map(({ _s, _d, ...m }) => ["wl", { m }]), { title: `${me.name} added ${fresh.length} film${fresh.length === 1 ? "" : "s"} to the club watchlist`, body: label });
+    actMany(fresh.map(({ _s, _d, _w, ...m }) => ["wl", { m }]), { title: `${me.name} added ${fresh.length} film${fresh.length === 1 ? "" : "s"} to the club watchlist`, body: label });
     M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your To watch list.`);
   };
   const fromSearch = () => openSearch("Add to your To watch list", m => addAll([m], m.n));
@@ -1231,14 +1231,14 @@ function bindWl(s, cands) {
     return { out, missed, total: seen.size, seenIt: ri >= 0, src: ri >= 0 ? "IMDb ratings" : "IMDb watchlist" };
   };
   const fromLbRows = async (rows, kind) => {
-    const head = rows[0].map(h => h.trim().toLowerCase()), ni = head.indexOf("name"), yi = head.indexOf("year"), ri = head.indexOf("rating"), di = head.indexOf("watched date") >= 0 ? head.indexOf("watched date") : head.indexOf("date");
+    const head = rows[0].map(h => h.trim().toLowerCase()), ni = head.indexOf("name"), yi = head.indexOf("year"), ri = head.indexOf("rating"), di = head.indexOf("watched date") >= 0 ? head.indexOf("watched date") : head.indexOf("date"), realDate = head.includes("watched date");
     const seenIt = kind === "seen" || ri >= 0, films = new Map();
     for (const r of rows.slice(1)) { const n = (r[ni] || "").trim(); if (!n) continue; const k = n + "|" + (r[yi] || ""); const sc = ri >= 0 ? Math.round((+r[ri] || 0) * 2) / 2 : 0; const d = di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "") ? r[di].slice(0, 10) : ""; if (!films.has(k) || sc) films.set(k, { n, y: (r[yi] || "").trim(), s: sc, d }); }
     const { out, missed } = await pool([...films.values()], async f => {
       let j = await M.tm("/search/movie", { query: f.n, ...(f.y ? { year: f.y } : {}) });
       if (!(j.results || []).length && f.y) j = await M.tm("/search/movie", { query: f.n });
       const x = (j.results || [])[0];
-      return x ? { t: "movie", i: x.id, n: x.title, y: (x.release_date || "").slice(0, 4), p: x.poster_path || "", _s: Math.max(0, Math.min(5, f.s)), _d: f.d } : null;
+      return x ? { t: "movie", i: x.id, n: x.title, y: (x.release_date || "").slice(0, 4), p: x.poster_path || "", _s: Math.max(0, Math.min(5, f.s)), _d: f.d, _w: realDate } : null;
     }, "Letterboxd films");
     return { out, missed, total: films.size, seenIt, src: seenIt ? "Letterboxd" : "Letterboxd watchlist" };
   };
@@ -1589,7 +1589,7 @@ function titleBySk(s, sk) {
   return all.find(m => seenKey(m.n) === sk) || [...(s.saw[sk]?.values() || [])].find(x => x.m)?.m || null;
 }
 // My watched list: the date I watched it (picked in the review sheet), else the day I tapped Watched. Bulk imports without a date don't count.
-const watchedOn = x => x.old ? "" : x.d || (x.imp ? "" : iso(new Date(x.at || 0)));
+const watchedOn = x => x.old ? "" : x.imp ? x.wd || "" : x.d || iso(new Date(x.at || 0));
 function myWatched(s, who = me.id) {
   const out = [];
   for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue;
