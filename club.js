@@ -904,7 +904,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
 const genreShut = new Set(); // genre sections you folded (all open by default)
-let cinePane = "out", mwPane = "list", fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
+let cinePane = "cal", mwPane = "list", fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
 async function fillGenres(items) {
   if (genreBusy) return;
   const work = items.filter(w => !genreCache[key(w.m)]).slice(0, 400); if (!work.length) return;
@@ -1505,7 +1505,7 @@ function renderClub() {
     </div><div class="ccol c1">
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
     </div><div class="ccol c2">    ${(() => { const n = outings(s).length;
-      return `<div class="fr-card" data-tab="monthly"><div class="wl-pick" role="tablist">${[["out", n ? `${n} planned` : "Cinema night", "Next outings"], ["cal", "In Ghent", "Calendar"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${cinePane === k ? " on" : ""}" data-cnv="${k}" role="tab" aria-selected="${cinePane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+      return `<div class="fr-card" data-tab="monthly"><div class="wl-pick" role="tablist">${[["cal", "In Ghent", "Calendar"], ["out", n ? `${n} planned` : "Cinema night", "Next outings"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${cinePane === k ? " on" : ""}" data-cnv="${k}" role="tab" aria-selected="${cinePane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
       ${cinePane === "cal" ? `<div id="cbCal">${calHtml(s, calC, "cine")}</div>` : cinemaCard(s, members) + pastOutingsHtml(s)}</div>`; })()}
 
 
