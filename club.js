@@ -1752,11 +1752,11 @@ function renderClub() {
         <button id="cbInvite">Invite</button></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
+    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop") mwPane = "list";
-      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched Wall"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
+      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
       ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1">
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
