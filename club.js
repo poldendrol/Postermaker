@@ -905,11 +905,11 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="wl-pick" role="tablist">${[["mine", `${mineN} to watch`, "Personal list"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+    <div class="wl-pick three" role="tablist">${[["mine", `${mineN} to watch`, "Personal list"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"], ["pop", "This week", "Popular"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
-    ${`
+    ${wlMode === "pop" ? popHtml(s, tile) : `
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
     <div class="wl-tools">${wlMode === "club" && friends.length ? `<div class="wl-views wl-fr">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}<button class="primary" id="cwAdd">+ Add</button></div>` : ""}
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : `<button class="primary" id="cwAdd">+ Add</button>`}</div>
@@ -920,6 +920,22 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
   </div>`;
+}
+// ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
+let popList = null, popBusy = false, popType = "movie";
+async function loadPop() {
+  if (popBusy) return; popBusy = true;
+  try {
+    const pages = await Promise.all([1, 2].map(page => M.tm(`/trending/${popType}/week`, { page })));
+    popList = pages.flatMap(d => d.results || []).filter(x => x.poster_path).map(x => ({ t: popType, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" })).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i);
+  } catch { popList = popList || []; }
+  popBusy = false; render();
+}
+function popHtml(s, tile) {
+  if (!popList) { loadPop(); return `<p class="hint">Loading what's popular this week…</p>`; }
+  if (!popList.length) return `<p class="hint">Couldn't load the popular list. Check your connection.</p>`;
+  const seg = `<div class="wl-filt"><div class="wl-frow"><div class="seg">${[["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === popType ? "on" : ""}" data-popt="${k}">${l}</button>`).join("")}</div></div></div>`;
+  return `${seg}<div class="wl-grid pop-grid">${popList.map((m, i) => { const w = s.wl.get(key(m)) || { m, adders: new Map() }; return tile({ ...w, m: w.m || m }).replace('<button class="wl-tile"', `<button class="wl-tile" data-rank="${i + 1}"`); }).join("")}</div>`;
 }
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
@@ -1056,7 +1072,7 @@ function forYouCard(s) {
   </div>`;
 }
 function findTitle(s, k) {
-  return s.wl.get(k)?.m || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
+  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
 }
 function openTitleByKey(s, k, focusSuggest) { const m = findTitle(s, k); if (m) openTitle(s, m, focusSuggest); }
 let titleSheet = null;
@@ -1294,6 +1310,7 @@ function bindWl(s, cands) {
   $("wlQ")?.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   view.querySelectorAll("[data-cnv]").forEach(x => x.onclick = () => { cinePane = x.dataset.cnv; render(); });
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
+  view.querySelectorAll("[data-popt]").forEach(x => x.onclick = () => { if (popType === x.dataset.popt) return; popType = x.dataset.popt; popList = null; render(); });
   view.querySelectorAll("[data-wlm]").forEach(x => x.onclick = () => { wlMode = x.dataset.wlm; LS.set("marqueeWlMode", wlMode); wlAll = false; render(); });
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
   view.querySelectorAll("details.g-sec").forEach(d => d.addEventListener("toggle", () => { d.open ? genreShut.delete(d.dataset.g) : genreShut.add(d.dataset.g); }));
