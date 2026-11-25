@@ -1432,6 +1432,7 @@ function leadersHtml(s) {
     { e: "📚", t: "Watchlist hoarder", d: "Titles on their watchlist right now", v: id => wlNow[id] || 0, u: "titles" },
     { e: "🌍", t: "Explorer", d: "Different titles watched", v: uniq, u: "titles" },
   ];
+  const wins = {}; // badge = first place in a category (shared on a tie)
   const cards = cats.map((c, ci) => {
     const rows = ids.map(id => ({ id, v: c.v(id) })).filter(r => r.v > 0).sort((a, b) => c.low ? a.v - b.v : b.v - a.v);
     if (!rows.length) return `<div class="ld-card empty"><div class="ld-h"><span class="ld-e">${c.e}</span><div><b>${esc(c.t)}</b><small class="hint">${esc(c.d)}</small></div></div><p class="hint">Nobody yet.</p></div>`;
@@ -1439,6 +1440,7 @@ function leadersHtml(s) {
     let rank = 0, prev = null;
     const ranked = rows.map((r, i) => { if (r.v !== prev) { rank = i + 1; prev = r.v; } return { ...r, rank }; });
     const shown = ranked;
+    for (const r of ranked) if (r.rank === 1) (wins[r.id] ||= []).push(c.e);
     return `<div class="ld-card"><div class="ld-h"><span class="ld-e">${c.e}</span><div><b>${esc(c.t)}</b><small class="hint">${esc(c.d)}</small></div></div>
       <ol class="ld-list">${shown.map(r => `<li class="r${r.rank}${r.id === me.id ? " me" : ""}"><span class="ld-r">${["🥇", "🥈", "🥉"][r.rank - 1] || r.rank}</span><span class="ld-n">${esc(nm(r.id))}</span><span class="ld-v">${esc(val(r))}</span></li>`).join("")}</ol>
 </div>`;
@@ -1449,6 +1451,9 @@ function leadersHtml(s) {
     <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
     <div class="fr-card"><div class="wl-pick" role="tablist">${[["me", String(ldYear), "My wrap-up"], ["club", esc(s.name || "Movie club"), "Club wrap-up"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wrapPane === k ? " on" : ""}" data-wrapv="${k}" role="tab" aria-selected="${wrapPane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
       ${wrapPane === "me" ? myWrap : lastWrapHtml}</div>
+    ${(() => { const rows = Object.entries(wins).sort((a, b) => b[1].length - a[1].length); let rank = 0, prev = -1;
+      return `<div class="fr-card ld-card ld-badges"><div class="ld-h"><span class="ld-e">🎖️</span><div><b>Most badges</b><small class="hint">A badge for every category someone leads in ${ldYear}</small></div></div>
+        ${rows.length ? `<ol class="ld-list">${rows.map(([id, b], i) => { if (b.length !== prev) { rank = i + 1; prev = b.length; } return `<li class="r${rank}${id === me.id ? " me" : ""}"><span class="ld-r">${["🥇", "🥈", "🥉"][rank - 1] || rank}</span><span class="ld-n">${esc(nm(id))}<small class="ld-bd">${b.join(" ")}</small></span><span class="ld-v">${b.length} badge${b.length === 1 ? "" : "s"}</span></li>`; }).join("")}</ol>` : `<p class="hint">Nobody yet.</p>`}</div>`; })()}
     ${(() => { const all = [...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))]; // the 6 most interesting first, the rest on request
       return `<div class="ld-grid">${all.join("")}</div>`; })()}`;
 }
