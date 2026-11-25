@@ -128,6 +128,8 @@ function merge(clubId, list) {
 
 function derive(clubId) {
   const E = Object.values(evs(clubId)).filter(e => !e.gone).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
+  // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
+  const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
   const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
@@ -175,13 +177,13 @@ function derive(clubId) {
         if (w) { s.wl.delete(e.from); const t = s.wl.get(k2); if (t) for (const [a, n] of w.adders) t.adders.set(a, n); else s.wl.set(k2, { ...w, m: e.m }); }
         for (const g of s.sugs) if (key(g.m) === e.from) g.m = e.m;
       } break;
-      case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); s.wl.set(k, w); } break;
+      case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), addAt: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); if (!bulkWl.has(e.i)) w.addAt.set(e.a, e.t); s.wl.set(k, w); } break;
       case "wldrop": if (e.m && fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
       case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
   // A title someone has watched leaves their watchlist (old imports also put every rated film on it).
-  for (const w of s.wl.values()) for (const a of [...w.adders.keys()]) { const x = s.saw[seenKey(w.m.n)]?.get(a); if (x?.v && (!x.m || key(x.m) === key(w.m))) w.adders.delete(a); }
+  for (const w of s.wl.values()) for (const a of [...w.adders.keys()]) { const x = s.saw[seenKey(w.m.n)]?.get(a); if (x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(a) || 0) > (x.at || 0))) w.adders.delete(a); } // adding it again after watching keeps it on your list
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
   if (s.sugDrop) s.sugs = s.sugs.filter(g => !s.sugDrop.get(g.id)?.has(g.a)); // the sender takes it back for everyone; a recipient's drop only hides it for them (see sugTo)
   const rs = Object.keys(s.picks).map(Number);
@@ -876,7 +878,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   // To watch list: what I added and haven't watched yet. Club watchlist: what the friends I pick added that I haven't watched.
   // Watching something takes it off both (it lives in My watched). Recommending is a separate, explicit step.
   // Watched means this exact title: a 2002 film you rated doesn't hide a 2026 series with the same name.
-  const iSaw = w => { const x = s.saw[seenKey(w.m.n)]?.get(me.id); return !!x?.v && (!x.m || key(x.m) === key(w.m)); };
+  const iSaw = w => { const x = s.saw[seenKey(w.m.n)]?.get(me.id); return !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)); };
   const friends = [...s.members.entries()].filter(([id]) => id !== me.id).map(([id, m]) => ({ id, name: m.name, n: base.filter(w => w.adders.has(id) && !iSaw(w)).length })).filter(p => p.n);
   for (const id of [...wlFriends]) if (!friends.some(f => f.id === id)) wlFriends.delete(id);
   const sel = wlFriends.size ? [...wlFriends] : friends.map(f => f.id);
@@ -1595,8 +1597,8 @@ function renderClub() {
     <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["monthly", "At the cinema", cineDot]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
-      return `<div class="fr-card" data-tab="mine"><div class="wl-pick" role="tablist">${[["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${mwPane === k ? " on" : ""}${k === "fy" && nNew ? " dot" : ""}" data-mwv="${k}" role="tab" aria-selected="${mwPane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
-      ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
+      return `<div class="fr-card" data-tab="mine"><div class="wl-pick three" role="tablist">${[["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${mwPane === k ? " on" : ""}${k === "fy" && nNew ? " dot" : ""}" data-mwv="${k}" role="tab" aria-selected="${mwPane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+      ${mwPane === "fy" ? forYouCard(s) : mwPane === "old" ? seenBeforeCard(s) : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1">
     ${wlCard(s, cands, myVote, movie, cur, totalVotes)}
     </div><div class="ccol c2">    ${(() => { const n = outings(s).length;
@@ -1629,6 +1631,8 @@ function renderClub() {
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
   bindWl(s, cands);
   $("mwLog")?.addEventListener("click", () => openSearch("What did you watch?", m => openReview(derive(active().id), seenKey(m.n), m)));
+  $("sbAdd")?.addEventListener("click", () => openSearch("What have you seen before?", m => openReview(derive(active().id), seenKey(m.n), m, { old: true })));
+  $("sbQ")?.addEventListener("input", e => { sbQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
@@ -1710,6 +1714,19 @@ function myWatched(s, who = me.id) {
     const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x }); }
   return out.sort((a, b) => b.d.localeCompare(a.d));
 }
+// Seen before: everything you marked as watched without a date ("Seen it before" and list imports), A–Z.
+function seenBefore(s) {
+  const out = [], seenK = new Set();
+  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v || watchedOn(x)) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s }); }
+  return out.sort((a, b) => a.m.n.localeCompare(b.m.n));
+}
+let sbQ = "";
+function seenBeforeCard(s) {
+  const all = seenBefore(s), list = sbQ ? all.filter(w => w.m.n.toLowerCase().includes(sbQ)) : all;
+  return `<div id="sbCard"><div class="wl-tools">${all.length > 12 ? `<input type="search" id="sbQ" placeholder="Search" value="${esc(sbQ)}" autocomplete="off">` : ""}<button class="primary" id="sbAdd">+ Add</button></div>
+    <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen before (no date)${list.length !== all.length ? ` · ${list.length} match` : ""}` : `Nothing yet. Titles you mark as "Seen it before", or import from IMDb or Letterboxd, land here.`}</p>
+    <div class="wl-grid">${list.map(w => `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}<span class="tile-t"><b>${esc(w.m.n)}</b><small>${esc(w.m.y || "")}${w.s ? `<span class="tile-stars">${starStr(w.s, true)}</span>` : ""}</small></span></button>`).join("")}</div></div>`;
+}
 let mwYear = new Date().getFullYear(), mwAll = false, mwWho = LS.get("marqueeMwWho", "*");
 function myWatchedCard(s) {
   const ppl = [...s.members.entries()].filter(([id]) => id !== me.id && myWatched(s, id).length);
@@ -1773,7 +1790,7 @@ function openReview(s, sk, m0, opts = {}) {
   bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => step(b.dataset.when === "old"));
   bg.querySelector("#revMode").onclick = () => { bg.querySelector(".rev-pick").hidden = false; bg.querySelector(".rev-step2").hidden = true; bg.querySelector(".rev-mode").hidden = true; };
   bg.querySelector("#revSave").onclick = () => save(true);
-  if (prev) step(!!prev.old);
+  if (prev) step(!!prev.old); else if (opts.old) step(true);
   bg.querySelector("#revUn")?.addEventListener("click", () => { bg.remove(); act("saw", { sk, v: 0 }); });
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
