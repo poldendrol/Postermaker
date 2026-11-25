@@ -474,11 +474,24 @@ function render() {
     return;
   }
   if (pendingInvite) { activeId = pendingInvite.id; LS.set("marqueeClubActive", activeId); pendingInvite = null; }
-  syncSaved();
+  syncSaved(); repairImdbWatchlist();
   keepInputs(renderClub);
 }
 // Titles saved with "+ Watchlist" on the poster page also belong on your Personal list in the club.
 // Each one is copied once per club (so taking it off the club list later sticks), skipping titles you already watched or dropped.
+// Repair (v111): IMDb watchlist imports were marked as watched. Unrated IMDb imports go back to the Personal list.
+function repairImdbWatchlist() {
+  const c = active(); if (!c || !me || LS.get("marqueeFixImdb_" + c.id, false)) return;
+  LS.set("marqueeFixImdb_" + c.id, true);
+  const map = evs(c.id), back = []; let n = 0;
+  for (const [i, e] of Object.entries(map)) if (!e.gone && e.a === me.id && e.k === "saw" && e.imp && e.m?.im && !e.s && !e.d) { map[i] = { ...e, gone: "imdbwl" }; back.push(e.m); n++; }
+  if (!n) return;
+  save(c.id);
+  const have = new Set(Object.values(map).filter(e => !e.gone && e.a === me.id && e.k === "wl" && e.m).map(e => key(e.m)));
+  const add = back.filter(m => !have.has(key(m)));
+  if (add.length) actMany(add.map(m => ["wl", { m }]), null); else render();
+  M.toast(`Fixed: ${n} title${n === 1 ? "" : "s"} from your IMDb watchlist ${n === 1 ? "was" : "were"} wrongly marked as watched. ${n === 1 ? "It's" : "They're"} back on your Personal list.`);
+}
 let syncingSaved = false;
 // The poster page's "+ Personal list" button goes straight onto your list in the active club.
 M.clubList = {
@@ -892,7 +905,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   // Netflix-style poster tiles: tap opens the title sheet (Watched?, remove, suggest, where to stream live there).
   const tile = w => {
     const l = provCache[key(w.m)]?.l || [], mp = l.filter(p => svc.has(p.id)), pv = (mp.length ? mp : l)[0];
-    const mineSaw = !!s.saw[seenKey(w.m.n)]?.get(me.id)?.v, n = w.adders.size;
+    const mx = s.saw[seenKey(w.m.n)]?.get(me.id), mineSaw = !!mx?.v && (!mx.m || key(mx.m) === key(w.m)), n = w.adders.size;
     return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}
       ${pv ? `<img class="tile-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}
       ${mineSaw ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}
@@ -1091,7 +1104,7 @@ function openTitle(s, m, focusSuggest) {
   const sk = seenKey(m.n), others = [...s.members.entries()].filter(([id]) => id !== me.id);
   const sugs = s.sugs.filter(g => key(g.m) === key(m));
   const forMe = sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id));
-  const seen = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v).map(([id, x]) => id === me.id ? "you" : x.name);
+  const seen = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (!x.m || key(x.m) === key(m))).map(([id, x]) => id === me.id ? "you" : x.name);
   const talk = (s.talk[sk] || []).slice(-30);
   const wl = s.wl.get(key(m));
   const next = iso(nightAfter(now(), s.day));
@@ -1271,16 +1284,21 @@ function bindWl(s, cands) {
       const f = await M.tm("/find/" + tt, { external_source: "imdb_id" }), mv = (f.movie_results || [])[0], x = mv || (f.tv_results || [])[0];
       return x ? { t: mv ? "movie" : "tv", i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "", im: tt, _s: seen.get(tt) || 0, _d: dates.get(tt) || "" } : null;
     }, "IMDb titles");
-    return { out, missed, total: seen.size, seenIt: ri >= 0, src: ri >= 0 ? "IMDb ratings" : "IMDb watchlist" };
+    // IMDb's watchlist export also has a (mostly empty) "Your Rating" column: only titles you actually rated count as watched.
+    const rated = out.filter(m => m._s > 0), want = out.filter(m => !(m._s > 0));
+    return { out, rated, want, missed, total: seen.size, seenIt: rated.length > 0, src: rated.length ? "IMDb ratings" : "IMDb watchlist" };
   };
   const fromLbRows = async (rows, kind) => {
     const head = rows[0].map(h => h.trim().toLowerCase()), ni = head.indexOf("name"), yi = head.indexOf("year"), ri = head.indexOf("rating"), di = head.indexOf("watched date") >= 0 ? head.indexOf("watched date") : head.indexOf("date"), realDate = head.includes("watched date");
     const seenIt = kind === "seen" || ri >= 0, films = new Map();
     for (const r of rows.slice(1)) { const n = (r[ni] || "").trim(); if (!n) continue; const k = n + "|" + (r[yi] || ""); const sc = ri >= 0 ? Math.round((+r[ri] || 0) * 2) / 2 : 0; const d = di >= 0 && /^\d{4}-\d\d-\d\d/.test(r[di] || "") ? r[di].slice(0, 10) : ""; if (!films.has(k) || sc) films.set(k, { n, y: (r[yi] || "").trim(), s: sc, d }); }
     const { out, missed } = await pool([...films.values()], async f => {
-      let j = await M.tm("/search/movie", { query: f.n, ...(f.y ? { year: f.y } : {}) });
-      if (!(j.results || []).length && f.y) j = await M.tm("/search/movie", { query: f.n });
-      const x = (j.results || [])[0];
+      // Only accept the same title (or original title) from the same year, give or take one: a loose first search hit
+      // used to turn an obscure film into a popular new one with a similar name (e.g. "Clay" became "Clayface").
+      const want = seenKey(f.n), yr = +f.y || 0;
+      const fits = x => (seenKey(x.title) === want || seenKey(x.original_title) === want) && (!yr || Math.abs((+(x.release_date || "").slice(0, 4) || yr) - yr) <= 1);
+      let j = await M.tm("/search/movie", { query: f.n, ...(yr ? { year: yr } : {}) }), x = (j.results || []).find(fits);
+      if (!x && yr) { j = await M.tm("/search/movie", { query: f.n }); x = (j.results || []).find(fits); }
       return x ? { t: "movie", i: x.id, n: x.title, y: (x.release_date || "").slice(0, 4), p: x.poster_path || "", _s: Math.max(0, Math.min(5, f.s)), _d: f.d, _w: realDate } : null;
     }, "Letterboxd films");
     return { out, missed, total: films.size, seenIt, src: seenIt ? "Letterboxd" : "Letterboxd watchlist" };
@@ -1306,6 +1324,8 @@ function bindWl(s, cands) {
           const r3 = diary && diary.length > 1 ? await fromLbRows(diary, "seen") : { out: [] }, dd = new Map();
           for (const m of r3.out) if (m._d && (!dd.has(key(m)) || m._d > dd.get(key(m)))) dd.set(key(m), m._d);
           const have = new Set(r1.out.map(key)), all = [...r1.out, ...r2.out.filter(m => !have.has(key(m)))].map(m => dd.has(key(m)) ? { ...m, _d: dd.get(key(m)), _w: true } : { ...m, _d: "" });
+          // A new export replaces the old Letterboxd import (fixes earlier wrong matches); IMDb imports and in-app logs stay.
+          { const c = active(), map = evs(c.id); let n = 0; for (const [i, e] of Object.entries(map)) if (!e.gone && e.a === me.id && e.k === "saw" && e.imp && !e.m?.im) { map[i] = { ...e, gone: "relb" + now() }; n++; } if (n) save(c.id); }
           addAll(all, "From their Letterboxd films", true);
           msg.push(`${all.length} films marked as watched.`);
         }
@@ -1317,7 +1337,9 @@ function bindWl(s, cands) {
       if (head.includes("const")) r = await fromImdbRows(rows);
       else if (head.includes("letterboxd uri") || (head.includes("name") && head.includes("year"))) r = await fromLbRows(rows, /watched|diary|ratings/i.test(file.name) ? "seen" : "want");
       else { status("That file isn't an IMDb or Letterboxd export I recognise."); return; }
-      report(r); addAll(r.out, `From their ${r.src}`, r.seenIt);
+      report(r);
+      if (r.rated) { if (r.rated.length) addAll(r.rated, "From their IMDb ratings", true); if (r.want.length) addAll(r.want, "From their IMDb watchlist"); }
+      else addAll(r.out, `From their ${r.src}`, r.seenIt);
     } catch (x) { console.error(x); status("Couldn't read that file. Try exporting it again."); }
   });
   $("wlQ")?.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
