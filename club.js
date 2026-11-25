@@ -1308,10 +1308,10 @@ function faceoff(a, b, myVote) {
 }
 
 // ---------- history ----------
-let wrapData = null;
+let wrapData = null, myWrapData = null, wrapPane = "me";
 // The wrap-up as a 1080×1350 image (posters + stats), shared with the phone's share sheet or downloaded.
-async function shareWrap() {
-  const w = wrapData; if (!w) return;
+async function shareWrap(kind) {
+  const w = kind === "me" ? myWrapData : wrapData; if (!w) return;
   const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const g = c.getContext("2d");
   g.fillStyle = "#ffd400"; g.fillRect(0, 0, 1080, 1350);
   const load = p => new Promise(ok => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => ok(i); i.onerror = () => ok(null); i.src = M.IMG + "w342" + p; });
@@ -1327,10 +1327,7 @@ async function shareWrap() {
   g.fillStyle = "#111"; g.font = "800 40px system-ui, sans-serif"; g.fillText("WRAPPED", 430, 240);
   const line = (label, val, y) => { g.font = "700 28px system-ui, sans-serif"; g.fillStyle = "#5a4a00"; g.fillText(label.toUpperCase(), 70, y); g.font = "800 40px system-ui, sans-serif"; g.fillStyle = "#111"; g.fillText(val.length > 34 ? val.slice(0, 33) + "…" : val, 70, y + 46); };
   let y = y0 + H + 50;
-  line("Watched together", `${w.titles} titles · ${w.outs} cinema outing${w.outs === 1 ? "" : "s"}`, y); y += 100;
-  line("Most watched", w.most.n, y); y += 100;
-  if (w.best) { line("Best rated", `${w.best.n} · ${w.bestAvg.toFixed(1)} ★`, y); y += 100; }
-  if (w.top) line("Top reviewer", `${w.top} · ${w.topN} review${w.topN === 1 ? "" : "s"}`, y);
+  for (const [l, v] of w.lines.slice(0, 4)) { line(l, v, y); y += 100; }
   let blob; try { blob = await new Promise(ok => c.toBlob(ok, "image/png")); } catch { blob = null; }
   if (!blob) { M.toast("Couldn't make the image."); return; }
   const file = new File([blob], `marquee-${w.yr}.png`, { type: "image/png" });
@@ -1375,6 +1372,21 @@ function leadersHtml(s) {
   const bestWeek = id => { const days = [...new Set(W[id].map(w => w.d))].sort(); let best = 0; for (const d of days) best = Math.max(best, W[id].filter(w => w.d >= d && w.d <= isoAdd(d, 6)).length); return best; };
   const streak = id => { const wk = new Set(W[id].map(w => { const x = new Date(w.d + "T12:00"); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return iso(x); })); let best = 0; for (const w of wk) { let n = 1, d = w; while (wk.has(isoAdd(d, 7))) { n++; d = isoAdd(d, 7); } best = Math.max(best, n); } return best; };
   const uniq = id => new Set(W[id].map(w => w.sk)).size;
+  // Your own wrap-up for the chosen year (only what you logged in Marquee, like every year stat).
+  const myWrap = (() => {
+    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap Watched? on a title and your wrap-up fills itself.</p>`; }
+    const films = Wm.filter(w => w.m.t !== "tv").length, series = Wm.length - films;
+    const fav = [...Wm].filter(w => w.s).sort((a, b) => b.s - a.s || b.d.localeCompare(a.d))[0];
+    const gc = {}; for (const w of Wm) { const g = genreOf(w.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; } const genre = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (Wm.some(w => !genreCache[key(w.m)])) setTimeout(() => fillGenres(Wm.map(w => ({ m: w.m }))), 0);
+    const bm = bestMonth(me.id), st = streak(me.id), revN = reviews[me.id] || 0, outN = went[me.id] || 0, sent = sugY.filter(g => g.a === me.id).length, land = landed[me.id] || 0;
+    const tiles = [["Watched", String(Wm.length), films && series ? `${films} films · ${series} series` : ""], fav && ["Favourite", fav.m.n, starStr(fav.s)], genre && ["Top genre", genre, ""],
+      bm && ["Busiest month", bm.note, `${bm.v} watched`], st > 1 && ["Longest streak", `${st} weeks`, "in a row"], revN && ["Reviews", String(revN), ""],
+      outN && ["Cinema outings", String(outN), ""], sent && ["Suggestions", String(sent), land ? `${land} got watched` : ""]].filter(Boolean);
+    myWrapData = { yr: ldYear, name: me.name, posters: [...new Set(Wm.map(w => w.m.p).filter(Boolean))].slice(0, 10), lines: tiles.filter(t => t[0] !== "Watched").slice(0, 3).map(([l, v, i]) => [l, i && l !== "Cinema outings" ? `${v} · ${i}` : v]) };
+    myWrapData.lines.unshift(["Watched", `${Wm.length} title${Wm.length === 1 ? "" : "s"}${films && series ? ` (${films} films, ${series} series)` : ""}`]);
+    return `<div class="wrapup"><div class="wrap-grid">${tiles.map(([l, v, i]) => `<div><small>${esc(l)}</small><b>${esc(v)}</b>${i ? `<i>${esc(i)}</i>` : ""}</div>`).join("")}</div><button class="primary" data-wrapshare="me">Share as an Instagram post</button></div>`;
+  })();
   const cats = [
     { e: "🏆", t: "Most watched", d: "Films and series seasons logged as just watched", v: id => W[id].length, u: "watched" },
     { e: "🎬", t: "Film buff", d: "Most films", v: id => W[id].filter(w => w.m.t !== "tv").length, u: "films" },
@@ -1411,12 +1423,14 @@ function leadersHtml(s) {
   return `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">Leaderboard</h2></div>
     <div class="wl-views">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>
     <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
-    ${lastWrapHtml}
+    <div class="fr-card"><div class="wl-pick" role="tablist">${[["me", String(ldYear), "My wrap-up"], ["club", esc(s.name || "Movie club"), "Club wrap-up"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wrapPane === k ? " on" : ""}" data-wrapv="${k}" role="tab" aria-selected="${wrapPane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+      ${wrapPane === "me" ? myWrap : lastWrapHtml}</div>
     ${(() => { const all = [...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))]; // the 6 most interesting first, the rest on request
       return `<div class="ld-grid">${all.join("")}</div>`; })()}`;
 }
 function bindLeaders() {
-  $("wrapShare")?.addEventListener("click", shareWrap);
+  lead.querySelectorAll("[data-wrapshare]").forEach(b => b.onclick = () => shareWrap(b.dataset.wrapshare));
+  lead.querySelectorAll("[data-wrapv]").forEach(b => b.onclick = () => { wrapPane = b.dataset.wrapv; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
   lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; historyHtml(lastState); lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
 }
 // History: everything the club has watched (newest first) with stars and reviews, plus past cinema outings.
@@ -1451,14 +1465,16 @@ function historyHtml(s) {
     const rev = {}; for (const it of yItems) for (const [id, x] of it.who) if (x.s || x.x) rev[id] = { n: x.name, c: (rev[id]?.c || 0) + 1 };
     const top = Object.entries(rev).sort((a, b) => b[1].c - a[1].c)[0];
     const outs = past.filter(o => o.sc.d >= `${yr}-01-01`).length;
-    wrapData = { yr, name: s.name || "Movie club", titles: yItems.length, most: most.m, mostN: most.who.length, best: rated?.it.m, bestAvg: rated?.avg, top: top ? (top[0] === me.id ? me.name : top[1].n) : "", topN: top?.[1].c || 0, outs, posters: [...new Set(yItems.map(it => it.m.p).filter(Boolean))].slice(0, 10) };
-    return `<div class="fr-card wrapup"><h3>${yr} wrap-up</h3><div class="wrap-grid">
+    wrapData = { yr, name: s.name || "Movie club", posters: [...new Set(yItems.map(it => it.m.p).filter(Boolean))].slice(0, 10), lines: [
+      ["Watched together", `${yItems.length} titles · ${outs} cinema outing${outs === 1 ? "" : "s"}`], ["Most watched", most.m.n],
+      ...(rated ? [["Best rated", `${rated.it.m.n} · ${rated.avg.toFixed(1)} ★`]] : []), ...(top ? [["Top reviewer", `${top[0] === me.id ? me.name : top[1].n} · ${top[1].c} review${top[1].c === 1 ? "" : "s"}`]] : [])] };
+    return `<div class="wrapup"><div class="wrap-grid">
       <div><small>Watched</small><b>${yItems.length}</b></div><div><small>Outings</small><b>${outs}</b></div>
       <div><small>Most watched</small><b>${esc(most.m.n)}</b><i>${most.who.length} of you</i></div>
       ${rated ? `<div><small>Best rated</small><b>${esc(rated.it.m.n)}</b><i>${rated.avg.toFixed(1)} ★</i></div>` : ""}
       ${top ? `<div><small>Top reviewer</small><b>${esc(top[0] === me.id ? "You" : top[1].n)}</b><i>${top[1].c} review${top[1].c === 1 ? "" : "s"}</i></div>` : ""}
-    </div><button class="primary" id="wrapShare">Share as an Instagram post</button></div>`;
-  })() : "";
+    </div><button class="primary" data-wrapshare="club">Share as an Instagram post</button></div>`;
+  })() : `<p class="hint">Nothing watched by the club in ${yr} yet.</p>`;
   lastWrapHtml = wrap;
   return head
     + (items.length ? items.map(card).join("") : `<div class="fr-card"><p class="hint">Nothing watched yet. When someone taps Watched? on a title, it lands here with their stars and review.</p></div>`)
