@@ -177,11 +177,16 @@ function derive(clubId) {
       case "saw": if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
     }
   }
+  // A title someone has watched leaves their watchlist (old imports also put every rated film on it).
+  for (const w of s.wl.values()) for (const a of [...w.adders.keys()]) { const x = s.saw[seenKey(w.m.n)]?.get(a); if (x?.v && (!x.m || key(x.m) === key(w.m))) w.adders.delete(a); }
   for (const [k, w] of s.wl) if (!w.adders.size) s.wl.delete(k);
   if (s.sugDrop) s.sugs = s.sugs.filter(g => !s.sugDrop.get(g.id)?.has(g.a)); // the sender takes it back for everyone; a recipient's drop only hides it for them (see sugTo)
   const rs = Object.keys(s.picks).map(Number);
   s.cur = rs.length ? Math.max(...rs) : -1;
   s.round = r => R(r);
+  // Old imports weren't flagged: anything marked watched in a burst (5+ titles within milliseconds) came from a file, so treat it as imported everywhere.
+  const per = {}; for (const mp of Object.values(s.saw)) for (const [id, x] of mp) if (x.v && !x.imp) (per[id] ||= []).push(x);
+  for (const xs of Object.values(per)) { xs.sort((a, b) => a.at - b.at); for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].at - xs[j - 1].at <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) xs[k].imp = true; } }
   return s;
 }
 function tallyM(mo) {
@@ -1347,7 +1352,8 @@ function leadersHtml(s) {
   // Ratings and reviews given this year (any "Watched" with stars or text, dated by watch day or tap day).
   const rated = {}, reviews = {};
   for (const [sk, mp] of Object.entries(s.saw)) for (const [id, x] of mp) {
-    if (!x.v) continue; const when = x.d || iso(new Date(x.at || 0)); if (!inYr(when)) continue;
+    if (!x.v) continue; const when = x.imp ? watchedOn(x) : x.d || iso(new Date(x.at || 0)); if (!inYr(when)) continue; // imported ratings have no real date: they don't count
+
     if (x.s) (rated[id] ||= []).push(x.s); if (x.x) reviews[id] = (reviews[id] || 0) + 1;
   }
   const sugY = s.sugs.filter(g => yrOf(g.at) === ldYear);
@@ -1400,15 +1406,15 @@ function leadersHtml(s) {
   });
   const yrs = [...years].filter(y => y > 1990).sort((a, b) => b - a);
   return `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">Leaderboard</h2></div>
-    ${yrs.length > 1 ? `<div class="wl-views">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>` : ""}
+    <div class="wl-views">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>
     <p class="hint">Who leads ${ldYear} in every category. Prizes at the end of the year.</p></div>
-    ${ldYear === new Date().getFullYear() ? lastWrapHtml : ""}
+    ${lastWrapHtml}
     ${(() => { const all = [...cards.filter(c => !c.includes("ld-card empty")), ...cards.filter(c => c.includes("ld-card empty"))]; // the 6 most interesting first, the rest on request
       return `<div class="ld-grid">${all.join("")}</div>`; })()}`;
 }
 function bindLeaders() {
   $("wrapShare")?.addEventListener("click", shareWrap);
-  lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
+  lead.querySelectorAll("[data-ldy]").forEach(b => b.onclick = () => { ldYear = +b.dataset.ldy; historyHtml(lastState); lead.innerHTML = leadersHtml(lastState); bindLeaders(); });
 }
 // History: everything the club has watched (newest first) with stars and reviews, plus past cinema outings.
 function historyHtml(s) {
@@ -1434,8 +1440,8 @@ function historyHtml(s) {
       ${it.avg ? `<span class="stars">${starStr(it.avg)}</span><small class="hint">${it.avg.toFixed(1)} from ${it.who.filter(([, x]) => x.s).length}</small>` : ""}
       <div class="hrev">${it.who.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s, true)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>
     </div></div></div>`;
-  const yr = new Date().getFullYear(), y0 = new Date(yr, 0, 1).getTime();
-  const yItems = items.map(it => ({ ...it, who: it.who.filter(([, x]) => (x.at || 0) >= y0) })).filter(it => it.who.length);
+  const yr = ldYear;
+  const yItems = items.map(it => ({ ...it, who: it.who.filter(([, x]) => +watchedOn(x).slice(0, 4) === yr) })).filter(it => it.who.length);
   const wrap = yItems.length ? (() => {
     const most = [...yItems].sort((a, b) => b.who.length - a.who.length || b.last - a.last)[0];
     const rated = yItems.map(it => { const sc = it.who.map(([, x]) => x.s).filter(Boolean); return { it, avg: sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : 0 }; }).filter(x => x.avg).sort((a, b) => b.avg - a.avg)[0];
@@ -1600,10 +1606,7 @@ let mwDiary = LS.get("marqueeMwDiary", false);
 const watchedOn = x => x.old ? "" : x.imp ? (mwDiary && x.wd) || "" : x.d || iso(new Date(x.at || 0));
 function myWatched(s, who = me.id) {
   const out = [];
-  // Old imports weren't flagged: anything logged in a burst (5+ titles within milliseconds) came from a file, so only a diary date counts for it.
-  const xs = Object.values(s.saw).map(mp => mp.get(who)).filter(x => x?.v).sort((a, b) => a.at - b.at), bulk = new Set();
-  for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].at - xs[j - 1].at <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulk.add(xs[k]); }
-  for (const [sk, mp] of Object.entries(s.saw)) { let x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue; if (bulk.has(x) && !x.imp) x = { ...x, imp: true };
+  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue;
     const ss = ssList(x.ss);
     if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) out.push({ sk, m, d, s: x.s, x: x.x, ss: ns }); continue; }
     const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x }); }
