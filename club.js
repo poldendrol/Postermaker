@@ -5,7 +5,7 @@
 // missing. That way the club's state survives as long as any member still has it.
 const M = window.Marquee;
 const $ = id => document.getElementById(id);
-const view = $("clubView"), hist = $("histView"), lead = $("leadView"), mwView = $("mwView");
+const view = $("clubView"), cineEl = $("cineView"), hist = $("histView"), lead = $("leadView"), mwView = $("mwView");
 const APP_URL = location.origin + location.pathname;
 const NTFY = window.MARQUEE_NTFY || "https://ntfy.sh";
 const TAG = "mqc1:";
@@ -844,22 +844,22 @@ function bindCinema(s) {
   };
   cineNominate = (sc, title) => nom(sc, title);
   $("cnSuggest")?.addEventListener("click", () => openScreenings((sc, title, m) => sc ? nom(sc, title, m) : openSearch("Suggest a film to go see", m => nom(null, m.n, m))));
-  view.querySelectorAll("[data-in]").forEach(b => b.onclick = () => {
+  cineEl.querySelectorAll("[data-in]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.in); if (!o) return; const v = o.ins.has(me.id) ? 0 : 1;
     if (v && o.sc?.d) scheduleOutingReminder(s, o, me.id);
     act("in", { ok: o.ok, v }, v ? { title: `${me.name} is in for ${o.m.n}`, body: o.sc?.d ? scLabel(o.sc) : "Pick a date in the club." } : null);
   });
-  view.querySelectorAll("[data-odate]").forEach(b => b.onclick = () => {
+  cineEl.querySelectorAll("[data-odate]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.odate); if (!o) return;
     openDate({ ...o.m, sc: o.sc }, sc => (scheduleOutingReminder(s, { ...o, sc }), act("odate", { ok: o.ok, sc }, { title: `${o.m.n}: we're going ${scLabel(sc)}`, body: `${[...o.ins.values()].join(", ")} so far. Tap "I'm in" to join.` })));
   });
-  view.querySelectorAll("[data-ospot]").forEach(b => b.onclick = () => {
+  cineEl.querySelectorAll("[data-ospot]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.ospot); if (!o) return;
     const x = prompt("Drinks or dinner after? Where:", o.spot || ""); if (x == null) return;
     act("ospot", { ok: o.ok, x: x.trim() }, x.trim() ? { to: [...o.ins.keys()], title: `${o.m.n}: after, ${x.trim()}`, body: `${me.name} suggests ${x.trim()} after the film.` } : null);
   });
-  view.querySelectorAll("[data-oics]").forEach(b => b.onclick = () => { const o = s.outs.get(b.dataset.oics); if (o) outingIcs(o); });
-  view.querySelectorAll("[data-odrop]").forEach(b => b.onclick = () => { const o = s.outs.get(b.dataset.odrop); if (o && confirm(`Remove ${o.m.n}?`)) act("drop", { tr: "m", r: monthOf(new Date()), m: o.m, sc: o.sc }); });
+  cineEl.querySelectorAll("[data-oics]").forEach(b => b.onclick = () => { const o = s.outs.get(b.dataset.oics); if (o) outingIcs(o); });
+  cineEl.querySelectorAll("[data-odrop]").forEach(b => b.onclick = () => { const o = s.outs.get(b.dataset.odrop); if (o && confirm(`Remove ${o.m.n}?`)) act("drop", { tr: "m", r: monthOf(new Date()), m: o.m, sc: o.sc }); });
 }
 
 // ---------- club watchlist ----------
@@ -1520,7 +1520,7 @@ function bindWl(s, cands) {
     } catch (x) { console.error(x); status("Couldn't read that file. Try exporting it again."); }
   });
   view.querySelectorAll("#wlQ").forEach(q => q.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); }));
-  view.querySelectorAll("[data-cnv]").forEach(x => x.onclick = () => { cinePane = x.dataset.cnv; render(); });
+  cineEl.querySelectorAll("[data-cnv]").forEach(x => x.onclick = () => { cinePane = x.dataset.cnv; render(); });
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
   view.querySelectorAll("[data-pops]").forEach(x => x.onclick = () => { popSort = x.dataset.pops; render(); });
   view.querySelectorAll("[data-popt]").forEach(x => x.onclick = () => { if (popType === x.dataset.popt) return; popType = x.dataset.popt; popList = null; render(); });
@@ -1531,7 +1531,7 @@ function bindWl(s, cands) {
   $("wlStream")?.addEventListener("click", () => { if (!myServices().size) { M.toast("Pick your streaming services in Settings first."); M.setView("settings"); return; } wlStream = !wlStream; render(); });
   view.querySelectorAll("[data-wldrop]").forEach(b => b.onclick = () => { const w = s.wl.get(b.dataset.wldrop); if (w) act("wldrop", { m: w.m }); });
   view.querySelectorAll("[data-sug]").forEach(b => b.onclick = () => openTitleByKey(s, b.dataset.sug, true));
-  view.querySelectorAll("#clubView [data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-wldrop], [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
+  document.querySelectorAll("#clubView [data-open], #cineView [data-open]").forEach(b => b.onclick = e => { if (e.target.closest("a, [data-wldrop], [data-saw]")) return; openTitleByKey(s, b.dataset.open); });
 }
 
 // ---------- face-off ----------
@@ -1722,7 +1722,7 @@ function historyHtml(s) {
 }
 
 // The club page is split into tabs so nothing needs a long scroll on a phone.
-let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "monthly", cal: "monthly" }[t] || t; })();
+let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "weekly", cal: "weekly", monthly: "weekly" }[t] || t; })();
 function setClubTab(t) { clubTab = t; try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
 function renderClub() {
   const c = active(), s = derive(c.id); lastState = s;
@@ -1750,7 +1750,7 @@ function renderClub() {
         <button id="cbInvite">Invite</button><button id="cbGear" class="gear${clubTab === "set" ? " on" : ""}" aria-label="Club settings">⚙</button></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["lists", "Lists", false], ["monthly", "Cinema", cineDot]]
+    <div class="club-tabs" role="tablist">${[["mine", "My watched", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["weekly", "The Club", false], ["lists", "Lists", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop") mwPane = "list";
@@ -1760,13 +1760,12 @@ function renderClub() {
     ${(() => { const nf = new Set([...s.wl.values()].flatMap(w => [...w.adders.keys()]).filter(id => id !== me.id)).size;
       return `<div class="fr-card" data-tab="weekly">${pulpPick([["club", `${nf} friend${nf === 1 ? "" : "s"}`, "Club list"], ["pop", "This week", "Popular"]], clubPane, "data-cpv")}
       ${clubPane === "pop" ? popHtml(s) : wlCard(s, cands, "club")}</div>`; })()}
+    </div><div class="ccol c2">
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
       return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
-    </div><div class="ccol c2">    ${(() => { const n = outings(s).length;
-      return `<div class="fr-card" data-tab="monthly"><div class="wl-pick" role="tablist">${[["cal", "In Ghent", "Calendar"], ["out", n ? `${n} planned` : "Cinema night", "Next outings"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${cinePane === k ? " on" : ""}" data-cnv="${k}" role="tab" aria-selected="${cinePane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
-      ${cinePane === "cal" ? `<div id="cbCal">${calHtml(s, calC, "cine")}</div>` : cinemaCard(s, members) + pastOutingsHtml(s)}</div>`; })()}
+    </div>
 
 
 
@@ -1787,6 +1786,9 @@ function renderClub() {
     </div>
     </div>`;
 
+  if (cineEl) { const n = outings(s).length; cineEl.innerHTML = `<div class="fr-card cine-card"><div class="wl-pick" role="tablist">${[["cal", "In Ghent", "Calendar"], ["out", n ? `${n} planned` : "Cinema night", "Next outings"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${cinePane === k ? " on" : ""}" data-cnv="${k}" role="tab" aria-selected="${cinePane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+      ${cinePane === "cal" ? `<div id="cbCal">${calHtml(s, calC, "cine")}</div>` : cinemaCard(s, members) + pastOutingsHtml(s)}</div>`; }
+  { const cb = $("cineBadge"); if (cb) cb.hidden = !cineDot; }
   hist.innerHTML = historyHtml(s);
   if (lead) { lead.innerHTML = leadersHtml(s); bindLeaders(); }
   renderLists(s);
