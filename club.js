@@ -1746,7 +1746,7 @@ function renderClub() {
 
   view.innerHTML = `
     <div class="fr-card">
-      <div class="fr-row club-top"><div class="club-id"><h2>${esc(s.name || c.name)}</h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div></div>
+      <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div></div>
         <button id="cbInvite">Invite</button><button id="cbGear" class="gear${clubTab === "set" ? " on" : ""}" aria-label="Club settings">⚙</button></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
