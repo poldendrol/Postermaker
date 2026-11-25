@@ -867,7 +867,7 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
         <p class="status" id="status">Type a title. The poster and details load by themselves.</p>
         <div class="results" id="results"></div>
         <div class="row-btns" id="titleBtns" hidden>
-          <button class="chip" id="wlAdd" hidden>+ Personal list</button>
+          <button class="chip" id="wlAdd" hidden>+ Personal watchlist</button>
           <button class="chip" id="topAdd" style="display:none">+ Top 3</button>
           <button class="chip" id="suggestBtn" hidden>Suggest</button>
         </div>
@@ -1983,7 +1983,7 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
     const k = keyOf(current);
     const cl = window.Marquee?.clubList, inWl = !!cl?.ready() && cl.has(clubM());
     $("wlAdd").hidden = !cl?.ready();
-    $("wlAdd").textContent = inWl ? "✓ On your Personal list" : "+ Personal list";
+    $("wlAdd").textContent = inWl ? "✓ On your Personal watchlist" : "+ Personal watchlist";
     $("wlAdd").setAttribute("aria-pressed", inWl);
     const top = LS.get("marqueeTop", []);
     const inTop = top.some(x => keyOf(x) === k && (x.season || "") === state.season);

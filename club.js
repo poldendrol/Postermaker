@@ -479,9 +479,9 @@ function render() {
   syncSaved(); repairImdbWatchlist();
   keepInputs(renderClub);
 }
-// Titles saved with "+ Watchlist" on the poster page also belong on your Personal list in the club.
+// Titles saved with "+ Watchlist" on the poster page also belong on your Personal watchlist in the club.
 // Each one is copied once per club (so taking it off the club list later sticks), skipping titles you already watched or dropped.
-// Repair (v111): IMDb watchlist imports were marked as watched. Unrated IMDb imports go back to the Personal list.
+// Repair (v111): IMDb watchlist imports were marked as watched. Unrated IMDb imports go back to the Personal watchlist.
 function repairImdbWatchlist() {
   const c = active(); if (!c || !me || LS.get("marqueeFixImdb_" + c.id, false)) return;
   LS.set("marqueeFixImdb_" + c.id, true);
@@ -492,14 +492,14 @@ function repairImdbWatchlist() {
   const have = new Set(Object.values(map).filter(e => !e.gone && e.a === me.id && e.k === "wl" && e.m).map(e => key(e.m)));
   const add = back.filter(m => !have.has(key(m)));
   if (add.length) actMany(add.map(m => ["wl", { m }]), null); else render();
-  M.toast(`Fixed: ${n} title${n === 1 ? "" : "s"} from your IMDb watchlist ${n === 1 ? "was" : "were"} wrongly marked as watched. ${n === 1 ? "It's" : "They're"} back on your Personal list.`);
+  M.toast(`Fixed: ${n} title${n === 1 ? "" : "s"} from your IMDb watchlist ${n === 1 ? "was" : "were"} wrongly marked as watched. ${n === 1 ? "It's" : "They're"} back on your Personal watchlist.`);
 }
 let syncingSaved = false;
-// The poster page's "+ Personal list" button goes straight onto your list in the active club.
+// The poster page's "+ Personal watchlist" button goes straight onto your list in the active club.
 M.clubList = {
   ready: () => !!(active() && me),
   has: m => { const c = active(); return !!(c && me && derive(c.id).wl.get(key(m))?.adders.has(me.id)); },
-  toggle: m => { const on = M.clubList.has(m); act(on ? "wldrop" : "wl", { m }); M.toast(on ? `${m.n} removed from your Personal list.` : `${m.n} added to your Personal list.`); return !on; },
+  toggle: m => { const on = M.clubList.has(m); act(on ? "wldrop" : "wl", { m }); M.toast(on ? `${m.n} removed from your Personal watchlist.` : `${m.n} added to your Personal watchlist.`); return !on; },
 };
 function syncSaved() {
   const c = active(); if (!c || !me || syncingSaved) return;
@@ -884,7 +884,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const sel = wlFriends.size ? [...wlFriends] : friends.map(f => f.id);
   if (wlMode === "fy") wlMode = "mine"; if (wlMode === "pop") wlMode = "old";
   const mineAll = base.filter(w => w.adders.has(me.id) && !iSaw(w)), mineN = mineAll.length;
-  // Everything you logged as watched in Marquee also shows on your Personal list, with a ✓, in a Watched section at the bottom (imports stay out).
+  // Everything you logged as watched in Marquee also shows on your Personal watchlist, with a ✓, in a Watched section at the bottom (imports stay out).
   const mineDone = []; if (wlMode === "mine") { const seenK = new Set(); for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v || x.imp) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); mineDone.push({ m, adders: new Map([[me.id, me.name]]), at: x.at }); } mineDone.sort((a, b) => b.at - a.at); }
   let items = wlMode === "mine" ? mineAll : base.filter(w => !iSaw(w) && sel.some(id => w.adders.has(id)));
   const nTv = items.filter(w => isTv(w.m)).length, mixed = nTv && nTv < items.length;
@@ -921,7 +921,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div class="fr-card" data-tab="weekly" id="wlCard">
-    <div class="wl-pick three" role="tablist">${[["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"], ["mine", `${mineN} to watch`, "Personal list"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
+    <div class="wl-pick three" role="tablist">${[["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"], ["mine", `${mineN} to watch`, "Personal watchlist"], ["club", `${friends.length} friend${friends.length === 1 ? "" : "s"}`, "Club list"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${wlMode === k ? " on" : ""}" data-wlm="${k}" role="tab" aria-selected="${wlMode === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
     <p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>
     <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
     ${location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
@@ -1264,9 +1264,9 @@ function bindWl(s, cands) {
       M.toast(`${fresh.length === 1 ? fresh[0].n : fresh.length + " titles"} marked as watched.`); return;
     }
     actMany(fresh.map(({ _s, _d, _w, ...m }) => ["wl", { m }]), { title: `${me.name} added ${fresh.length} film${fresh.length === 1 ? "" : "s"} to the club watchlist`, body: label });
-    M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your Personal list.`);
+    M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your Personal watchlist.`);
   };
-  const fromSearch = () => openSearch("Add to your Personal list", m => addAll([m], m.n));
+  const fromSearch = () => openSearch("Add to your Personal watchlist", m => addAll([m], m.n));
   // One small button holds sorting and the filters (films/series, on my services).
   // Sort and filter sit right above the tiles: one tap each.
   view.querySelectorAll(".wl-filt button").forEach(b => b.onclick = () => {
@@ -1286,13 +1286,13 @@ function bindWl(s, cands) {
       <ol class="imp-steps"><li>Export your list: <a class="link" href="https://www.imdb.com/list/watchlist/" target="_blank" rel="noopener" data-a="go">IMDb ↗</a> (⋯ › Export, then <a class="link" href="https://www.imdb.com/exports/" target="_blank" rel="noopener" data-a="go">Exports page ↗</a>) or <a class="link" href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener" data-a="go">Letterboxd ↗</a> (the ZIP as it is).</li>
       <li>Pick the file here.</li></ol>
       <button class="primary" data-a="file">Pick the file</button>
-      <small class="hint">Watchlists go on your Personal list. Ratings and diaries mark titles as watched.</small>
+      <small class="hint">Watchlists go on your Personal watchlist. Ratings and diaries mark titles as watched.</small>
       ${saved ? `<button class="link" data-a="saved">Or add the ${saved} titles from your Marquee watchlist</button>` : ""}
       <button data-a="x">Cancel</button></div></div>`);
     document.body.appendChild(bg);
     bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "saved") fromSaved(); });
   };
-  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your Personal list", m => addAll([m], m.n), "", { html: `<button class="imp-card" data-foot="import"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import a whole list</b><small>Your watchlist or ratings from IMDb or Letterboxd</small></span><span class="imp-go">›</span></button>`, on: openImport }));
+  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your Personal watchlist", m => addAll([m], m.n), "", { html: `<button class="imp-card" data-foot="import"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import a whole list</b><small>Your watchlist or ratings from IMDb or Letterboxd</small></span><span class="imp-go">›</span></button>`, on: openImport }));
   // Imports: IMDb CSV (watchlist or ratings) and Letterboxd (watchlist, ratings, watched or diary CSV, or the whole export ZIP).
   const pool = async (list, fn, label) => {
     const work = list.slice(), out = []; let done = 0, missed = 0;
