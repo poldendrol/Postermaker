@@ -963,6 +963,8 @@ function leaveClub(id) {
 }
 function renderSettingsExtras() {
   const st = $("setStream"), pu = $("setPush"), cl = $("setClubs");
+  // Version line at the bottom of Settings, so a screenshot shows which version a device runs.
+  if (!$("appVer")) { const v = document.createElement("p"); v.id = "appVer"; v.className = "hint"; v.style.textAlign = "center"; $("setClubs")?.parentElement.appendChild(v); fetch("sw.js", { cache: "no-cache" }).then(r => r.text()).then(t => { v.textContent = "Marquee " + ((t.match(/marquee-(v\d+)/) || [])[1] || ""); }).catch(() => {}); }
   if (cl) {
     const list = clubs();
     cl.innerHTML = `<b>My clubs</b>${list.length ? list.map(c => { const s = derive(c.id), n = s.members.size, here = c.id === active()?.id;
@@ -1523,6 +1525,7 @@ function renderClub() {
   bindWl(s, cands);
   $("mwLog")?.addEventListener("click", () => openSearch("What did you watch?", m => openReview(derive(active().id), seenKey(m.n), m)));
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; mwAll = false; renderClub(); });
+  document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
 }
 
@@ -1592,7 +1595,9 @@ function titleBySk(s, sk) {
   return all.find(m => seenKey(m.n) === sk) || [...(s.saw[sk]?.values() || [])].find(x => x.m)?.m || null;
 }
 // My watched list: the date I watched it (picked in the review sheet), else the day I tapped Watched. Bulk imports without a date don't count.
-const watchedOn = x => x.old ? "" : x.imp ? x.wd || "" : x.d || iso(new Date(x.at || 0));
+// Only what you log in Marquee counts per year. Imported titles count only if you switch on "Letterboxd diary dates" (and the diary has a date).
+let mwDiary = LS.get("marqueeMwDiary", false);
+const watchedOn = x => x.old ? "" : x.imp ? (mwDiary && x.wd) || "" : x.d || iso(new Date(x.at || 0));
 function myWatched(s, who = me.id) {
   const out = [];
   // Old imports weren't flagged: anything logged in a burst (5+ titles within milliseconds) came from a file, so only a diary date counts for it.
@@ -1612,6 +1617,7 @@ function myWatchedCard(s) {
   const all = myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
   if (!years.includes(mwYear)) mwYear = years[0];
   const list = all.filter(w => +w.d.slice(0, 4) === mwYear), shown = list;
+  const diaryN = Object.values(s.saw).map(mp => mp.get(who)).filter(x => x?.v && x.imp && x.wd && +x.wd.slice(0, 4) === mwYear).length;
   const films = list.filter(w => w.m.t !== "tv").length, series = list.length - films;
   let lastMo = "";
   const rows = shown.map(w => {
@@ -1621,6 +1627,7 @@ function myWatchedCard(s) {
   return `<div id="mwCard">
     ${ppl.length || !whoName ? `<div class="wl-head">${ppl.length ? `<div class="wl-views">${[["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => `<button class="chip${id === mwWho ? " on" : ""}" data-mww="${esc(id)}">${esc(n)}</button>`).join("")}</div>` : "<span></span>"}${whoName ? "" : `<button class="primary" id="mwLog">+ Log</button>`}</div>` : ""}
     ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
+    ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
     <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap Watched? on any title, or + Log for something that isn't on a list.`}</p>
     <div class="mw-list">${rows}</div>
   </div>`;
