@@ -208,7 +208,7 @@ footer details label { margin-top: 8px; max-width: 420px; }
   #fmt button { flex: 1 1 0; }
   .controls, .stage { display: contents; }
   .s-search { order: 1; } .s-ep { order: 2; } .s-canvas { order: 3; } .s-pics { order: 3; } .s-example { order: 4; } .s-tpl { order: 5; } .s-fmt { order: 6; }
-  .s-multi { order: 3; } .s-take { order: 7; } .s-actions { order: 8; } .s-opts { order: 9; } .s-wl { order: 12; } .s-top { order: 13; } .s-hist { order: 14; }
+  .s-multi { order: 3; } .s-take { order: 7; } .s-actions { order: 8; } .s-opts { order: 9; } .s-top { order: 13; } .s-hist { order: 14; }
   .canvas-box { padding: 10px; }
   #preview { max-height: 56vh; }
   .s-actions { position: sticky; bottom: 0; z-index: 5; background: var(--bg); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-bottom: -10px; }
@@ -218,14 +218,6 @@ footer details label { margin-top: 8px; max-width: 420px; }
 }
 
 /* ---- left menu + views ---- */
-.news { display: flex; flex-direction: column; }
-.news a, .news button.nt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border: none; border-top: 1px solid var(--line); background: none; color: var(--fg); text-decoration: none; text-align: left; white-space: normal; font-weight: 400; border-radius: 0; }
-.news > :first-child { border-top: none; }
-.news img, .news i { width: 92px; height: 62px; object-fit: cover; border-radius: 8px; background: var(--line); flex: none; }
-.news .poster img, .news .poster i { width: 54px; height: 80px; }
-.news span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.news b { font-size: 14px; line-height: 1.3; }
-.news small { color: var(--muted); font-size: 12px; line-height: 1.4; }
 body:not([data-view=make]) .v-make, body:not([data-view=watchlist]) .v-watchlist, body:not([data-view=top]) .v-top,
 body:not([data-view=past]) .v-past, body:not([data-view=news]) .v-news, body:not([data-view=friends]) .v-friends, body:not([data-view=club]) .v-club, body:not([data-view=history]) .v-history, body:not([data-view=leaders]) .v-leaders, body:not([data-view=watched]) .v-watched, body:not([data-view=ghent]) .v-ghent, body:not([data-view=settings]) .v-settings { display: none !important; }
 body:not([data-view=make]) .app { grid-template-columns: minmax(0, 640px); }
@@ -622,9 +614,16 @@ footer { padding-left: 0; }
 .wl-mode button i { font-style: normal; font-size: 11px; opacity: .7; margin-left: 2px; }
 .wl-mode button.dot i { background: var(--accent); color: #fff; opacity: 1; border-radius: 99px; padding: 1px 6px; }
 .wl-tools #cwAdd { margin-left: auto; padding: 6px 14px; }
-.wl-filt { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 10px 0 4px; }
+.wl-filt { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; }
+.wl-frow { display: flex; flex-wrap: wrap; gap: 6px; }
+.wl-frow:empty { display: none; }
+.wl-filt .tog { border: 1px solid var(--line, #ddd); background: none; color: inherit; font: inherit; font-size: .85rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.wl-filt .tog.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wl-tools .wl-fr { flex: 1 1 auto; margin: 0; align-items: center; flex-wrap: wrap; overflow: visible; }
+.wl-fr #cwAdd { margin-left: auto; padding: 6px 14px; }
+.ts-fix { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
 .wl-filt .seg { display: inline-flex; background: var(--field); border-radius: 999px; padding: 3px; gap: 2px; }
-.wl-filt .seg button { border: 0; background: none; color: var(--muted, inherit); font: inherit; font-size: .85rem; font-weight: 600; padding: 5px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.wl-filt .seg button { border: 0; background: none; color: var(--muted, inherit); font: inherit; font-size: .85rem; font-weight: 600; padding: 5px 9px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
 .wl-filt .seg button.on { background: var(--accent); color: #fff; }
 .fy-n { font-style: normal; font-size: 11px; background: var(--accent); color: #fff; border-radius: 99px; padding: 2px 7px; vertical-align: 2px; margin-left: 4px; }
 .imp-link { align-self: center; font-size: 13px; margin: 4px 0; }
@@ -824,7 +823,7 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
         <p class="status" id="status">Type a title. The poster and details load by themselves.</p>
         <div class="results" id="results"></div>
         <div class="row-btns" id="titleBtns" hidden>
-          <button class="chip" id="wlAdd" style="display:none">+ Watchlist</button>
+          <button class="chip" id="wlAdd" hidden>+ Personal list</button>
           <button class="chip" id="topAdd" style="display:none">+ Top 3</button>
           <button class="chip" id="suggestBtn" hidden>Suggest</button>
         </div>
@@ -900,22 +899,6 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
         </div>
       </details>
 
-      <section class="section s-wl v-watchlist">
-        <h2>Watchlist <small id="wlCount"></small></h2>
-        <div class="mini" id="wl"></div>
-        <p class="hint" id="wlEmpty">Tap “+ Watchlist” after a search to save a title for later.</p>
-        <div class="imp">
-          <b>Import</b>
-          <div class="row-btns">
-            <button id="tmdbImport">From TMDB</button>
-            <button id="imdbImport">IMDb file</button>
-            <input type="file" id="imdbFile" accept=".csv,text/csv" hidden>
-          </div>
-          <label class="check"><input type="checkbox" id="impRatings" checked> Also bring in my ratings (used as my score)</label>
-          <p class="hint" id="impStatus">TMDB: sign in once and your watchlist comes in. IMDb: on imdb.com open your Watchlist (or Ratings), tap ⋯ then Export, and pick the CSV file here.</p>
-          <button class="link" id="tmdbOut" hidden>Sign out of TMDB</button>
-        </div>
-      </section>
 
       <section class="section s-top v-top">
         <h2>Top 3 / Versus <small id="topCount"></small></h2>
@@ -932,16 +915,6 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
         <button class="link" id="histClear" hidden>Clear history</button>
       </section>
 
-      <section class="section s-news v-news">
-        <div class="seg" id="newsTabs" role="group" aria-label="News">
-          <button data-v="headlines" aria-pressed="true">Headlines</button>
-          <button data-v="trending" aria-pressed="false">Trending</button>
-          <button data-v="cinema" aria-pressed="false">In cinemas</button>
-          <button data-v="soon" aria-pressed="false">Coming soon</button>
-        </div>
-        <p class="hint" id="newsStatus"></p>
-        <div class="news" id="news"></div>
-      </section>
 
 
       <section class="section s-club v-club" id="clubView"><p class="hint">Loading…</p></section>
@@ -1059,7 +1032,6 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
     document.querySelectorAll(".subtabs [data-view]").forEach(b => b.toggleAttribute("aria-current", b.dataset.view === v));
     $("viewTitle").textContent = VIEW_TITLES[v];
     try { sessionStorage.setItem("marqueeView", v); } catch {}
-    if (v === "news" && typeof loadNews === "function") loadNews();
     document.dispatchEvent(new CustomEvent("marquee:view", { detail: v }));
     window.scrollTo({ top: 0 });
   }
@@ -1965,8 +1937,9 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
   function refreshTitleBtns() {
     if (!current) return;
     const k = keyOf(current);
-    const inWl = LS.get("marqueeWatchlist", []).some(x => keyOf(x) === k);
-    $("wlAdd").textContent = inWl ? "✓ On watchlist" : "+ Watchlist";
+    const cl = window.Marquee?.clubList, inWl = !!cl?.ready() && cl.has(clubM());
+    $("wlAdd").hidden = !cl?.ready();
+    $("wlAdd").textContent = inWl ? "✓ On your Personal list" : "+ Personal list";
     $("wlAdd").setAttribute("aria-pressed", inWl);
     const top = LS.get("marqueeTop", []);
     const inTop = top.some(x => keyOf(x) === k && (x.season || "") === state.season);
@@ -1984,19 +1957,8 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
     const del = Object.assign(document.createElement("button"), { className: "x", textContent: "✕" }); del.setAttribute("aria-label", "Remove"); del.onclick = onX; r.appendChild(del);
     box.appendChild(r);
   }
-  function renderWl() {
-    const list = LS.get("marqueeWatchlist", []), box = $("wl"); box.innerHTML = "";
-    $("wlEmpty").hidden = !!list.length; $("wlCount").textContent = list.length ? list.length : "";
-    list.forEach((x, i) => miniRow(box, x, i, async () => { setView("make"); $("q").value = x.title; try { await pick({ media_type: x.type, id: x.id, title: x.title }); } catch (e) { handleErr(e); } },
-      () => { const l = LS.get("marqueeWatchlist", []); l.splice(i, 1); LS.set("marqueeWatchlist", l); renderWl(); refreshTitleBtns(); }));
-  }
-  $("wlAdd").onclick = () => {
-    if (!current) return;
-    let l = LS.get("marqueeWatchlist", []); const k = keyOf(current);
-    if (l.some(x => keyOf(x) === k)) { l = l.filter(x => keyOf(x) !== k); toast("Removed from your watchlist."); }
-    else { l.unshift({ type: current.type, id: current.id, title: state.title, year: state.year, poster: current.poster }); toast("Saved to your watchlist."); }
-    LS.set("marqueeWatchlist", l); renderWl(); refreshTitleBtns();
-  };
+  const clubM = () => ({ t: current.type, i: current.id, n: state.title || "", y: String(state.year || ""), p: current.poster || "" });
+  $("wlAdd").onclick = () => { if (!current || !window.Marquee?.clubList?.ready()) return; window.Marquee.clubList.toggle(clubM()); refreshTitleBtns(); };
   function renderTop() {
     const list = LS.get("marqueeTop", []), box = $("top"); box.innerHTML = "";
     $("topEmpty").hidden = !!list.length; $("topClear").hidden = !list.length; $("topCount").textContent = list.length ? list.length + "/3" : "";
@@ -2014,177 +1976,7 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
   };
   $("topClear").onclick = () => { LS.set("marqueeTop", []); renderTop(); refreshTitleBtns(); };
 
-  // ---------- imports (TMDB sign-in, IMDb CSV) ----------
   const myRatings = () => LS.get("marqueeRatings", {});
-  function impStatus(t, err) { const el = $("impStatus"); el.textContent = t; el.style.color = err ? "var(--accent)" : ""; }
-  function mergeWl(items) {
-    const l = LS.get("marqueeWatchlist", []), have = new Set(l.map(keyOf)); let added = 0;
-    items.forEach(x => { const k = keyOf(x); if (!have.has(k)) { have.add(k); l.push(x); added++; } });
-    LS.set("marqueeWatchlist", l); renderWl(); refreshTitleBtns(); return added;
-  }
-  function mergeRatings(map) { const r = myRatings(); Object.assign(r, map); LS.set("marqueeRatings", r); return Object.keys(map).length; }
-  const wlItem = (x, type) => ({ type, id: x.id, title: x.title || x.name, year: yearOf(x.release_date || x.first_air_date), poster: x.poster_path || "" });
-  async function allPages(path, params) {
-    const out = []; let page = 1, total = 1;
-    do { const d = await tm(path, { ...params, page }); out.push(...(d.results || [])); total = Math.min(d.total_pages || 1, 50); page++; } while (page <= total);
-    return out;
-  }
-  async function tmdbPull() {
-    const session_id = LS.get("tmdbSession", null); if (!session_id) return;
-    $("tmdbImport").disabled = true; impStatus("Loading your TMDB watchlist…");
-    try {
-      const acc = await tm("/account", { session_id });
-      const base = `/account/${acc.id}`;
-      const [wm, wt] = await Promise.all([allPages(base + "/watchlist/movies", { session_id }), allPages(base + "/watchlist/tv", { session_id })]);
-      const added = mergeWl([...wm.map(x => wlItem(x, "movie")), ...wt.map(x => wlItem(x, "tv"))]);
-      let rated = 0;
-      if ($("impRatings").checked) {
-        const [rm, rt] = await Promise.all([allPages(base + "/rated/movies", { session_id }), allPages(base + "/rated/tv", { session_id })]);
-        const map = {}; rm.forEach(x => map["movie:" + x.id] = x.rating); rt.forEach(x => map["tv:" + x.id] = x.rating);
-        rated = mergeRatings(map);
-      }
-      impStatus(`TMDB: ${wm.length + wt.length} on your watchlist, ${added} new added${$("impRatings").checked ? `, ${rated} ratings brought in` : ""}. Tap “From TMDB” again any time to update.`);
-      $("tmdbOut").hidden = false;
-    } catch (e) {
-      if (e?.code === "key") { LS.set("tmdbSession", null); impStatus("Your TMDB sign-in expired. Tap “From TMDB” to sign in again.", true); }
-      else impStatus("Couldn't reach TMDB. Try again in a moment.", true);
-    } finally { $("tmdbImport").disabled = false; }
-  }
-  $("tmdbImport").onclick = async () => {
-    if (LS.get("tmdbSession", null)) return tmdbPull();
-    try {
-      impStatus("Opening TMDB…");
-      const t = await tm("/authentication/token/new");
-      LS.set("tmdbImpRatings", $("impRatings").checked);
-      const back = location.origin + location.pathname + "?tmdb=1";
-      location.href = `https://www.themoviedb.org/authenticate/${t.request_token}?redirect_to=${encodeURIComponent(back)}`;
-    } catch { impStatus("Couldn't reach TMDB. Try again in a moment.", true); }
-  };
-  $("tmdbOut").onclick = async () => {
-    const sid = LS.get("tmdbSession", null); LS.set("tmdbSession", null); $("tmdbOut").hidden = true; impStatus("Signed out of TMDB on this device.");
-    if (sid) { try { const u = new URL(TMDB + "/authentication/session"); u.searchParams.set("api_key", key); await fetch(u, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ session_id: sid }) }); } catch {} }
-  };
-  async function tmdbReturn() {
-    const q = new URLSearchParams(location.search), tok = q.get("request_token");
-    if (!q.has("tmdb") && !tok) return;
-    history.replaceState(null, "", location.pathname);
-    setView("watchlist");
-    $("impRatings").checked = LS.get("tmdbImpRatings", true) !== false;
-    if (!tok || q.get("approved") !== "true") { impStatus("TMDB sign-in was cancelled.", true); return; }
-    try {
-      const d = await tmPost("/authentication/session/new", { request_token: tok });
-      LS.set("tmdbSession", d.session_id);
-      await tmdbPull();
-
-    } catch { impStatus("TMDB sign-in didn't finish. Tap “From TMDB” to try again.", true); }
-  }
-  function parseCSV(text) {
-    const rows = []; let row = [], f = "", q = false;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
-      else if (c === '"') q = true;
-      else if (c === ",") { row.push(f); f = ""; }
-      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); f = ""; if (row.some(x => x !== "")) rows.push(row); row = []; }
-      else f += c;
-    }
-    row.push(f); if (row.some(x => x !== "")) rows.push(row);
-    return rows;
-  }
-  $("imdbImport").onclick = () => $("imdbFile").click();
-  $("imdbFile").onchange = async e => {
-    const file = e.target.files[0]; e.target.value = ""; if (!file) return;
-    const rows = parseCSV((await file.text()).replace(/^﻿/, ""));
-    if (rows.length < 2) { impStatus("That file looks empty.", true); return; }
-    const head = rows[0].map(h => h.trim().toLowerCase());
-    const ci = head.indexOf("const"), ri = head.indexOf("your rating"), ti = head.indexOf("title"), di = head.findIndex(h => h === "date rated" || h === "created");
-    if (ci < 0) { impStatus("That doesn't look like an IMDb export. It needs the “Const” column with tt… IDs.", true); return; }
-    const list = rows.slice(1).map(r => ({ tt: (r[ci] || "").trim(), rating: ri >= 0 ? parseFloat(r[ri]) : NaN, title: ti >= 0 ? r[ti] : "" })).filter(x => /^tt\d+$/.test(x.tt));
-    const isRatings = ri >= 0 && list.filter(x => !isNaN(x.rating)).length > list.length / 2;
-    const wantRatings = $("impRatings").checked;
-    $("imdbImport").disabled = true;
-    const items = [], map = {}; let done = 0, missed = 0;
-    const work = list.slice();
-    async function worker() {
-      while (work.length) {
-        const x = work.shift();
-        try {
-          const f = await tm("/find/" + x.tt, { external_source: "imdb_id" });
-          const m = (f.movie_results || [])[0], t = (f.tv_results || [])[0];
-          const hit = m ? wlItem(m, "movie") : t ? wlItem(t, "tv") : null;
-          if (!hit) missed++;
-          else { if (!isRatings) items.push(hit); if (!isNaN(x.rating) && wantRatings) map[keyOf(hit)] = x.rating; }
-        } catch { missed++; }
-        done++; if (done % 5 === 0 || done === list.length) impStatus(`Matching IMDb titles… ${done} of ${list.length}`);
-      }
-    }
-    await Promise.all([worker(), worker(), worker(), worker()]);
-    const added = items.length ? mergeWl(items) : 0, rated = wantRatings ? mergeRatings(map) : 0;
-    impStatus(isRatings
-      ? `IMDb ratings: ${rated} scores brought in. They're used as your score when you open those titles.${missed ? ` ${missed} couldn't be matched.` : ""}`
-      : `IMDb watchlist: ${added} new titles added${rated ? `, ${rated} ratings` : ""}.${missed ? ` ${missed} couldn't be matched.` : ""}`);
-    $("imdbImport").disabled = false;
-  };
-  if (LS.get("tmdbSession", null)) $("tmdbOut").hidden = false;
-
-  // ---------- news ----------
-  const FEEDS = [
-    ["Variety", "https://variety.com/v/film/feed/"],
-    ["The Hollywood Reporter", "https://www.hollywoodreporter.com/c/movies/movie-news/feed/"],
-    ["Screen Rant", "https://screenrant.com/feed/movie-news/"]
-  ];
-  let newsTab = "headlines"; const newsCache = {};
-  const stripHtml = h => { const d = document.createElement("div"); d.innerHTML = h || ""; return (d.textContent || "").replace(/\s+/g, " ").trim(); };
-  const ago = d => { const t = new Date(d.replace(" ", "T") + (/[zZ+]/.test(d) ? "" : "Z")); if (isNaN(t)) return ""; const h = (Date.now() - t) / 36e5; return h < 1 ? "just now" : h < 24 ? Math.round(h) + "h ago" : Math.round(h / 24) + "d ago"; };
-  async function fetchHeadlines() {
-    const res = await Promise.all(FEEDS.map(async ([name, url]) => {
-      try {
-        const r = await fetch("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(url));
-        const j = await r.json(); if (j.status !== "ok") return [];
-        return j.items.map(x => ({ src: name, title: stripHtml(x.title), link: x.link, date: x.pubDate || "", img: x.thumbnail || x.enclosure?.link || ((x.description || "").match(/<img[^>]+src="([^"]+)"/) || [])[1] || "", text: stripHtml(x.description).slice(0, 140) }));
-      } catch { return []; }
-    }));
-    return res.flat().filter(x => x.title && x.link).sort((a, b) => (new Date(b.date.replace(" ", "T")) - new Date(a.date.replace(" ", "T"))) || 0).slice(0, 40);
-  }
-  async function fetchTmdbList(tab) {
-    const path = tab === "trending" ? "/trending/all/week" : tab === "cinema" ? "/movie/now_playing" : "/movie/upcoming";
-    const d = await tm(path, tab === "trending" ? {} : { region: "BE" });
-    let items = (d.results || []).filter(x => x.media_type !== "person");
-    if (tab === "soon") { const today = new Date().toISOString().slice(0, 10); items = items.filter(x => (x.release_date || "") >= today).sort((a, b) => a.release_date.localeCompare(b.release_date)); }
-    return items.slice(0, 20).map(x => ({ id: x.id, type: x.media_type || "movie", title: x.title || x.name, date: x.release_date || x.first_air_date || "", poster: x.poster_path, text: (x.overview || "").slice(0, 140), score: x.vote_average }));
-  }
-  function renderNews(tab, items) {
-    const box = $("news"); box.innerHTML = "";
-    items.forEach(x => {
-      const el = document.createElement(tab === "headlines" ? "a" : "button");
-      if (tab === "headlines") { el.href = x.link; el.target = "_blank"; el.rel = "noopener"; }
-      else { el.className = "nt poster"; el.onclick = async () => { setView("make"); $("q").value = x.title; try { await pick({ media_type: x.type, id: x.id, title: x.title }); } catch (e) { handleErr(e); } }; }
-      const imgSrc = tab === "headlines" ? x.img : x.poster ? IMG + "w154" + x.poster : "";
-      el.appendChild(imgSrc ? Object.assign(document.createElement("img"), { src: imgSrc, alt: "", loading: "lazy", referrerPolicy: "no-referrer" }) : document.createElement("i"));
-      const sp = document.createElement("span"); const b = document.createElement("b"); b.textContent = x.title;
-      const sm = document.createElement("small");
-      sm.textContent = tab === "headlines" ? [x.src, ago(x.date)].filter(Boolean).join(" · ") : [x.type === "tv" ? "Series" : "Movie", tab === "soon" ? "Out " + fmtDate(x.date) : yearOf(x.date), x.score ? "TMDB " + x.score.toFixed(1) : ""].filter(Boolean).join(" · ");
-      const tx = document.createElement("small"); tx.textContent = x.text + (x.text.length >= 140 ? "…" : "");
-      sp.append(b, sm, tx); el.appendChild(sp); box.appendChild(el);
-    });
-  }
-  async function loadNews(force) {
-    const tab = newsTab;
-    $("newsTabs").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === tab));
-    if (newsCache[tab] && !force) { renderNews(tab, newsCache[tab]); $("newsStatus").textContent = tab === "headlines" ? "Tap a headline to read it." : "Tap a title to make a post about it."; return; }
-    $("news").innerHTML = ""; $("newsStatus").textContent = "Loading…";
-    try {
-      const items = tab === "headlines" ? await fetchHeadlines() : await fetchTmdbList(tab);
-      if (tab !== newsTab) return;
-      if (!items.length) {
-        if (tab === "headlines") { $("newsStatus").textContent = "Headlines couldn't load right now, so here's what's trending."; newsTab = "trending"; return loadNews(); }
-        $("newsStatus").textContent = "Nothing to show right now."; return;
-      }
-      newsCache[tab] = items; renderNews(tab, items);
-      $("newsStatus").textContent = tab === "headlines" ? "Latest from Variety, The Hollywood Reporter and Screen Rant. Tap to read." : tab === "trending" ? "Trending this week. Tap a title to make a post about it." : tab === "cinema" ? "Now playing in Belgian cinemas. Tap to make a post." : "Coming to Belgian cinemas. Tap to make a post.";
-    } catch { $("newsStatus").textContent = "Couldn't load news. Check your connection."; }
-  }
-  $("newsTabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; newsTab = b.dataset.v; loadNews(); });
 
   // ---------- multi-title posters ----------
   let multi = null;
@@ -2338,7 +2130,7 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
     },
     setView, toast, IMG, tm
   };
-  buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderWl(); renderTop(); tmdbReturn();
+  buildSwatches(); syncForm(); syncSegments(); renderHistory(); renderTop();
   render();
   if (document.fonts) {
     Promise.all(["Anton", "Inter", "italic 40px 'DM Serif Display'", "700 40px Inter"].map(f => document.fonts.load(f.includes("px") ? f : "40px " + f).catch(() => {}))).then(render);
