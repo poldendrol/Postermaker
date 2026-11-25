@@ -896,7 +896,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}
       ${pv ? `<img class="tile-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}
       ${mineSaw ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}
-      <span class="tile-t"><b>${esc(w.m.n)}</b>${(() => { const r = rateOf(w.m), bits = [w.m.y || "", n > 1 ? `${n} want it` : ""].filter(Boolean); return bits.length || r ? `<small>${esc(bits.join(" · "))}${r ? `<span class="tile-r">★ ${r.toFixed(1)}</span>` : ""}</small>` : ""; })()}</span></button>`;
+      <span class="tile-t"><b>${esc(w.m.n)}</b>${(() => { const r = rateOf(w.m), bits = [w.m.y || "", n > 1 ? `${n} want it` : ""].filter(Boolean); return bits.length || r ? `<small>${esc(bits.join(" · "))}${r ? rateRing(r) : ""}</small>` : ""; })()}</span></button>`;
   };
   // Long lists become Netflix-style rows per genre (each title in its main genre); short ones stay a simple grid.
   const tiles = list => {
@@ -946,6 +946,9 @@ function popHtml(s, tile) {
 const genreCache = LS.get("marqueeGenres", {});
 const rateCache = LS.get("marqueeRates", {}); // TMDB score per title, for the Rating sort and badges
 const rateOf = m => rateCache[key(m)] || 0;
+// Score badge: a comic stamp with a ring that fills to the score, green / yellow / grey by how good it is.
+const rateCol = r => r >= 7.5 ? "#2fbf5b" : r >= 6 ? "#ffd400" : "#9a94a6";
+const rateRing = (r, big) => `<span class="rring${big ? " big" : ""}" style="--p:${Math.round(r * 10)};--c:${rateCol(r)}" aria-label="Rated ${r.toFixed(1)} out of 10"><b>${r.toFixed(1)}</b></span>`;
 const genreShut = new Set(); // genre sections you folded (all open by default)
 let cinePane = "cal", mwPane = "list", fyAuto = false, genreBusy = false, wlSort = LS.get("marqueeWlSort2", "az");
 async function fillGenres(items) {
@@ -1115,7 +1118,7 @@ function openTitle(s, m, focusSuggest) {
     const facts = [i.genres, i.len].filter(Boolean).join(" · ");
     const fmtN = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
     const club = [...(s.saw[sk] || new Map()).values()].map(x => x.v && x.s).filter(Boolean), cAvg = club.length ? club.reduce((a, b) => a + b, 0) / club.length : 0;
-    box.innerHTML = `${i.rate || cAvg ? `<div class="ts-rate">${i.rate ? `<span><b>★ ${esc(i.rate)}</b>/10 <small>TMDB · ${fmtN(i.votes)} vote${i.votes === 1 ? "" : "s"}</small></span>` : ""}${cAvg ? `<span><b>${starStr(cAvg)}</b> <small>club · ${cAvg.toFixed(1)} from ${club.length}</small></span>` : ""}</div>` : ""}
+    box.innerHTML = `${i.rate || cAvg ? `<div class="ts-rate">${i.rate ? `<div class="ts-score">${rateRing(+i.rate, 1)}<div><span class="ts-stars" style="--c:${rateCol(+i.rate)}">${starStr(+i.rate / 2)}</span><small>TMDB · ${fmtN(i.votes)} vote${i.votes === 1 ? "" : "s"}</small></div></div>` : ""}${cAvg ? `<div class="ts-score club"><span class="rring big" style="--p:${Math.round(cAvg * 20)};--c:var(--accent)"><b>${cAvg.toFixed(1)}</b></span><div><span class="ts-stars" style="--c:var(--accent)">${starStr(cAvg)}</span><small>Club · ${club.length} rating${club.length === 1 ? "" : "s"}</small></div></div>` : ""}</div>` : ""}
       ${facts ? `<small class="ts-facts">${esc(facts)}</small>` : ""}
       ${i.by ? `<small class="hint">${m.t === "tv" ? "Created by" : "Directed by"} <b>${esc(i.by)}</b></small>` : ""}
       ${i.cast ? `<small class="hint">With ${esc(i.cast)}</small>` : ""}
