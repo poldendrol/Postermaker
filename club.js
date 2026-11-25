@@ -1632,6 +1632,8 @@ function renderClub() {
   bindWl(s, cands);
   $("mwLog")?.addEventListener("click", () => openSearch("What did you watch?", m => openReview(derive(active().id), seenKey(m.n), m)));
   $("sbAdd")?.addEventListener("click", () => openSearch("What have you seen before?", m => openReview(derive(active().id), seenKey(m.n), m, { old: true })));
+  document.querySelectorAll("[data-sbs]").forEach(b => b.onclick = () => { sbSort = b.dataset.sbs; LS.set("marqueeSbSort", sbSort); renderClub(); });
+  document.querySelectorAll("[data-sbt]").forEach(b => b.onclick = () => { sbType = b.dataset.sbt; renderClub(); });
   $("sbQ")?.addEventListener("input", e => { sbQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
@@ -1720,12 +1722,21 @@ function seenBefore(s) {
   for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v || watchedOn(x)) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s }); }
   return out.sort((a, b) => a.m.n.localeCompare(b.m.n));
 }
-let sbQ = "";
+let sbQ = "", sbSort = LS.get("marqueeSbSort", "az"), sbType = "all";
 function seenBeforeCard(s) {
-  const all = seenBefore(s), list = sbQ ? all.filter(w => w.m.n.toLowerCase().includes(sbQ)) : all;
+  const all = seenBefore(s), nTv = all.filter(w => isTv(w.m)).length, mixed = nTv && nTv < all.length;
+  const list = all.filter(w => (!sbQ || w.m.n.toLowerCase().includes(sbQ)) && (!mixed || sbType === "all" || (sbType === "tv") === isTv(w.m)))
+    .sort(sbSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n) : sbSort === "rate" ? (a, b) => rateOf(b.m) - rateOf(a.m) || a.m.n.localeCompare(b.m.n) : (a, b) => a.m.n.localeCompare(b.m.n));
+  if (all.some(w => !(key(w.m) in rateCache) || !genreCache[key(w.m)])) setTimeout(() => fillGenres(all), 0);
+  const tile = w => { const r = rateOf(w.m); return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}<span class="tile-t"><b>${esc(w.m.n)}</b><small>${esc(w.m.y || "")}${w.s ? `<span class="tile-stars">${starStr(w.s, true)}</span>` : ""}${r ? rateRing(r) : ""}</small></span></button>`; };
+  const grid = ws => `<div class="wl-grid">${ws.map(tile).join("")}</div>`;
+  const body = sbSort === "genre" && list.length >= 8 && !sbQ ? (() => { const g = {}; for (const w of list) (g[genreOf(w.m) || "Loading…"] ||= []).push(w);
+    return Object.entries(g).sort((a, b) => (a[0] === "Loading…") - (b[0] === "Loading…") || b[1].length - a[1].length).map(([n, ws]) => `<details class="g-sec" open><summary>${esc(n)} <i>${ws.length}</i></summary>${grid(ws)}</details>`).join(""); })() : grid(list);
+  const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
   return `<div id="sbCard"><div class="wl-tools">${all.length > 12 ? `<input type="search" id="sbQ" placeholder="Search" value="${esc(sbQ)}" autocomplete="off">` : ""}<button class="primary" id="sbAdd">+ Add</button></div>
-    <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen before (no date)${list.length !== all.length ? ` · ${list.length} match` : ""}` : `Nothing yet. Titles you mark as "Seen it before", or import from IMDb or Letterboxd, land here.`}</p>
-    <div class="wl-grid">${list.map(w => `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}<span class="tile-t"><b>${esc(w.m.n)}</b><small>${esc(w.m.y || "")}${w.s ? `<span class="tile-stars">${starStr(w.s, true)}</span>` : ""}</small></span></button>`).join("")}</div></div>`;
+    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
+    <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen before (no date)${list.length !== all.length ? ` · ${list.length} shown` : ""}` : `Nothing yet. Titles you mark as "Seen it before", or import from IMDb or Letterboxd, land here.`}</p>
+    ${body}</div>`;
 }
 let mwYear = new Date().getFullYear(), mwAll = false, mwWho = LS.get("marqueeMwWho", "*");
 function myWatchedCard(s) {
