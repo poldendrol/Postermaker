@@ -475,7 +475,31 @@ function render() {
     return;
   }
   if (pendingInvite) { activeId = pendingInvite.id; LS.set("marqueeClubActive", activeId); pendingInvite = null; }
+  syncSaved();
   keepInputs(renderClub);
+}
+// Titles saved with "+ Watchlist" on the poster page also belong on your Personal list in the club.
+// Each one is copied once per club (so taking it off the club list later sticks), skipping titles you already watched or dropped.
+let syncingSaved = false;
+function syncSaved() {
+  const c = active(); if (!c || !me || syncingSaved) return;
+  const saved = LS.get("marqueeWatchlist", []).filter(x => x && x.id && (x.type === "movie" || x.type === "tv"));
+  if (!saved.length) return;
+  const done = new Set(LS.get("marqueeWlSaved_" + c.id, []));
+  const mine = Object.values(evs(c.id)).filter(e => e.a === me.id && !e.gone);
+  const had = new Set(mine.filter(e => (e.k === "wl" || e.k === "wldrop") && e.m).map(e => key(e.m)));
+  const seen = new Set(mine.filter(e => e.k === "saw" && e.v).map(e => e.sk));
+  const fresh = [];
+  for (const x of saved) {
+    const m = { t: x.type, i: x.id, n: x.title || "", y: String(x.year || ""), p: x.poster || "" }, k = key(m);
+    if (done.has(k)) continue; done.add(k);
+    if (!had.has(k) && !seen.has(seenKey(m.n))) fresh.push(m);
+  }
+  LS.set("marqueeWlSaved_" + c.id, [...done]);
+  if (!fresh.length) return;
+  syncingSaved = true;
+  try { actMany(fresh.map(m => ["wl", { m }]), { title: `${me.name} added ${fresh.length} title${fresh.length === 1 ? "" : "s"} to the club watchlist`, body: "From their Marquee watchlist" }); }
+  finally { syncingSaved = false; }
 }
 
 // ---------- charts ----------
