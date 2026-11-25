@@ -358,8 +358,8 @@ footer { padding-left: 0; }
 .cine { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
 .cine-h { font: 400 16px/1 var(--display, Impact), sans-serif; text-transform: uppercase; letter-spacing: .03em; }
 .cine-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.cine-chips .chip { font-size: 12px; padding: 4px 9px; opacity: .55; }
-.cine-chips .chip.on { opacity: 1; background: #111; color: #ffd400; border-color: #111; }
+.cine-chips .chip { font-size: 12px; padding: 4px 9px; background: none; color: var(--muted); border: 1px dashed var(--line); text-decoration: line-through; }
+.cine-chips .chip.on { background: #ffd400; color: #111; border: 1px solid #ffd400; text-decoration: none; font-weight: 700; }
 .cine-c { display: flex; flex-direction: column; gap: 3px; }
 .cine-name { align-self: flex-start; background: #ffd400; color: #111; font: 400 11px/1 var(--display, Impact), sans-serif; letter-spacing: .12em; text-transform: uppercase; padding: 4px 7px; transform: rotate(-1.5deg); margin-bottom: 2px; }
 .cine-f { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; }

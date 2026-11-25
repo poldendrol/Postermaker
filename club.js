@@ -303,7 +303,7 @@ async function act(kind, fields = {}, news) {
   merge(c.id, [e]); markRead(); render();
   try {
     await send(c.id, [e]);
-    if (news) { post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=club", tags: ["clapper"] }).catch(() => {}); pushNews(s, news); }
+    if (news) { post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=" + (news.view || "club"), tags: ["clapper"] }).catch(() => {}); pushNews(s, news); }
   } catch { M.toast("Saved here. It'll reach the club when you're back online."); }
 }
 
@@ -315,7 +315,7 @@ async function actMany(items, news) {
   merge(c.id, list); markRead(); render();
   try {
     await send(c.id, list);
-    if (news) { post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=club", tags: ["clapper"] }).catch(() => {}); pushNews(s, news); }
+    if (news) { post({ topic: newsTopic(c.id), title: `${s.name || "Movie club"}: ${news.title}`, message: news.body || "Tap to open the club.", click: APP_URL + "?view=" + (news.view || "club"), tags: ["clapper"] }).catch(() => {}); pushNews(s, news); }
   } catch { M.toast("Saved here. It'll reach the club when you're back online."); }
 }
 
@@ -324,7 +324,7 @@ const realIds = s => [...s.members.keys()].filter(id => id !== me.id && !id.star
 function pushNews(s, news) {
   const to = (news.to || realIds(s)).filter(id => id !== me.id && !id.startsWith("demo_"));
   if (!to.length || !window.MarqueePush) return;
-  window.MarqueePush.send({ to, title: `${s.name || "Movie club"}: ${news.title}`, body: news.body || "Tap to open the club.", ...(news.at ? { at: news.at } : {}), ...(news.id ? { id: news.id } : {}) });
+  window.MarqueePush.send({ to, title: `${s.name || "Movie club"}: ${news.title}`, body: news.body || "Tap to open the club.", ...(news.view ? { url: "./?view=" + news.view } : {}), ...(news.at ? { at: news.at } : {}), ...(news.id ? { id: news.id } : {}) });
 }
 
 // ---------- unread badge & alerts ----------
@@ -803,7 +803,7 @@ function scheduleOutingReminder(s, o, plus) {
   if (at.getTime() < now()) return;
   const to = [...new Set([...o.ins.keys(), ...(plus ? [plus] : []), me.id])].filter(id => !id.startsWith("demo_"));
   let h = 0; for (const ch of active().id + o.ok) h = (h * 31 + ch.charCodeAt(0)) | 0;
-  window.MarqueePush.send({ id: "rem_" + (h >>> 0).toString(36), to, at: at.getTime(), title: `Tomorrow: ${o.m.n}`, body: `${scLabel(o.sc)}${o.spot ? ` · after: ${o.spot}` : ""}. Got your ticket?` });
+  window.MarqueePush.send({ id: "rem_" + (h >>> 0).toString(36), to, url: "./?view=cine", at: at.getTime(), title: `Tomorrow: ${o.m.n}`, body: `${scLabel(o.sc)}${o.spot ? ` · after: ${o.spot}` : ""}. Got your ticket?` });
 }
 function outingIcs(o) {
   const d = o.sc.d.replace(/-/g, ""), [hh, mm] = (o.sc.h || "20:00").split(":"), stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
@@ -839,7 +839,7 @@ function bindCinema(s) {
     m ||= await matchMovie(title);
     const x = { m, sc };
     if (s.outs.has(ckey(x))) { M.toast("That outing is already planned."); return; }
-    await act("nom", { tr: "m", r: monthOf(new Date()), m, sc }, { title: `${me.name} wants to see ${m.n}`, body: `${sc ? scLabel(sc) + ". " : ""}Tap "I'm in" if you want to come.` });
+    await act("nom", { tr: "m", r: monthOf(new Date()), m, sc }, { view: "cine", title: `${me.name} wants to see ${m.n}`, body: `${sc ? scLabel(sc) + ". " : ""}Tap "I'm in" if you want to come.` });
     M.toast(`${m.n} is up. Friends can tap "I'm in".`);
   };
   cineNominate = (sc, title) => nom(sc, title);
@@ -847,11 +847,11 @@ function bindCinema(s) {
   cineEl.querySelectorAll("[data-in]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.in); if (!o) return; const v = o.ins.has(me.id) ? 0 : 1;
     if (v && o.sc?.d) scheduleOutingReminder(s, o, me.id);
-    act("in", { ok: o.ok, v }, v ? { title: `${me.name} is in for ${o.m.n}`, body: o.sc?.d ? scLabel(o.sc) : "Pick a date in the club." } : null);
+    act("in", { ok: o.ok, v }, v ? { view: "cine", title: `${me.name} is in for ${o.m.n}`, body: o.sc?.d ? scLabel(o.sc) : "Pick a date in the club." } : null);
   });
   cineEl.querySelectorAll("[data-odate]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.odate); if (!o) return;
-    openDate({ ...o.m, sc: o.sc }, sc => (scheduleOutingReminder(s, { ...o, sc }), act("odate", { ok: o.ok, sc }, { title: `${o.m.n}: we're going ${scLabel(sc)}`, body: `${[...o.ins.values()].join(", ")} so far. Tap "I'm in" to join.` })));
+    openDate({ ...o.m, sc: o.sc }, sc => (scheduleOutingReminder(s, { ...o, sc }), act("odate", { ok: o.ok, sc }, { view: "cine", title: `${o.m.n}: we're going ${scLabel(sc)}`, body: `${[...o.ins.values()].join(", ")} so far. Tap "I'm in" to join.` })));
   });
   cineEl.querySelectorAll("[data-ospot]").forEach(b => b.onclick = () => {
     const o = s.outs.get(b.dataset.ospot); if (!o) return;
@@ -2067,4 +2067,4 @@ addEventListener("marquee-synced", e => {
   for (const k of keys) if (k.startsWith("marqueeClubEv_")) { foldIn(store[k.slice(evKey("").length)] ||= {}, LS.get(k, {})); }
   live(); render();
 });
-$("nav").addEventListener("click", e => { if (e.target.closest("[data-view=club]")) { markRead(); render(); } });
+$("nav").addEventListener("click", e => { if (e.target.closest("[data-view=club], [data-view=cine]")) { markRead(); render(); } });

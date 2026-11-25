@@ -41,7 +41,7 @@ window.MarqueePush = {
     if (!cfg || !cfg.apiKey) return;
     try {
       const { F, db } = await init();
-      const data = { to: p.to.slice(0, 60), title: String(p.title).slice(0, 120), body: String(p.body || "").slice(0, 300), at: p.at || Date.now(), url: "./?view=club" };
+      const data = { to: p.to.slice(0, 60), title: String(p.title).slice(0, 120), body: String(p.body || "").slice(0, 300), at: p.at || Date.now(), url: /^\.\/\?view=\w+$/.test(p.url || "") ? p.url : "./?view=club" };
       if (p.id) await F.setDoc(F.doc(db, "pushes", p.id), data); else await F.addDoc(F.collection(db, "pushes"), data);
     } catch (e) { console.warn("push queue", e); }
   },
