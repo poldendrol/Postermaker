@@ -368,7 +368,7 @@ const nightLabel = d => d.toLocaleDateString(undefined, { weekday: "long", day: 
 function openSearch(title, onPick, initial = "", foot = null) {
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="${esc(title)}">
     <h3>${esc(title)}</h3>
-    <input type="search" id="clubQ" placeholder="Search a movie or series" autocomplete="off">
+    <input type="search" id="clubQ" placeholder="Search, or paste an IMDb link" autocomplete="off">
     <div class="results" id="clubRes"><p class="hint">Start typing a title.</p></div>
     ${foot ? foot.html : ""}<button id="clubCancel">Cancel</button></div></div>`);
   document.body.appendChild(bg);
@@ -384,9 +384,19 @@ function openSearch(title, onPick, initial = "", foot = null) {
       const text = q.value.trim(), my = ++seq;
       if (text.length < 2) { res.innerHTML = `<p class="hint">Start typing a title.</p>`; return; }
       try {
-        const d = await M.tm("/search/multi", { query: text, include_adult: "false" });
+        // An IMDb or TMDB link (or tt-id) finds that exact title; otherwise films and series are searched separately too,
+        // so a small film doesn't get pushed out by a series with the same name.
+        const tl = text.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i), il = text.match(/(tt\d{5,})/i);
+        let raw;
+        if (tl) { const j = await M.tm(`/${tl[1].toLowerCase()}/${tl[2]}`); raw = [{ ...j, media_type: tl[1].toLowerCase() }]; }
+        else if (il) { const f = await M.tm("/find/" + il[1], { external_source: "imdb_id" }); raw = [...(f.movie_results || []).map(x => ({ ...x, media_type: "movie" })), ...(f.tv_results || []).map(x => ({ ...x, media_type: "tv" }))]; }
+        else {
+          const [d, dm, dt] = await Promise.all([M.tm("/search/multi", { query: text, include_adult: "false" }), M.tm("/search/movie", { query: text, include_adult: "false" }).catch(() => ({})), M.tm("/search/tv", { query: text, include_adult: "false" }).catch(() => ({}))]);
+          const seenK = new Set(); raw = [];
+          for (const x of [...(d.results || []), ...(dm.results || []).slice(0, 4).map(x => ({ ...x, media_type: "movie" })), ...(dt.results || []).slice(0, 4).map(x => ({ ...x, media_type: "tv" }))]) { const k = x.media_type + ":" + x.id; if (!seenK.has(k)) { seenK.add(k); raw.push(x); } }
+        }
         if (my !== seq) return;
-        items = (d.results || []).filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 12)
+        items = raw.filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 16)
           .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
         res.innerHTML = items.length ? items.map((m, i) => `<button data-i="${i}">${poster(m.p, "w92")}<span><b>${esc(m.n)}</b><br><small class="hint">${m.t === "tv" ? "📺 Series" : "🎬 Film"}${m.y ? ` · ${esc(m.y)}` : ""}</small></span></button>`).join("") : `<p class="hint">Nothing found.</p>`;
       } catch { res.innerHTML = `<p class="hint">Search isn't working right now. Check your connection.</p>`; }
