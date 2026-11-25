@@ -471,6 +471,7 @@ function render() {
     renderStart();
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
     $("hsGo").onclick = () => M.setView("club");
+    if (listsEl) listsEl.innerHTML = `<div class="fr-card"><h3>Lists</h3><p class="hint">Start or join a movie club first. Then you can import lists, make your own and add ready-made ones like the Oscar winners.</p></div>`;
     if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching, reviews and outings get ranked here.</p></div>`;
     if (mwView) mwView.innerHTML = `<div class="fr-card"><h3>My watched list</h3><p class="hint">Start or join a movie club first, then everything you watch is logged here with its date.</p></div>`;
     return;
@@ -1196,6 +1197,117 @@ function openTitle(s, m, focusSuggest) {
   if (focusSuggest && sugOpenBtn) { sugOpenBtn.click(); setTimeout(() => bg.querySelector(".ts-to")?.scrollIntoView({ block: "center" }), 50); }
 }
 
+
+// ---------- Lists: imports, your own lists and ready-made ones (Oscars, top rated…), with a badge for every list you finish ----------
+const listsEl = $("listsView");
+let wlApi = null, lsOpen = null, oscYear = new Date().getFullYear(), oscMode = "win", bestYear = new Date().getFullYear() - 1;
+const myLists = () => Object.values(LS.get("marqueeLists", {})).filter(l => l && !l.gone && Array.isArray(l.items)).sort((a, b) => (b.at || 0) - (a.at || 0));
+function saveList(l) { const all = LS.get("marqueeLists", {}); all[l.id] = { ...l, at: now() }; LS.set("marqueeLists", all); window.MarqueeAccount?.save?.(); }
+function dropList(id) { const all = LS.get("marqueeLists", {}); if (all[id]) all[id] = { id, gone: 1, at: now() }; LS.set("marqueeLists", all); }
+const sawIt = (s, m) => { const x = s.saw[seenKey(m.n)]?.get(me.id); return !!x?.v && (!x.m || key(x.m) === key(m)); };
+const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
+const tmdbToM = (x, t = "movie") => ({ t, i: x.id, n: x.title || x.name || "", y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" });
+// Oscar data comes from Wikidata (free, no key): every film that won (or was nominated for) an Academy Award in a ceremony year, with its TMDB id.
+async function wikidata(q) {
+  const r = await fetch("https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(q), { headers: { Accept: "application/sparql-results+json" } });
+  if (!r.ok) throw new Error("wikidata " + r.status);
+  return (await r.json()).results.bindings;
+}
+async function tmdbFilms(ids) {
+  const work = [...new Set(ids)], out = new Map();
+  await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const id = work.shift(); try { const j = await M.tm(`/movie/${id}`); out.set(id, tmdbToM(j)); } catch {} } }));
+  return ids.map(id => out.get(id)).filter(Boolean).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i);
+}
+const OSC = `?award rdfs:label ?al. FILTER(LANG(?al) = "en" && STRSTARTS(?al, "Academy Award for"))`;
+const READY = {
+  osc: { name: y => `Oscar winners ${y}`, load: async y => {
+    const rows = await wikidata(`SELECT DISTINCT ?tmdb ?al WHERE { { ?film p:P166 ?st. ?st ps:P166 ?award; pq:P585 ?t. } UNION { ?x p:P166 ?st. ?st ps:P166 ?award; pq:P585 ?t; pq:P1686 ?film. } ${OSC} FILTER(YEAR(?t) = ${+y}) ?film wdt:P4947 ?tmdb. }`);
+    const score = {}; for (const r of rows) { const id = +r.tmdb.value; score[id] = (score[id] || 0) + (/Best Picture/.test(r.al.value) ? 100 : 1); }
+    return tmdbFilms(Object.keys(score).map(Number).sort((a, b) => score[b] - score[a])); } },
+  oscnom: { name: y => `Best Picture nominees ${y}`, load: async y => {
+    const rows = await wikidata(`SELECT DISTINCT ?tmdb WHERE { ?film p:P1411 ?st. ?st ps:P1411 wd:Q102427; pq:P585 ?t. FILTER(YEAR(?t) = ${+y}) ?film wdt:P4947 ?tmdb. }`);
+    return tmdbFilms(rows.map(r => +r.tmdb.value)); } },
+  bp: { name: () => "Every Best Picture winner", load: async () => {
+    const rows = await wikidata(`SELECT DISTINCT ?tmdb (MIN(YEAR(?t)) AS ?y) WHERE { ?film p:P166 ?st. ?st ps:P166 wd:Q102427; pq:P585 ?t. ?film wdt:P4947 ?tmdb. } GROUP BY ?tmdb ORDER BY DESC(?y)`);
+    return tmdbFilms(rows.map(r => +r.tmdb.value)); } },
+  dir: { name: y => `Every film by ${y}`, load: async q => {
+    const pp = (await M.tm("/search/person", { query: q })).results || [], person = pp.find(x => x.known_for_department === "Directing") || pp[0];
+    if (!person) return [];
+    READY.dir.who = person.name;
+    const cr = await M.tm(`/person/${person.id}/movie_credits`);
+    return (cr.crew || []).filter(x => x.job === "Director" && x.release_date && x.release_date <= iso(new Date())).sort((a, b) => a.release_date.localeCompare(b.release_date)).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
+  top: { name: () => "Top 100 rated films", load: async () => (await Promise.all([1, 2, 3, 4, 5].map(page => M.tm("/movie/top_rated", { page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 100) },
+  best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
+};
+function listTiles(s, items, canDrop) {
+  return `<div class="wl-grid">${items.map(m => { const r = rateOf(m); return `<button class="wl-tile" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w342")}${sawIt(s, m) ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}<span class="tile-t"><b>${esc(m.n)}</b><small>${esc(m.y || "")}${r ? rateRing(r) : ""}</small></span></button>`; }).join("")}</div>`;
+}
+function openListSheet(s, l, ready) {
+  const p = listProg(s, l), unseen = l.items.filter(m => !sawIt(s, m));
+  const onWl = new Set([...s.wl.values()].filter(w => w.adders.has(me.id)).map(w => key(w.m))), toAdd = unseen.filter(m => !onWl.has(key(m)));
+  const bg = el(`<div class="sheet-bg"><div class="sheet ls-sheet" role="dialog" aria-label="${esc(l.name)}">
+    <h3>${p.done ? "🏅 " : ""}${esc(l.name)}</h3>
+    <div class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></div>
+    <small class="hint">${p.total ? `You've seen ${p.n} of ${p.total}${p.done ? " · badge earned!" : ` · see them all for a badge`}` : "Empty list. Add titles below."}</small>
+    <div class="ts-btns">${toAdd.length ? `<button class="ts-btn" data-lsa="wl">＋ ${toAdd.length} to my watchlist</button>` : `<button class="ts-btn on" disabled>${unseen.length ? "✓ All on your watchlist" : "✓ All seen"}</button>`}${ready ? `<button class="ts-btn" data-lsa="save">💾 Save as my list</button>` : `<button class="ts-btn" data-lsa="add">＋ Add title</button>`}</div>
+    ${listTiles(s, l.items, !ready)}
+    ${ready ? "" : `<button class="link" data-lsa="del">Delete this list</button>`}
+    <button data-lsa="x">Close</button></div></div>`);
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.addEventListener("click", e => {
+    if (e.target === bg) return close();
+    const x = e.target.closest("[data-lsx]"); if (x) { e.stopPropagation(); l.items = l.items.filter(m => key(m) !== x.dataset.lsx); saveList(l); close(); render(); openListSheet(lastState, l); return; }
+    const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (m) { close(); openTitle(s, m); } return; }
+    const a = e.target.closest("[data-lsa]")?.dataset.lsa; if (!a) return;
+    if (a === "x") close();
+    if (a === "wl") { actMany(toAdd.map(m => ["wl", { m }]), { title: `${me.name} added ${toAdd.length} title${toAdd.length === 1 ? "" : "s"} to the club watchlist`, body: l.name }); M.toast(`${toAdd.length} title${toAdd.length === 1 ? "" : "s"} from ${l.name} added to your Personal watchlist.`); close(); }
+    if (a === "save") { const nl = { id: "l" + rand(8), name: l.name, items: l.items, src: l.src || "" }; saveList(nl); M.toast(`Saved "${l.name}" to your lists.`); close(); render(); }
+    if (a === "add") { close(); openSearch(`Add to ${l.name}`, m => { if (!l.items.some(o => key(o) === key(m))) { l.items.push(m); saveList(l); } render(); openListSheet(lastState, l); }); }
+    if (a === "del" && confirm(`Delete "${l.name}"? Your watchlist and badges from other lists stay.`)) { dropList(l.id); close(); render(); }
+  });
+}
+async function openReady(s, kind, y) {
+  const r = READY[kind]; let name = r.name(y);
+  M.toast(`Loading ${name}…`);
+  try { const items = await r.load(y); if (kind === "dir" && r.who) name = r.name(r.who); if (!items.length) { M.toast(`Couldn't find anything for ${name}.`); return; } openListSheet(lastState || s, { id: "", name, items, src: kind + (y ? ":" + y : "") }, true); }
+  catch (e) { console.error(e); M.toast(`Couldn't load ${name} right now. Try again in a moment.`); }
+}
+function renderLists(s) {
+  if (!listsEl) return;
+  const ls = myLists(), done = ls.filter(l => listProg(s, l).done), keepQ = listsEl.querySelector("#dirQ")?.value || "", hadFocus = document.activeElement?.id === "dirQ";
+  const yrs = Array.from({ length: new Date().getFullYear() - 1928 }, (_, i) => new Date().getFullYear() - i);
+  listsEl.innerHTML = `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${done.length ? `🏅 ${done.length} list badge${done.length === 1 ? "" : "s"}` : "See a whole list, get a badge"}</span><h2 class="bang">Lists</h2></div></div>
+    <div class="ls-cols">
+    <div class="fr-card"><h3>My lists</h3>
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
+      <button class="primary" id="lsNew">＋ New list</button></div>
+    <div class="fr-card"><h3>Ready-made lists</h3>
+      <div class="ls-ready">
+        <div class="ls-r"><b>🏆 Oscars</b><div class="ls-rc"><select id="oscY" aria-label="Ceremony year">${yrs.map(y => `<option${y === oscYear ? " selected" : ""}>${y}</option>`).join("")}</select>
+          <div class="seg">${[["win", "All winners"], ["nom", "Best Picture nominees"]].map(([k, l]) => `<button class="${k === oscMode ? "on" : ""}" data-oscm="${k}">${l}</button>`).join("")}</div><button class="primary" data-ready="osc">Show</button></div></div>
+        <div class="ls-r"><b>🎬 Every Best Picture winner</b><div class="ls-rc"><button data-ready="bp">Show</button></div></div>
+        <div class="ls-r"><b>⭐ Best films of a year</b><div class="ls-rc"><select id="bestY" aria-label="Year">${yrs.map(y => `<option${y === bestYear ? " selected" : ""}>${y}</option>`).join("")}</select><button data-ready="best">Show</button></div></div>
+        <div class="ls-r"><b>🎥 Every film by a director</b><div class="ls-rc"><input type="search" id="dirQ" placeholder="e.g. Christopher Nolan" autocomplete="off" enterkeyhint="search"><button data-ready="dir">Show</button></div></div>
+        <div class="ls-r"><b>💯 Top 100 rated films</b><div class="ls-rc"><button data-ready="top">Show</button></div></div>
+      </div></div>
+    <div class="fr-card"><h3>Import</h3>
+      <button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button>
+      <p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p></div>
+    </div>`;
+  const dq = listsEl.querySelector("#dirQ"); dq.value = keepQ; if (hadFocus) dq.focus();
+  listsEl.querySelector("#lsImp").onclick = () => wlApi?.openImport();
+  listsEl.querySelector("#lsNew").onclick = () => { const n = (prompt("Name your list", "") || "").trim().slice(0, 60); if (!n) return; const l = { id: "l" + rand(8), name: n, items: [] }; saveList(l); render(); openListSheet(lastState, l); };
+  listsEl.querySelectorAll("[data-lsid]").forEach(b => b.onclick = () => { const l = myLists().find(x => x.id === b.dataset.lsid); if (l) openListSheet(s, l); });
+  listsEl.querySelector("#oscY").onchange = e => { oscYear = +e.target.value; };
+  listsEl.querySelector("#bestY").onchange = e => { bestYear = +e.target.value; };
+  listsEl.querySelectorAll("[data-oscm]").forEach(b => b.onclick = () => { oscMode = b.dataset.oscm; renderLists(s); });
+  listsEl.querySelectorAll("[data-ready]").forEach(b => b.onclick = () => { const k = b.dataset.ready;
+    if (k === "dir") { const q = listsEl.querySelector("#dirQ").value.trim(); if (!q) { listsEl.querySelector("#dirQ").focus(); return; } return openReady(s, "dir", q); }
+    openReady(s, k === "osc" ? (oscMode === "nom" ? "oscnom" : "osc") : k, k === "osc" ? oscYear : k === "best" ? bestYear : 0); });
+  listsEl.querySelector("#dirQ").addEventListener("keydown", e => { if (e.key === "Enter") listsEl.querySelector('[data-ready="dir"]').click(); });
+}
+
 // ---------- test friends (only on this device) ----------
 const DEMO = [
   { id: "demo_lotte", n: "Lotte", wl: ["Past Lives", "Aftersun", "Severance"], saw: ["Aftersun"] },
@@ -1252,7 +1364,7 @@ function undoReset() {
 }
 
 function bindWl(s, cands) {
-  const status = t => { wlMsg = t || ""; const n = $("wlStatus"); if (n) { n.hidden = !t; n.textContent = wlMsg; } };
+  const status = t => { wlMsg = t || ""; for (const id of ["wlStatus", "lsStatus"]) { const n = $(id); if (n) { n.hidden = !t; n.textContent = wlMsg; } } };
   const addAll = (ms, label, seenIt) => {
     const have = new Set([...s.wl.values()].filter(w => w.adders.has(me.id)).map(w => key(w.m)));
     const fresh = []; const seen = new Set();
@@ -1292,7 +1404,8 @@ function bindWl(s, cands) {
     document.body.appendChild(bg);
     bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "saved") fromSaved(); });
   };
-  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your Personal watchlist", m => addAll([m], m.n), "", { html: `<button class="imp-card" data-foot="import"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import a whole list</b><small>Your watchlist or ratings from IMDb or Letterboxd</small></span><span class="imp-go">›</span></button>`, on: openImport }));
+  wlApi = { openImport, addAll };
+  $("cwAdd")?.addEventListener("click", () => openSearch("Add to your Personal watchlist", m => addAll([m], m.n), "", { html: `<button class="imp-card" data-foot="lists"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Lists</b><small>Import from IMDb or Letterboxd, Oscar winners, a director's films…</small></span><span class="imp-go">›</span></button>`, on: () => M.setView("lists") }));
   // Imports: IMDb CSV (watchlist or ratings) and Letterboxd (watchlist, ratings, watched or diary CSV, or the whole export ZIP).
   const pool = async (list, fn, label) => {
     const work = list.slice(), out = []; let done = 0, missed = 0;
@@ -1463,7 +1576,7 @@ function leadersHtml(s) {
     const bm = bestMonth(me.id), st = streak(me.id), revN = reviews[me.id] || 0, outN = went[me.id] || 0, sent = sugY.filter(g => g.a === me.id).length, land = landed[me.id] || 0;
     const tiles = [["Watched", String(Wm.length), films && series ? `${films} films · ${series} series` : ""], fav && ["Favourite", fav.m.n, starStr(fav.s)], genre && ["Top genre", genre, ""],
       bm && ["Busiest month", bm.note, `${bm.v} watched`], st > 1 && ["Longest streak", `${st} weeks`, "in a row"], revN && ["Reviews", String(revN), ""],
-      outN && ["Cinema outings", String(outN), ""], sent && ["Suggestions", String(sent), land ? `${land} got watched` : ""]].filter(Boolean);
+      outN && ["Cinema outings", String(outN), ""], sent && ["Suggestions", String(sent), land ? `${land} got watched` : ""], (n => n && ["List badges", `🏅 ${n}`, "whole lists seen"])(myLists().filter(l => listProg(s, l).done).length)].filter(Boolean);
     myWrapData = { yr: ldYear, name: me.name, posters: [...new Set(Wm.map(w => w.m.p).filter(Boolean))].slice(0, 10), lines: tiles.filter(t => t[0] !== "Watched").slice(0, 3).map(([l, v, i]) => [l, i && l !== "Cinema outings" ? `${v} · ${i}` : v]) };
     myWrapData.lines.unshift(["Watched", `${Wm.length} title${Wm.length === 1 ? "" : "s"}${films && series ? ` (${films} films, ${series} series)` : ""}`]);
     return `<div class="wrapup"><div class="wrap-grid">${tiles.map(([l, v, i]) => `<div><small>${esc(l)}</small><b>${esc(v)}</b>${i ? `<i>${esc(i)}</i>` : ""}</div>`).join("")}</div><button class="primary" data-wrapshare="me">Share as an Instagram post</button></div>`;
@@ -1628,6 +1741,7 @@ function renderClub() {
 
   hist.innerHTML = historyHtml(s);
   if (lead) { lead.innerHTML = leadersHtml(s); bindLeaders(); }
+  renderLists(s);
   bind(c, s, cands, movie);
   bindCinema(s);
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");

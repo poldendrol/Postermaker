@@ -9,7 +9,7 @@ const V = "10.12.2", CDN = `https://www.gstatic.com/firebasejs/${V}/`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const toast = t => (M?.toast || alert)(t);
 
-const FIXED = ["marqueeClubMe", "marqueeMe", "marqueeClubs", "marqueeClubActive", "marqueeWatchlist", "marqueeHistory", "marqueeTop",
+const FIXED = ["marqueeClubMe", "marqueeMe", "marqueeClubs", "marqueeClubActive", "marqueeWatchlist", "marqueeLists", "marqueeHistory", "marqueeTop",
   "marqueeRatings", "marqueePrefs", "marqueeCinemasOff", "marqueeMyServices", "handle", "marqueeFriends", "marqueeSent", "marqueeInbox", "marqueeClubsGone"];
 const IDENTITY = new Set(["marqueeClubMe", "marqueeMe"]); // the same "you" everywhere: the account's copy wins
 const synced = k => FIXED.includes(k) || k.startsWith("marqueeClubEv_");
