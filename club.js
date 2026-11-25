@@ -1109,31 +1109,44 @@ function openTitle(s, m, focusSuggest) {
   const wl = s.wl.get(key(m));
   const next = iso(nightAfter(now(), s.day));
   const bg = el(`<div class="sheet-bg"><div class="sheet title-sheet" role="dialog" aria-label="${esc(m.n)}">
-    <div class="ts-head">${poster(m.p, "w154")}<div><h3>${esc(m.n)}${m.y ? ` <small class="hint">${esc(m.y)}</small>` : ""}</h3>
-      <small class="hint">${isTv(m) ? "Series · " : ""}${wl ? (() => { const o = [...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n), mine = wl.adders.has(me.id); return esc(mine ? (o.length ? `On your list and ${o.join(", ")}'s` : "On your list") : `On ${o.join(", ")}'s list`); })() : ""}${wl?.adders.has(me.id) ? ` · <button class="link" data-tsdrop>remove from my list</button>` : ` · <button class="link" data-tsadd>add to my list</button>`} · <button class="link" data-tsmore>⋯ fix this title</button></small>
-      <div class="ts-fix" hidden><button class="chip" data-tsfix>Wrong match? Pick the right one</button>${m.t === "tv" ? `<button class="chip" data-tsfilm>${isTv(m) ? "🎬 It's a film" : "📺 It's a series"}</button>` : ""}</div>
-      <small class="hint">${seen.length ? `Watched by ${esc(seen.join(", "))}` : "Nobody has watched it yet"}</small>
-      <span class="ts-acts">${seenTag(m.n)}${imdbLink(m)}</span></div></div>
+    <div class="ts-head">${poster(m.p, "w154")}<div class="ts-hd">
+      <h3>${esc(m.n)}</h3>
+      <small class="ts-meta">${isTv(m) ? "Series" : "Film"}${m.y ? ` · ${esc(m.y)}` : ""}<span class="ts-facts"></span></small>
+      <small class="ts-by hint"></small>
+      <div class="ts-rate">
+        <div class="ts-score"><span class="rring big" style="--p:0;--c:#3d3747"><b>–</b></span><div><b class="ts-lbl">TMDB</b><small class="hint">Loading…</small></div></div>
+        ${(() => { const club = [...(s.saw[sk] || new Map()).values()].map(x => x.v && x.s).filter(Boolean), cAvg = club.length ? club.reduce((x, y) => x + y, 0) / club.length : 0;
+          return `<div class="ts-score club">${cAvg ? `<span class="rring big" style="--p:${Math.round(cAvg * 20)};--c:var(--accent)"><b>${cAvg.toFixed(1)}</b></span>` : `<span class="rring big" style="--p:0;--c:var(--accent)"><b>–</b></span>`}<div><b class="ts-lbl">Club${cAvg ? ` <span class="ts-stars" style="--c:var(--accent)">${starStr(cAvg)}</span>` : ""}</b><small class="hint">${cAvg ? `${club.length} rating${club.length === 1 ? "" : "s"}` : "No ratings yet"}${seen.length ? ` · watched by ${esc(seen.join(", "))}` : ""}</small></div></div>`; })()}
+      </div></div></div>
+    <div class="ts-btns">
+      <button class="ts-btn${wl?.adders.has(me.id) ? " on" : ""}" data-tslist>${wl?.adders.has(me.id) ? "✓ On my list" : "＋ My list"}</button>
+      <button class="ts-btn${s.saw[sk]?.get(me.id)?.v && (!s.saw[sk].get(me.id).m || key(s.saw[sk].get(me.id).m) === key(m)) ? " on" : ""}" data-tsw>${s.saw[sk]?.get(me.id)?.v && (!s.saw[sk].get(me.id).m || key(s.saw[sk].get(me.id).m) === key(m)) ? "✓ Watched" : "👁 Watched?"}</button>
+      ${others.length ? `<button class="ts-btn" id="tsSugOpen">📣 Suggest</button>` : ""}
+    </div>
+    ${others.length ? `<div class="ts-sug" hidden><div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
+      <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button></div>` : ""}
+    ${wl && [...wl.adders.keys()].some(a => a !== me.id) ? `<small class="hint">On ${esc([...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n).join(", "))}'s list</small>` : ""}
     <div class="ts-info"><small class="hint">Loading info…</small></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
-    ${others.length ? `<button class="ts-sug-open" id="tsSugOpen">📣 Suggest to friends</button><div class="ts-sug" hidden><div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
-      <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button></div>` : ""}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
     ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
       return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev"><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
+    <div class="ts-foot">${imdbLink(m)} · <button class="link" data-tsmore>fix this title</button></div>
+    <div class="ts-fix" hidden><button class="chip" data-tsfix>Wrong match? Pick the right one</button>${m.t === "tv" ? `<button class="chip" data-tsfilm>${isTv(m) ? "🎬 It's a film" : "📺 It's a series"}</button>` : ""}</div>
     <button id="tsClose">Close</button></div></div>`);
   document.body.appendChild(bg); titleSheet = bg;
   titleInfo(m).then(i => {
     const box = bg.querySelector(".ts-info"); if (!box) return;
     if (!i) { box.innerHTML = ""; return; }
-    const facts = [i.genres, i.len].filter(Boolean).join(" · ");
     const fmtN = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
-    const club = [...(s.saw[sk] || new Map()).values()].map(x => x.v && x.s).filter(Boolean), cAvg = club.length ? club.reduce((a, b) => a + b, 0) / club.length : 0;
-    box.innerHTML = `${i.rate || cAvg ? `<div class="ts-rate">${i.rate ? `<div class="ts-score">${rateRing(+i.rate, 1)}<div><span class="ts-stars" style="--c:${rateCol(+i.rate)}">${starStr(+i.rate / 2)}</span><small>TMDB · ${fmtN(i.votes)} vote${i.votes === 1 ? "" : "s"}</small></div></div>` : ""}${cAvg ? `<div class="ts-score club"><span class="rring big" style="--p:${Math.round(cAvg * 20)};--c:var(--accent)"><b>${cAvg.toFixed(1)}</b></span><div><span class="ts-stars" style="--c:var(--accent)">${starStr(cAvg)}</span><small>Club · ${club.length} rating${club.length === 1 ? "" : "s"}</small></div></div>` : ""}</div>` : ""}
-      ${facts ? `<small class="ts-facts">${esc(facts)}</small>` : ""}
-      ${i.by ? `<small class="hint">${m.t === "tv" ? "Created by" : "Directed by"} <b>${esc(i.by)}</b></small>` : ""}
+    const fx = bg.querySelector(".ts-facts"); if (fx) fx.textContent = [i.genres, i.len].filter(Boolean).map(x => " · " + x).join("");
+    const by = bg.querySelector(".ts-by"); if (by && i.by) by.innerHTML = `${m.t === "tv" ? "Created by" : "Directed by"} <b>${esc(i.by)}</b>`;
+    const sc = bg.querySelector(".ts-score:not(.club)");
+    if (sc) sc.innerHTML = i.rate ? `${rateRing(+i.rate, 1)}<div><b class="ts-lbl">TMDB <span class="ts-stars" style="--c:${rateCol(+i.rate)}">${starStr(+i.rate / 2)}</span></b><small class="hint">${fmtN(i.votes)} vote${i.votes === 1 ? "" : "s"}</small></div>`
+      : `<span class="rring big" style="--p:0;--c:#3d3747"><b>–</b></span><div><b class="ts-lbl">TMDB</b><small class="hint">No rating yet</small></div>`;
+    box.innerHTML = `
       ${i.cast ? `<small class="hint">With ${esc(i.cast)}</small>` : ""}
       ${i.plot ? `<p class="ts-plot">${esc(i.plot)}</p>` : ""}
       ${i.trailer ? `<a class="link" href="https://www.youtube.com/watch?v=${esc(i.trailer)}" target="_blank" rel="noopener">▶ Watch the trailer</a>` : ""}`;
@@ -1165,10 +1178,11 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("[data-tsfix]")?.addEventListener("click", () => { bg.remove(); openSearch("Pick the right one", m2 => { if (key(m2) === key(m)) return; act("fix", { from: key(m), m: m2 }); M.toast(`Changed to ${m2.n}${m2.y ? ` (${m2.y})` : ""} for everyone.`); }, m.n); });
   bg.querySelector("[data-tsmore]")?.addEventListener("click", e => { e.currentTarget.hidden = true; bg.querySelector(".ts-fix").hidden = false; });
   bg.querySelector("[data-tsfilm]")?.addEventListener("click", () => { const f = isTv(m); act("film", { from: key(m), v: f ? 1 : 0 }); M.toast(`${m.n} now shows as a ${f ? "film" : "series"} for everyone.`); bg.remove(); });
-  bg.querySelector("[data-tsdrop]")?.addEventListener("click", () => { act("wldrop", { m }); M.toast(`${m.n} removed from your list.`); bg.remove(); });
-  bg.querySelector("[data-tsadd]")?.addEventListener("click", () => { act("wl", { m }); M.toast(`${m.n} added to your list.`); bg.remove(); });
+  const reopen = () => setTimeout(() => { if (!bg.isConnected) return; close(); openTitle(derive(active().id), m); }, 80);
+  bg.querySelector("[data-tslist]")?.addEventListener("click", () => { const on = !!wl?.adders.has(me.id); act(on ? "wldrop" : "wl", { m }); M.toast(on ? `${m.n} removed from your list.` : `${m.n} added to your list.`); reopen(); });
+  bg.querySelector("[data-tsw]")?.addEventListener("click", e => { const x = s.saw[sk]?.get(me.id), mine = !!x?.v && (!x.m || key(x.m) === key(m)); if (mine && !isTv(m)) { act("saw", { sk, v: 0 }); M.toast(`${m.n} is no longer marked as watched.`); reopen(); } else { close(); openReview(s, sk); } });
   const sugOpenBtn = bg.querySelector("#tsSugOpen"), sugBox = bg.querySelector(".ts-sug");
-  sugOpenBtn?.addEventListener("click", () => { sugBox.hidden = false; sugOpenBtn.hidden = true; sugBox.scrollIntoView({ block: "nearest" }); });
+  sugOpenBtn?.addEventListener("click", () => { sugBox.hidden = !sugBox.hidden; sugOpenBtn.classList.toggle("on", !sugBox.hidden); if (!sugBox.hidden) sugBox.scrollIntoView({ block: "nearest" }); });
   if (focusSuggest && sugOpenBtn) { sugOpenBtn.click(); setTimeout(() => bg.querySelector(".ts-to")?.scrollIntoView({ block: "center" }), 50); }
 }
 
