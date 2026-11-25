@@ -686,9 +686,9 @@ function calHtml(s, ev, mode) {
     info += sg.length ? sg.map(g => `<div class="cal-sug" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}<span><b>${esc(g.m.n)}</b><small class="hint">${g.a === me.id ? `You → ${esc(whoLabel(s, g))}` : `From ${esc(g.by)}`} · ${g.d === selIso ? "suggested" : "weekly reminder"}</small></span></div>`).join("")
       : `<small class="hint">Nothing to watch this day. Tap a title on the club watchlist to suggest it.</small>`;
   }
-  return `<div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
+  return `<div class="cal-main"><div class="cal-nav"><button class="link" data-cm="-1" aria-label="Earlier weeks">‹</button><b>${fmt(start)} – ${fmt(end)}</b><button class="link" data-cm="1" aria-label="Later weeks">›</button></div>
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
-    <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Outing</span><span><i class="k cnt">3</i>${calAll ? "Screenings in Ghent" : "New at Kinepolis"}</span><button class="chip${calAll ? " on" : ""}" id="calAll">All Ghent screenings</button>`}</div>
+    <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Outing</span><span><i class="k cnt">3</i>${calAll ? "Screenings in Ghent" : "New at Kinepolis"}</span><button class="chip${calAll ? " on" : ""}" id="calAll">All Ghent screenings</button>`}</div></div>
     <div class="cal-info">${info}${home ? "" : cineHtml(selIso)}</div>`;
 }
 function bindCal(s, ev, mode) {
