@@ -606,7 +606,6 @@ const dedupeSugs = list => { const by = new Map(); for (const g of list) { const
 const sugForMe = s => dedupeSugs(s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && sugOpen(s, g, me.id)).sort((a, b) => a.d.localeCompare(b.d)));
 const sugMine = s => s.sugs.filter(g => g.a === me.id && sugTo(s, g).some(id => sugOpen(s, g, id)));
 // Suggestions to me that I've already seen stay visible (greyed, with "✓ Seen" to undo a misclick).
-const sugForMeSeen = s => s.sugs.filter(g => g.a !== me.id && sugTo(s, g).includes(me.id) && !sugOpen(s, g, me.id)).sort((a, b) => sawAt(s, b.m, me.id) - sawAt(s, a.m, me.id));
 const sugSent = s => s.sugs.filter(g => g.a === me.id).sort((a, b) => b.at - a.at); // including ones everybody has watched
 const isoAdd = (d, n) => { const x = new Date(d + "T12:00"); x.setDate(x.getDate() + n); return iso(x); };
 function sugDays(g, from, to) {
@@ -1071,12 +1070,13 @@ async function fillProv(items) {
 
 // ---------- suggestions (At home) ----------
 function forYouCard(s) {
-  const mine = sugForMe(s), sent = sugSent(s), today = iso(new Date());
+  // Once a friend logs a suggestion as watched (just now or seen before) it clears: from their list and from "You suggested".
+  const mine = sugForMe(s), sent = sugSent(s).filter(g => sugTo(s, g).some(id => sugOpen(s, g, id))), today = iso(new Date());
   const due = mine.filter(g => accAt(s, g, me.id)), fresh = mine.filter(g => !accAt(s, g, me.id));
   const row = (g, out) => {
     const rec = sugTo(s, g), done = out ? rec.length && rec.every(id => !sugOpen(s, g, id)) : !sugOpen(s, g, me.id);
     const rv = id => s.saw[seenKey(g.m.n)]?.get(id);
-    const who = rec.map(id => `<span class="who${sugOpen(s, g, id) ? accAt(s, g, id) ? " acc" : "" : " ok"}"${rv(id)?.x ? ` title="${esc(rv(id).x)}"` : accAt(s, g, id) && sugOpen(s, g, id) ? ` title="Accepted, watching by ${esc(byLabel(accBy(s, g, id)))}"` : ""}>${sugOpen(s, g, id) ? accAt(s, g, id) ? "👍 " : "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}${rv(id)?.v && rv(id).s ? ` ${rv(id).s}★` : ""}</span>`).join("");
+    const who = rec.filter(id => !out || sugOpen(s, g, id)).map(id => `<span class="who${sugOpen(s, g, id) ? accAt(s, g, id) ? " acc" : "" : " ok"}"${rv(id)?.x ? ` title="${esc(rv(id).x)}"` : accAt(s, g, id) && sugOpen(s, g, id) ? ` title="Accepted, watching by ${esc(byLabel(accBy(s, g, id)))}"` : ""}>${sugOpen(s, g, id) ? accAt(s, g, id) ? "👍 " : "" : "✓ "}${esc(s.members.get(id)?.name || "someone")}${rv(id)?.v && rv(id).s ? ` ${rv(id).s}★` : ""}</span>`).join("");
     const by = accBy(s, g, me.id), late = by && by < today;
     return `<div class="wl-i sug-i${!out && !done && by && by <= isoAdd(today, 2) ? " due" : ""}${done ? " done" : ""}"><button class="wl-open" data-open="${esc(key(g.m))}">${poster(g.m.p, "w92")}${done ? `<i class="ok-badge" aria-label="${out ? "Everyone watched it" : "You watched it"}">✓</i>` : ""}</button><div class="body" data-open="${esc(key(g.m))}">
       <b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${isTv(g.m) ? ` <span class="tv-tag">Series</span>` : ""}</b>
@@ -1090,7 +1090,6 @@ function forYouCard(s) {
     <h4 class="wl-sec">Suggestions <i>${fresh.length || ""}</i></h4>
     <div class="wl-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend suggests something, it shows up here.</p>`}</div>
     ${due.length ? `<h4 class="wl-sec">Accepted <i>${due.length}</i></h4><div class="wl-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
-    ${(() => { const seenL = sugForMeSeen(s); return seenL.length ? `<h4 class="wl-sec">Watched <i>${seenL.length}</i></h4><div class="wl-list">${seenL.map(g => row(g, false)).join("")}</div>` : ""; })()}
     ${sent.length ? `<h4 class="wl-sec">You suggested <i>${sent.length}</i></h4><div class="wl-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
 }
