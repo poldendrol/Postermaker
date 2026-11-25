@@ -885,7 +885,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
   const done = mineDone.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || (wlType === "tv") === isTv(w.m)) && !wlNobody);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
   const shown = items;
-  if (wlSort === "rate" && items.some(w => !(key(w.m) in rateCache))) setTimeout(() => fillGenres(items), 0);
+  if ([...items, ...done].some(w => !(key(w.m) in rateCache))) setTimeout(() => fillGenres([...items, ...done]), 0);
   { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
   const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const fchip = (id, l, n, on) => `<button class="chip${on ? " on" : ""}" data-wlf="${esc(id)}">${esc(l)}${n != null ? ` <i>${n}</i>` : ""}</button>`;
@@ -896,7 +896,7 @@ function wlCard(s, cands, myVote, movie, cur, totalVotes) {
     return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}
       ${pv ? `<img class="tile-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}
       ${mineSaw ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}
-      <span class="tile-t"><b>${esc(w.m.n)}</b>${(() => { const r = (wlMode === "pop" || wlSort === "rate") && rateOf(w.m) ? `★ ${rateOf(w.m).toFixed(1)}` : "", bits = [w.m.y || "", r, n > 1 ? `${n} want it` : ""].filter(Boolean); return bits.length ? `<small>${esc(bits.join(" · "))}</small>` : ""; })()}</span></button>`;
+      <span class="tile-t"><b>${esc(w.m.n)}</b>${(() => { const r = rateOf(w.m), bits = [w.m.y || "", n > 1 ? `${n} want it` : ""].filter(Boolean); return bits.length || r ? `<small>${esc(bits.join(" · "))}${r ? `<span class="tile-r">★ ${r.toFixed(1)}</span>` : ""}</small>` : ""; })()}</span></button>`;
   };
   // Long lists become Netflix-style rows per genre (each title in its main genre); short ones stay a simple grid.
   const tiles = list => {
