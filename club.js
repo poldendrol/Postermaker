@@ -1623,7 +1623,7 @@ function renderClub() {
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
   bindWl(s, cands);
   $("mwLog")?.addEventListener("click", () => openSearch("What did you watch?", m => openReview(derive(active().id), seenKey(m.n), m)));
-  document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; mwAll = false; renderClub(); });
+  document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
 }
@@ -1704,12 +1704,13 @@ function myWatched(s, who = me.id) {
     const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x }); }
   return out.sort((a, b) => b.d.localeCompare(a.d));
 }
-let mwYear = new Date().getFullYear(), mwAll = false, mwWho = "";
+let mwYear = new Date().getFullYear(), mwAll = false, mwWho = LS.get("marqueeMwWho", "*");
 function myWatchedCard(s) {
   const ppl = [...s.members.entries()].filter(([id]) => id !== me.id && myWatched(s, id).length);
-  if (mwWho && !ppl.some(([id]) => id === mwWho)) mwWho = "";
-  const who = mwWho || me.id, whoName = mwWho ? s.members.get(mwWho)?.name || "They" : "";
-  const all = myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
+  if (mwWho && mwWho !== "*" && !ppl.some(([id]) => id === mwWho)) mwWho = "";
+  const wall = mwWho === "*" && ppl.length > 0; // one wall: everyone's watched titles mixed, newest first
+  const who = wall ? me.id : mwWho || me.id, whoName = mwWho && !wall ? s.members.get(mwWho)?.name || "They" : "";
+  const all = wall ? [...s.members.keys()].flatMap(id => myWatched(s, id).map(w => ({ ...w, who: id }))).sort((a, b) => b.d.localeCompare(a.d) || (b.at || 0) - (a.at || 0)) : myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
   if (!years.includes(mwYear)) mwYear = years[0];
   const list = all.filter(w => +w.d.slice(0, 4) === mwYear), shown = list;
   const diaryN = Object.values(s.saw).map(mp => mp.get(who)).filter(x => x?.v && x.imp && x.wd && +x.wd.slice(0, 4) === mwYear).length;
@@ -1717,13 +1718,13 @@ function myWatchedCard(s) {
   let lastMo = "";
   const rows = shown.map(w => {
     const mo = w.d.slice(0, 7), head = mo !== lastMo ? `<h5 class="mw-mo">${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { month: "long" }))}</h5>` : ""; lastMo = mo;
-    return `${head}<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d"><b>${+w.d.slice(8)}</b><small>${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { weekday: "short" }))}</small></span>${poster(w.m.p, "w92")}<div class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${isTv(w.m) ? ` <span class="tv-tag">${w.ss ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}</b>${w.s ? `<span class="stars">${starStr(w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`;
+    return `${head}<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d"><b>${+w.d.slice(8)}</b><small>${esc(new Date(w.d + "T12:00").toLocaleDateString(undefined, { weekday: "short" }))}</small></span>${poster(w.m.p, "w92")}<div class="body">${w.who ? `<span class="mw-who${w.who === me.id ? " me" : ""}" style="--h:${[...w.who].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)}">${esc(w.who === me.id ? "You" : s.members.get(w.who)?.name || "?")}</span>` : ""}<b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${isTv(w.m) ? ` <span class="tv-tag">${w.ss ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}</b>${w.s ? `<span class="stars">${starStr(w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`;
   }).join("");
   return `<div id="mwCard">
-    ${ppl.length || !whoName ? `<div class="wl-head">${ppl.length ? `<div class="wl-views">${[["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => `<button class="chip${id === mwWho ? " on" : ""}" data-mww="${esc(id)}">${esc(n)}</button>`).join("")}</div>` : "<span></span>"}${whoName ? "" : `<button class="primary" id="mwLog">+ Log</button>`}</div>` : ""}
+    ${ppl.length || !whoName ? `<div class="wl-head">${ppl.length ? `<div class="wl-views">${[["*", "Everyone"], ["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => `<button class="chip${id === mwWho || (id === "" && mwWho === "*" && !wall) ? " on" : ""}" data-mww="${esc(id)}">${esc(n)}</button>`).join("")}</div>` : "<span></span>"}${whoName ? "" : `<button class="primary" id="mwLog">+ Log</button>`}</div>` : ""}
     ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap Watched? on any title, or + Log for something that isn't on a list.`}</p>
+    <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${wall ? " by the club" : ""}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap Watched? on any title, or + Log for something that isn't on a list.`}</p>
     <div class="mw-list">${rows}</div>
   </div>`;
 }
