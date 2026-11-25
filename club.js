@@ -88,7 +88,7 @@ const defaultName = () => me?.name || LS.get("marqueeMe", null)?.name || "";
 // Event: { i: id, k: kind, a: author id, n: author name, t: time, r: round, ... }
 // Kinds: meta {name, day} · join · nom {m} · drop {m} · vote {v: movie key or ""} · pick {m} · unpick
 //        say {x} · seen {s}. Nominations and votes in round r choose the movie for round r + 1.
-const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc", "sugdrop", "fix", "film"]);
+const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc", "sugdrop", "fix", "film", "list", "unlist"]);
 // Cinema outings: a "nom" with tr: "m" is a suggested outing (key ok = ckey). "in" { ok, v: 1|0 } joins it, "odate" { ok, sc } sets the date.
 // "sug" { m, to: [member ids] or ["*"] for everyone, d: "YYYY-MM-DD" first watch date, wk: 1 = remind weekly until seen }
 // "acc" { sg: suggestion id, v: 1|0 } = "I'll watch it in the coming week" (replaces the old weekly reminders; wk is ignored now).
@@ -115,6 +115,8 @@ function merge(clubId, list) {
       if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1; if (e.wd) e.wd = 1;
       if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && (d === "" || /^\d{4}-\d\d-\d\d$/.test(d))) o[+n] = d; e.ss = o; }
     }
+    if (e.k === "list" || e.k === "unlist") { e.lid = String(e.lid || "").slice(0, 16); e.pv = String(e.pv || "").slice(0, 16); e.name = String(e.name || "").slice(0, 60); e.pt = Math.max(0, Math.min(99, +e.pt || 0)); e.np = Math.max(1, Math.min(100, +e.np || 1));
+      e.items = Array.isArray(e.items) ? e.items.slice(0, 40).filter(m => m && (m.t === "movie" || m.t === "tv") && Number.isFinite(+m.i)).map(m => ({ t: m.t, i: +m.i, n: String(m.n || "").slice(0, 120), y: String(m.y || "").slice(0, 4), p: /^\/[\w.-]{1,60}$/.test(m.p) ? m.p : "" })) : []; }
     if (e.k === "sugdrop") e.sg = String(e.sg || "").slice(0, 16);
     if (e.k === "acc") { e.sg = String(e.sg || "").slice(0, 16); e.v = e.v ? 1 : 0; }
     if (e.k === "in" || e.k === "odate") { e.ok = String(e.ok || "").slice(0, 200); e.v = e.v ? 1 : 0; }
@@ -131,7 +133,7 @@ function derive(clubId) {
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {} };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map() };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {}, fixes = {}, films = new Set();
   for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
@@ -171,6 +173,9 @@ function derive(clubId) {
       case "sugdrop": if (e.sg) { const m = (s.sugDrop ||= new Map()); (m.get(e.sg) || m.set(e.sg, new Set()).get(e.sg)).add(e.a); } break;
       case "acc": if (e.sg) (s.acc[e.sg] ||= new Map()).set(e.a, { v: !!e.v, at: e.t, name: e.n }); break;
       // "fix": someone swapped a wrong match (e.g. the 2002 film for the 2026 series) for everyone.
+      // "list" { lid, pv, name, pt, np, items }: a list published for the club, split into parts (ntfy messages are small); "unlist" { lid } takes it back.
+      case "list": if (e.lid && e.pv) { const o = s.clists.get(e.lid); if (!o || o.pv < e.pv) s.clists.set(e.lid, { lid: e.lid, pv: e.pv, name: e.name, np: e.np, at: e.t, a: e.a, by: e.n, parts: { [e.pt]: e.items } }); else if (o.pv === e.pv) o.parts[e.pt] = e.items; } break;
+      case "unlist": if (e.lid) s.clists.delete(e.lid); break;
       case "film": if (e.from) { e.v ? films.add(e.from) : films.delete(e.from); } break;
       case "fix": if (e.from && e.m && e.from !== key(e.m)) {
         const k2 = key(e.m), w = s.wl.get(e.from); fixes[e.from] = e.m;
@@ -194,6 +199,8 @@ function derive(clubId) {
   for (const xs of Object.values(per)) { xs.sort((a, b) => a.at - b.at); for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].at - xs[j - 1].at <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) xs[k].imp = true; } }
   if (clubId === activeId || clubId === active()?.id) asFilm = films;
   s.films = films;
+  s.owner = E.find(e => e.k === "meta")?.a || "";
+  s.pub = [...s.clists.values()].map(o => ({ id: o.lid, name: o.name, by: o.by, a: o.a, at: o.at, pv: o.pv, club: 1, items: Object.keys(o.parts).sort((x, y) => x - y).flatMap(k => o.parts[k]).filter((m, i, a) => a.findIndex(x => key(x) === key(m)) === i) })).filter(l => l.items.length).sort((a, b) => b.at - a.at);
   return s;
 }
 // Next week's pick is voted on straight from the club watchlist (older nominations still count).
@@ -261,7 +268,7 @@ async function reseed(clubId, inWindow) {
   const s = derive(clubId), keepFrom = s.cur - 1;
   const all = Object.values(evs(clubId)).filter(e => !e.gone);
   const latestMeta = all.filter(e => e.k === "meta").sort((a, b) => b.t - a.t)[0];
-  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "fix" || e.k === "film" || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
+  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "fix" || e.k === "film" || e.k === "unlist" || (e.k === "list" && s.clists.get(e.lid)?.pv === e.pv) || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
   if (!missing.length) return;
   try { await send(clubId, missing); } catch {}
@@ -1206,6 +1213,16 @@ function saveList(l) { const all = LS.get("marqueeLists", {}); all[l.id] = { ...
 function dropList(id) { const all = LS.get("marqueeLists", {}); if (all[id]) all[id] = { id, gone: 1, at: now() }; LS.set("marqueeLists", all); }
 const sawIt = (s, m) => { const x = s.saw[seenKey(m.n)]?.get(me.id); return !!x?.v && (!x.m || key(x.m) === key(m)); };
 const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
+// Only the club's list maker (whoever started the club, or already has lists) sees the tools; everyone else gets the lists they published.
+const listMaker = s => s.owner === me.id || myLists().length > 0;
+const allLists = s => { const mine = listMaker(s) ? myLists() : []; return [...mine, ...s.pub.filter(p => !mine.some(l => l.id === p.id))]; };
+const pubOf = (s, l) => s.pub.find(p => p.id === l.id);
+const sameItems = (a, b) => a.length === b.length && a.every((m, i) => key(m) === key(b[i]));
+function publishList(l) {
+  const pv = now().toString(36), np = Math.max(1, Math.ceil(l.items.length / 20)), parts = [];
+  for (let pt = 0; pt < np; pt++) parts.push(["list", { lid: l.id, pv, name: l.name, pt, np, items: l.items.slice(pt * 20, pt * 20 + 20).map(m => ({ t: m.t, i: m.i, n: m.n, y: m.y || "", p: m.p || "" })) }]);
+  actMany(parts, { title: `${me.name} shared a list: ${l.name}`, body: `${l.items.length} titles. Open Lists to add it to your watchlist and tick off what you've seen.` });
+}
 const tmdbToM = (x, t = "movie") => ({ t, i: x.id, n: x.title || x.name || "", y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" });
 // Oscar data comes from Wikidata (free, no key): every film that won (or was nominated for) an Academy Award in a ceremony year, with its TMDB id.
 async function wikidata(q) {
@@ -1245,26 +1262,33 @@ function listTiles(s, items, canDrop) {
 function openListSheet(s, l, ready) {
   const p = listProg(s, l), unseen = l.items.filter(m => !sawIt(s, m));
   const onWl = new Set([...s.wl.values()].filter(w => w.adders.has(me.id)).map(w => key(w.m))), toAdd = unseen.filter(m => !onWl.has(key(m)));
+  const club = !!l.club, mine = !ready && !club, pub = mine && pubOf(s, l), stale = pub && (pub.name !== l.name || !sameItems(pub.items, l.items));
   const bg = el(`<div class="sheet-bg"><div class="sheet ls-sheet" role="dialog" aria-label="${esc(l.name)}">
     <h3>${p.done ? "🏅 " : ""}${esc(l.name)}</h3>
     <div class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></div>
-    <small class="hint">${p.total ? `You've seen ${p.n} of ${p.total}${p.done ? " · badge earned!" : ` · see them all for a badge`}` : "Empty list. Add titles below."}</small>
-    <div class="ts-btns">${toAdd.length ? `<button class="ts-btn" data-lsa="wl">＋ ${toAdd.length} to my watchlist</button>` : `<button class="ts-btn on" disabled>${unseen.length ? "✓ All on your watchlist" : "✓ All seen"}</button>`}${ready ? `<button class="ts-btn" data-lsa="save">💾 Save as my list</button>` : `<button class="ts-btn" data-lsa="add">＋ Add title</button>`}</div>
-    ${listTiles(s, l.items, !ready)}
-    ${ready ? "" : `<button class="link" data-lsa="del">Delete this list</button>`}
+    <small class="hint">${p.total ? `You've seen ${p.n} of ${p.total}${p.done ? " · badge earned!" : ` · see them all for a badge`}${club && l.by ? ` · from ${esc(l.by)}` : ""}` : "Empty list. Add titles below."}</small>
+    <div class="ts-btns">${toAdd.length ? `<button class="ts-btn" data-lsa="wl">＋ ${club ? `Add list to my watchlist (${toAdd.length})` : `${toAdd.length} to my watchlist`}</button>` : `<button class="ts-btn on" disabled>${unseen.length ? "✓ All on your watchlist" : "✓ All seen"}</button>`}${ready ? `<button class="ts-btn" data-lsa="save">💾 Save as my list</button>` : mine ? `<button class="ts-btn" data-lsa="add">＋ Add title</button>` : ""}</div>
+    ${mine && l.items.length ? `<div class="ls-pub">${pub ? `<span>📣 Shared with the club${stale ? " · you changed it since" : ""}</span>${stale ? `<button class="ts-btn" data-lsa="pub">Update</button>` : ""}<button class="link" data-lsa="unpub">Stop sharing</button>` : `<button class="primary" data-lsa="pub">📣 Share with the club</button>`}</div>` : ""}
+    ${p.total && !p.done ? `<small class="hint">Tap a poster you've already seen to tick it off.</small>` : ""}
+    ${listTiles(s, l.items, mine)}
+    ${mine ? `<button class="link" data-lsa="del">Delete this list</button>` : ""}
     <button data-lsa="x">Close</button></div></div>`);
   document.body.appendChild(bg);
   const close = () => bg.remove();
   bg.addEventListener("click", e => {
     if (e.target === bg) return close();
     const x = e.target.closest("[data-lsx]"); if (x) { e.stopPropagation(); l.items = l.items.filter(m => key(m) !== x.dataset.lsx); saveList(l); close(); render(); openListSheet(lastState, l); return; }
-    const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (m) { close(); openTitle(s, m); } return; }
+    const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (!m) return; close();
+      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: seenKey(m.n), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } }); M.toast(`✓ ${m.n} marked as seen.`); openListSheet(lastState, club ? lastState.pub.find(x => x.id === l.id) || l : l, ready); }
+      return; }
     const a = e.target.closest("[data-lsa]")?.dataset.lsa; if (!a) return;
     if (a === "x") close();
     if (a === "wl") { actMany(toAdd.map(m => ["wl", { m }]), { title: `${me.name} added ${toAdd.length} title${toAdd.length === 1 ? "" : "s"} to the club watchlist`, body: l.name }); M.toast(`${toAdd.length} title${toAdd.length === 1 ? "" : "s"} from ${l.name} added to your Personal watchlist.`); close(); }
+    if (a === "pub") { publishList(l); M.toast(pub ? `Updated "${l.name}" for the club.` : `Shared "${l.name}" with the club.`); close(); render(); openListSheet(lastState, l); }
+    if (a === "unpub" && confirm(`Stop sharing "${l.name}"? It disappears from everyone's Lists; their ticks stay.`)) { act("unlist", { lid: l.id }); close(); render(); openListSheet(lastState, l); }
     if (a === "save") { const nl = { id: "l" + rand(8), name: l.name, items: l.items, src: l.src || "" }; saveList(nl); M.toast(`Saved "${l.name}" to your lists.`); close(); render(); }
     if (a === "add") { close(); openSearch(`Add to ${l.name}`, m => { if (!l.items.some(o => key(o) === key(m))) { l.items.push(m); saveList(l); } render(); openListSheet(lastState, l); }); }
-    if (a === "del" && confirm(`Delete "${l.name}"? Your watchlist and badges from other lists stay.`)) { dropList(l.id); close(); render(); }
+    if (a === "del" && confirm(`Delete "${l.name}"? Your watchlist and badges from other lists stay.`)) { if (pub) act("unlist", { lid: l.id }); dropList(l.id); close(); render(); }
   });
 }
 async function openReady(s, kind, y) {
@@ -1275,13 +1299,15 @@ async function openReady(s, kind, y) {
 }
 function renderLists(s) {
   if (!listsEl) return;
-  const ls = myLists(), done = ls.filter(l => listProg(s, l).done), keepQ = listsEl.querySelector("#dirQ")?.value || "", hadFocus = document.activeElement?.id === "dirQ";
+  if (!listMaker(s)) return renderClubLists(s);
+  const ls = myLists(), done = allLists(s).filter(l => listProg(s, l).done), keepQ = listsEl.querySelector("#dirQ")?.value || "", hadFocus = document.activeElement?.id === "dirQ";
   const yrs = Array.from({ length: new Date().getFullYear() - 1928 }, (_, i) => new Date().getFullYear() - i);
   listsEl.innerHTML = `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${done.length ? `🏅 ${done.length} list badge${done.length === 1 ? "" : "s"}` : "See a whole list, get a badge"}</span><h2 class="bang">Lists</h2></div></div>
     <div class="ls-cols">
     <div class="fr-card"><h3>My lists</h3>
-      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
-      <button class="primary" id="lsNew">＋ New list</button></div>
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? " · 📣 shared" : ""}</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
+      <button class="primary" id="lsNew">＋ New list</button>
+      <p class="hint">Open a list and tap 📣 Share to put it in everyone's Lists.</p></div>
     <div class="fr-card"><h3>Ready-made lists</h3>
       <div class="ls-ready">
         <div class="ls-r"><b>🏆 Oscars</b><div class="ls-rc"><select id="oscY" aria-label="Ceremony year">${yrs.map(y => `<option${y === oscYear ? " selected" : ""}>${y}</option>`).join("")}</select>
@@ -1306,6 +1332,21 @@ function renderLists(s) {
     if (k === "dir") { const q = listsEl.querySelector("#dirQ").value.trim(); if (!q) { listsEl.querySelector("#dirQ").focus(); return; } return openReady(s, "dir", q); }
     openReady(s, k === "osc" ? (oscMode === "nom" ? "oscnom" : "osc") : k, k === "osc" ? oscYear : k === "best" ? bestYear : 0); });
   listsEl.querySelector("#dirQ").addEventListener("keydown", e => { if (e.key === "Enter") listsEl.querySelector('[data-ready="dir"]').click(); });
+}
+
+// What everyone but the list maker sees: the shared lists, plus their own import.
+function renderClubLists(s) {
+  const ls = s.pub, done = ls.filter(l => listProg(s, l).done), who = s.members.get(s.owner)?.name || "the club";
+  listsEl.innerHTML = `<div class="fr-card pulp"><div class="pulp-head"><span class="chapter">${done.length ? `🏅 ${done.length} list badge${done.length === 1 ? "" : "s"}` : "See a whole list, get a badge"}</span><h2 class="bang">Lists</h2></div></div>
+    <div class="ls-cols">
+    <div class="fr-card"><h3>Club lists</h3>
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${poster(l.items[0].p, "w92")}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen · from ${esc(l.by || who)}</small><span class="ls-prog"><i style="width:${Math.round(p.n / p.total * 100)}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. When ${esc(who)} shares one, it shows up here.</p>`}</div>
+    <div class="fr-card"><h3>Import</h3>
+      <button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button>
+      <p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p></div>
+    </div>`;
+  listsEl.querySelector("#lsImp").onclick = () => wlApi?.openImport();
+  listsEl.querySelectorAll("[data-lsid]").forEach(b => b.onclick = () => { const l = lastState?.pub.find(x => x.id === b.dataset.lsid) || ls.find(x => x.id === b.dataset.lsid); if (l) openListSheet(lastState || s, l); });
 }
 
 // ---------- test friends (only on this device) ----------
@@ -1576,7 +1617,7 @@ function leadersHtml(s) {
     const bm = bestMonth(me.id), st = streak(me.id), revN = reviews[me.id] || 0, outN = went[me.id] || 0, sent = sugY.filter(g => g.a === me.id).length, land = landed[me.id] || 0;
     const tiles = [["Watched", String(Wm.length), films && series ? `${films} films · ${series} series` : ""], fav && ["Favourite", fav.m.n, starStr(fav.s)], genre && ["Top genre", genre, ""],
       bm && ["Busiest month", bm.note, `${bm.v} watched`], st > 1 && ["Longest streak", `${st} weeks`, "in a row"], revN && ["Reviews", String(revN), ""],
-      outN && ["Cinema outings", String(outN), ""], sent && ["Suggestions", String(sent), land ? `${land} got watched` : ""], (n => n && ["List badges", `🏅 ${n}`, "whole lists seen"])(myLists().filter(l => listProg(s, l).done).length)].filter(Boolean);
+      outN && ["Cinema outings", String(outN), ""], sent && ["Suggestions", String(sent), land ? `${land} got watched` : ""], (n => n && ["List badges", `🏅 ${n}`, "whole lists seen"])(allLists(s).filter(l => listProg(s, l).done).length)].filter(Boolean);
     myWrapData = { yr: ldYear, name: me.name, posters: [...new Set(Wm.map(w => w.m.p).filter(Boolean))].slice(0, 10), lines: tiles.filter(t => t[0] !== "Watched").slice(0, 3).map(([l, v, i]) => [l, i && l !== "Cinema outings" ? `${v} · ${i}` : v]) };
     myWrapData.lines.unshift(["Watched", `${Wm.length} title${Wm.length === 1 ? "" : "s"}${films && series ? ` (${films} films, ${series} series)` : ""}`]);
     return `<div class="wrapup"><div class="wrap-grid">${tiles.map(([l, v, i]) => `<div><small>${esc(l)}</small><b>${esc(v)}</b>${i ? `<i>${esc(i)}</i>` : ""}</div>`).join("")}</div><button class="primary" data-wrapshare="me">Share as an Instagram post</button></div>`;
