@@ -1421,7 +1421,7 @@ function renderLists(s) {
   const yrs = Array.from({ length: new Date().getFullYear() - 1928 }, (_, i) => new Date().getFullYear() - i);
   listsEl.innerHTML = `    <div class="ls-cols">
     <div class="ls-sec"><h3>My lists</h3>
-      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? " · 📣 shared" : ""}</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}${pubOf(s, l) ? " shared" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? ` · <span class="ls-sh">● Shared with the club</span>` : ""}</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
       <button class="primary" id="lsNew">＋ New list</button>
       <p class="hint">Open a list and tap 📣 Share to put it in everyone's Lists.</p></div>
     <div class="ls-sec gen"><h3>Make a list</h3>
@@ -2173,6 +2173,31 @@ function openReview(s, sk, m0, opts = {}) {
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) paintStars(bg, score);
 }
+// Hover card (PC): more about a title when the mouse rests on a row in Watched or Seen before.
+(() => {
+  if (!matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  let card = null, timer = 0, cur = null;
+  const hide = () => { clearTimeout(timer); cur = null; card?.remove(); card = null; };
+  const place = (row) => { if (!card) return; const r = row.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+    let x = r.right + 12; if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 12);
+    const y = Math.min(Math.max(8, r.top + r.height / 2 - h / 2), innerHeight - h - 8); card.style.left = x + "px"; card.style.top = y + "px"; };
+  document.addEventListener("mouseover", e => {
+    const row = e.target.closest?.(".mw-i[data-open]"); if (row === cur) return; hide(); if (!row || !lastState) return; cur = row;
+    timer = setTimeout(() => {
+      const m = findTitle(lastState, row.dataset.open); if (!m || cur !== row) return;
+      card = el(`<div class="hov-card" role="tooltip">${m.p ? `<img src="${M.IMG}w342${esc(m.p)}" alt="">` : ""}<div class="hov-b"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><small class="hint hov-f">${isTv(m) ? "Series" : "Film"}</small><small class="hint">Loading…</small></div></div>`);
+      document.body.appendChild(card); place(row);
+      titleInfo(m).then(i => { if (!card || cur !== row || !i) return; const b = card.querySelector(".hov-b");
+        b.innerHTML = `<b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b>
+          <small class="hint hov-f">${[isTv(m) ? "Series" : "Film", i.genres, i.len].filter(Boolean).map(esc).join(" · ")}</small>
+          ${i.rate ? `<span class="hov-r">${rateRing(+i.rate)} <small class="hint">on TMDB</small></span>` : ""}
+          ${i.by ? `<small>${m.t === "tv" ? "Created by" : "Directed by"} <b>${esc(i.by)}</b></small>` : ""}
+          ${i.cast ? `<small class="hint">With ${esc(i.cast)}</small>` : ""}
+          ${i.plot ? `<p class="hov-p">${esc(i.plot)}</p>` : ""}`; place(row); });
+    }, 300);
+  });
+  document.addEventListener("scroll", hide, true);
+})();
 // Reviews of my suggestions that I haven't looked at yet.
 const revReadKey = id => "marqueeRevRead_" + id;
 function newReviews(s) {
