@@ -184,7 +184,7 @@ function derive(clubId) {
         if (w) { s.wl.delete(e.from); const t = s.wl.get(k2); if (t) for (const [a, n] of w.adders) t.adders.set(a, n); else s.wl.set(k2, { ...w, m: e.m }); }
         for (const g of s.sugs) if (key(g.m) === e.from) g.m = e.m;
       } break;
-      case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), addAt: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); if (!bulkWl.has(e.i)) w.addAt.set(e.a, e.t); s.wl.set(k, w); } break;
+      case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), addAt: new Map(), addT: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); (w.addT ||= new Map()).set(e.a, e.t); if (!bulkWl.has(e.i)) w.addAt.set(e.a, e.t); s.wl.set(k, w); } break;
       case "wldrop": if (e.m && fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
       case "saw": if (e.sk) { const p0 = s.saw[e.sk]?.get(e.a); // "rw": watched it again; keep the earlier watch on the wall
         if (!e.v) s.rw[e.sk]?.delete(e.a);
@@ -899,6 +899,8 @@ function wlCard(s, cands, wlMode) {
   // Everything you logged as watched in Marquee also shows on your Personal watchlist, with a ✓, in a Watched section at the bottom (imports stay out).
   const mineDone = []; // watched titles live in Seen before
   let items = wlMode === "mine" ? mineAll : base.filter(w => !iSaw(w) && sel.some(id => w.adders.has(id)));
+  // Date added: when you put it on your list (Club list: the newest add by a friend you picked).
+  const addedAt = w => wlMode === "mine" ? w.addT?.get(me.id) || w.at || 0 : Math.max(0, ...sel.map(id => w.addT?.get(id) || 0)) || w.at || 0;
   const nTv = items.filter(w => isTv(w.m)).length, mixed = nTv && nTv < items.length;
   const svc = myServices(), onMine = w => (provCache[key(w.m)]?.l || []).some(p => svc.has(p.id));
   const preStream = items;
@@ -907,6 +909,7 @@ function wlCard(s, cands, wlMode) {
     .sort(wlSort === "az" ? (a, b) => a.m.n.localeCompare(b.m.n)
       : wlSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n)
       : wlSort === "rate" ? (a, b) => rateOf(b.m) - rateOf(a.m) || a.m.n.localeCompare(b.m.n)
+      : wlSort === "added" ? (a, b) => addedAt(b) - addedAt(a) || a.m.n.localeCompare(b.m.n)
       : (a, b) => b.adders.size - a.adders.size || b.at - a.at);
   const done = mineDone.filter(w => (!wlQ || w.m.n.toLowerCase().includes(wlQ)) && (!mixed || wlType === "all" || (wlType === "tv") === isTv(w.m)) && !wlNobody);
   const grouped = wlSort === "genre" && items.length >= 8 && !wlQ;
@@ -941,7 +944,7 @@ function wlCard(s, cands, wlMode) {
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : `<button class="primary" id="cwAdd">+ Add</button>`}</div>
     ${preStream.length > 1 ? (() => { const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
       const tog = (attr, on, l) => `<button class="tog${on ? " on" : ""}" ${attr}="${on ? 0 : 1}" aria-pressed="${on}">${l}</button>`;
-      return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], wlSort)}${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}</div>
+      return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["added", "Added"], ["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], wlSort)}${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}</div>
         <div class="wl-frow">${wlMode === "mine" ? tog("data-st", wlStream, "📺 My services" + (wlStream && provBusy ? "…" : "")) : ""}${tog("data-nb", wlNobody, "👀 Nobody's seen")}</div></div>`; })() : ""}
     ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap + Add to bring in your IMDb or Letterboxd watchlist." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
