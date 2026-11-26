@@ -598,12 +598,12 @@ function openFind() {
     const sk = skOf(m), mx = sawMap(s, m).get(me.id), seen = !!mx?.v && (!mx.m || key(mx.m) === key(m)), w = s.wl.get(key(m)), onMine = !!w?.adders.has(me.id);
     const fr = [...sawMap(s, m).entries()].filter(([id, x]) => id !== me.id && x.v && (!x.m || key(x.m) === key(m))).map(([id, x]) => `${s.members.get(id)?.name || x.name}${x.s ? ` ${starStr(x.s, true)}` : ""}`);
     const want = w ? [...w.adders.entries()].filter(([id]) => id !== me.id).map(([, n]) => n) : [];
-    const tags = [seen ? `<span class="ft ok">✓ Seen${mx.s ? ` ${starStr(mx.s, true)}` : ""}</span>` : "", onMine ? `<span class="ft">On your list</span>` : "", fr.length ? `<span class="ft fr">👀 ${esc(fr.join(", "))}</span>` : "", want.length ? `<span class="ft">${esc(want.join(", "))} want${want.length === 1 ? "s" : ""} it</span>` : ""].filter(Boolean).join("");
+    const tags = [seen ? `<span class="ft ok">✓ Seen${mx.s ? ` ${starStr(mx.s, true)}` : ""}</span>` : "", fr.length ? `<span class="ft fr">👀 ${esc(fr.join(", "))}</span>` : "", want.length ? `<span class="ft">${esc(want.join(", "))} want${want.length === 1 ? "s" : ""} it</span>` : ""].filter(Boolean).join("");
     return { seen, onMine, tags };
   };
   const row = (s, m, i) => { const st = status(s, m);
     return `<div class="find-i" data-fi="${i}">${poster(m.p, "w92")}<div class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><small class="hint">${isTv(m) ? "Series" : "Film"}</small>${st.tags ? `<div class="fts">${st.tags}</div>` : ""}</div>
-      <div class="find-btns">${st.seen ? `<button class="find-add" data-flog="${i}">✎ Edit my log</button><button class="find-add" data-fnow="${i}">↻ Watched it again</button>` : `${st.onMine ? "" : `<button class="find-add" data-fadd="${i}">＋ Add to watchlist</button>`}<button class="find-add primary" data-fnow="${i}">🎬 I just watched this</button><button class="find-add" data-fold="${i}">↺ I've seen this before</button>`}</div></div>`; };
+      <div class="find-btns">${st.seen ? `<button class="find-add" data-flog="${i}">✎ Edit my log</button><button class="find-add" data-fnow="${i}">↻ Watched it again</button>` : `${st.onMine ? `<button class="find-add on" data-fdrop="${i}">✓ On watchlist</button>` : `<button class="find-add" data-fadd="${i}">＋ Add to watchlist</button>`}<button class="find-add primary" data-fnow="${i}">🎬 I just watched this</button><button class="find-add" data-fold="${i}">↺ I've seen this before</button>`}</div></div>`; };
   const draw = (local, remote) => { const s = lastState; items = [...local, ...(remote || [])];
     res.innerHTML = (local.length ? `<h4 class="wl-sec">In your club <i>${local.length}</i></h4>${local.map((m, i) => row(s, m, i)).join("")}` : "")
       + (remote === null ? `<p class="hint">Searching…</p>` : remote.length ? `<h4 class="wl-sec">${local.length ? "More results" : "Results"}</h4>${remote.map((m, i) => row(s, m, local.length + i)).join("")}` : local.length ? "" : `<p class="hint">Nothing found.</p>`); };
@@ -613,7 +613,8 @@ function openFind() {
     draw(local, null);
     timer = setTimeout(async () => { try { const r = await tmSearch(text); if (my !== seq) return; const lk = new Set(local.map(key)); draw(local, r.filter(m => !lk.has(key(m)))); } catch { if (my === seq) draw(local, []); } }, 300); });
   res.addEventListener("click", e => {
-    const a = e.target.closest("[data-fadd]"); if (a) { const m = items[+a.dataset.fadd]; act("wl", { m }); M.toast(`${m.n} added to your Personal watchlist.`); a.replaceWith(Object.assign(document.createElement("span"), { className: "ft", textContent: "On your list" })); return; }
+    const dr = e.target.closest("[data-fdrop]"); if (dr) { const m = items[+dr.dataset.fdrop]; act("wldrop", { m }); M.toast(`${m.n} removed from your watchlist.`); dr.outerHTML = `<button class="find-add" data-fadd="${dr.dataset.fdrop}">＋ Add to watchlist</button>`; return; }
+    const a = e.target.closest("[data-fadd]"); if (a) { const m = items[+a.dataset.fadd]; act("wl", { m }); M.toast(`${m.n} added to your Personal watchlist.`); a.outerHTML = `<button class="find-add on" data-fdrop="${a.dataset.fadd}">✓ On watchlist</button>`; return; }
     const lg = e.target.closest("[data-flog]"); if (lg) { const m = items[+lg.dataset.flog]; close(); openReview(lastState, skOf(m), m); return; }
     const nw = e.target.closest("[data-fnow], [data-fold]"); if (nw) { const m = items[+(nw.dataset.fnow ?? nw.dataset.fold)]; const old = "fold" in nw.dataset; const sh = bg.querySelector(".sheet"); openReview(lastState, skOf(m), m, old ? { host: bg, old: true } : { host: bg, log: true, now: true }); return; }
     const r = e.target.closest("[data-fi]"); if (r) { const m = items[+r.dataset.fi]; close(); openTitle(lastState, m); }
