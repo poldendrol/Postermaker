@@ -2104,7 +2104,7 @@ function historyHtml(s) {
 }
 
 // The club page is split into tabs so nothing needs a long scroll on a phone.
-let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "weekly", cal: "weekly", monthly: "weekly", set: "weekly" }[t] || t; })();
+let clubTab = "mine"; // opening the app always lands on My wall
 const navTab = () => document.querySelectorAll("#nav [data-ct]").forEach(b => b.toggleAttribute("aria-current", document.body.dataset.view === "club" && b.dataset.ct === clubTab));
 document.addEventListener("marquee:view", () => setTimeout(navTab, 0));
 document.addEventListener("marquee:clubtab", e => { setClubTab(e.detail); render(); });
