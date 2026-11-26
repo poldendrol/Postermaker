@@ -932,9 +932,9 @@ function wlCard(s, cands, wlMode) {
   const tile = w => {
     const l = provCache[key(w.m)]?.l || [], mp = l.filter(p => svc.has(p.id)), pv = (mp.length ? mp : l)[0];
     const mx = s.saw[seenKey(w.m.n)]?.get(me.id), mineSaw = !!mx?.v && (!mx.m || key(mx.m) === key(w.m)), n = w.adders.size;
-    if (wlMode === "mine") { const r = rateOf(w.m), g = genreOf(w.m);
+    if (wlMode === "mine" || wlMode === "club") { const r = rateOf(w.m), g = genreOf(w.m), fr = wlMode === "club" ? [...w.adders.entries()].filter(([id]) => id !== me.id).map(([, nm]) => nm) : [];
       return `<button class="wl-row" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w92")}<span class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}</b>
-        <small class="hint">${[isTv(w.m) ? "Series" : "", g && g !== "Other" ? g : ""].filter(Boolean).map(esc).join(" · ")}${n > 1 ? `${isTv(w.m) || (g && g !== "Other") ? " · " : ""}${n} want it` : ""}</small>
+        <small class="hint">${[isTv(w.m) ? "Series" : "", g && g !== "Other" ? g : ""].filter(Boolean).map(esc).join(" · ")}${fr.length ? `${isTv(w.m) || (g && g !== "Other") ? " · " : ""}${esc(fr.join(", "))}` : n > 1 ? `${isTv(w.m) || (g && g !== "Other") ? " · " : ""}${n} want it` : ""}</small>
         <span class="wl-rb">${r ? rateRing(r) : ""}${pv ? `<img class="row-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}${mineSaw ? `<i class="row-ok">✓ seen</i>` : ""}</span></span></button>`; }
     return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}
       ${pv ? `<img class="tile-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}
@@ -943,7 +943,7 @@ function wlCard(s, cands, wlMode) {
   };
   // Long lists become Netflix-style rows per genre (each title in its main genre); short ones stay a simple grid.
   const tiles = list => {
-    const gc = wlMode === "mine" ? "wl-grid wl-rows" : "wl-grid";
+    const gc = "wl-grid wl-rows";
     if (!grouped) return `<div class="${gc}">${list.map(tile).join("")}</div>`;
     if (list.some(w => !genreCache[key(w.m)])) setTimeout(() => fillGenres(list), 0);
     const groups = {}; for (const w of list) (groups[genreOf(w.m) || "Loading…"] ||= []).push(w);
@@ -1385,7 +1385,7 @@ const READY = {
   best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
 };
 function listTiles(s, items, canDrop) {
-  return `<div class="wl-grid">${items.map(m => { const r = rateOf(m); return `<button class="wl-tile" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w342")}${sawIt(s, m) ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}<span class="tile-t"><b>${esc(m.n)}</b><small>${esc(m.y || "")}${r ? rateRing(r) : ""}</small></span></button>`; }).join("")}</div>`;
+  return `<div class="wl-grid wl-rows">${items.map(m => { const r = rateOf(m), ok = sawIt(s, m); return `<button class="wl-row ls-r${ok ? " seen" : ""}" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${r ? rateRing(r) : ""}${ok ? `<i class="row-ok tile-ok">✓ seen</i>` : `<i class="row-tick">tap if seen</i>`}</span></span>${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}</button>`; }).join("")}</div>`;
 }
 function openListSheet(s, l, ready, keepY) {
   const p = listProg(s, l), unseen = l.items.filter(m => !sawIt(s, m));
@@ -1397,7 +1397,7 @@ function openListSheet(s, l, ready, keepY) {
     <small class="hint">${p.total ? `You've seen ${p.n} of ${p.total}${p.done ? " · badge earned!" : ` · see them all for a badge`}${club && l.by ? ` · from ${esc(l.by)}` : ""}` : "Empty list. Add titles below."}</small>
     <div class="ts-btns">${toAdd.length ? `<button class="ts-btn" data-lsa="wl">＋ ${club ? `Add list to my watchlist (${toAdd.length})` : `${toAdd.length} to my watchlist`}</button>` : `<button class="ts-btn on" disabled>${unseen.length ? "✓ All on your watchlist" : "✓ All seen"}</button>`}${ready ? `<button class="ts-btn" data-lsa="save">💾 Save as my list</button>` : mine ? `<button class="ts-btn" data-lsa="add">＋ Add title</button>` : ""}</div>
     ${mine && l.items.length ? `<div class="ls-pub">${pub ? `<span>📣 Shared with the club${stale ? " · you changed it since" : ""}</span>${stale ? `<button class="ts-btn" data-lsa="pub">Update</button>` : ""}<button class="link" data-lsa="unpub">Stop sharing</button>` : `<button class="primary" data-lsa="pub">📣 Share with the club</button>`}</div>` : ""}
-    ${p.total && !p.done ? `<small class="hint">Tap a poster you've already seen to tick it off.</small>` : ""}
+    ${p.total && !p.done ? `<small class="hint">Tap a title you've already seen to tick it off.</small>` : ""}
     ${listTiles(s, l.items, mine)}
     ${mine ? `<button class="link" data-lsa="del">Delete this list</button>` : ""}
     <button data-lsa="x">Close</button></div></div>`);
