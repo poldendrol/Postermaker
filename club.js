@@ -1304,6 +1304,13 @@ async function tmdbFilms(ids) {
   await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const id = work.shift(); try { const j = await M.tm(`/movie/${id}`); out.set(id, tmdbToM(j)); } catch {} } }));
   return ids.map(id => out.get(id)).filter(Boolean).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i);
 }
+async function byTitles(pairs) {
+  const near = (l, y) => (l || []).find(x => Math.abs(+(x.release_date || "").slice(0, 4) - y) <= 1);
+  const out = await Promise.all(pairs.map(async ([q, y, alt]) => { try {
+    for (const t of [q, alt].filter(Boolean)) { const x = near((await M.tm("/search/movie", { query: t, year: y })).results, y) || near((await M.tm("/search/movie", { query: t })).results, y); if (x) return tmdbToM(x); }
+    return null; } catch { return null; } }));
+  return out.filter(Boolean);
+}
 const OSC = `?award rdfs:label ?al. FILTER(LANG(?al) = "en" && STRSTARTS(?al, "Academy Award for"))`;
 const READY = {
   osc: { name: y => `Oscar winners ${y}`, load: async y => {
@@ -1323,6 +1330,8 @@ const READY = {
     const cr = await M.tm(`/person/${person.id}/movie_credits`);
     return (cr.crew || []).filter(x => x.job === "Director" && x.release_date && x.release_date <= iso(new Date())).sort((a, b) => a.release_date.localeCompare(b.release_date)).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
   top: { name: () => "Top 100 rated films", load: async () => (await Promise.all([1, 2, 3, 4, 5].map(page => M.tm("/movie/top_rated", { page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 100) },
+  // Hand-picked lists: titles + years, matched on TMDB when you open them.
+  lee: { name: () => "Christopher Lee as Dracula", load: () => byTitles([["Dracula", 1958], ["Dracula: Prince of Darkness", 1966], ["Dracula Has Risen from the Grave", 1968], ["Taste the Blood of Dracula", 1970], ["Scars of Dracula", 1970], ["Count Dracula", 1970], ["Dracula A.D. 1972", 1972], ["The Satanic Rites of Dracula", 1973], ["Dracula and Son", 1976, "Dracula père et fils"]]) },
   best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
 };
 function listTiles(s, items, canDrop) {
@@ -1383,6 +1392,7 @@ function renderLists(s) {
         <div class="ls-r"><b>🎬 Every Best Picture winner</b><div class="ls-rc"><button data-ready="bp">Show</button></div></div>
         <div class="ls-r"><b>⭐ Best films of a year</b><div class="ls-rc"><select id="bestY" aria-label="Year">${yrs.map(y => `<option${y === bestYear ? " selected" : ""}>${y}</option>`).join("")}</select><button data-ready="best">Show</button></div></div>
         <div class="ls-r"><b>🎥 Every film by a director</b><div class="ls-rc"><input type="search" id="dirQ" placeholder="e.g. Christopher Nolan" autocomplete="off" enterkeyhint="search"><button data-ready="dir">Show</button></div></div>
+        <div class="ls-r"><b>🧛 Christopher Lee as Dracula</b><div class="ls-rc"><button data-ready="lee">Show</button></div></div>
         <div class="ls-r"><b>💯 Top 100 rated films</b><div class="ls-rc"><button data-ready="top">Show</button></div></div>
       </div></div>
     <div class="ls-sec"><h3>Import</h3>
