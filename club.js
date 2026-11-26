@@ -837,8 +837,42 @@ function indexCine() {
 }
 async function loadCine() {
   for (const u of ["https://raw.githubusercontent.com/poldendrol/Postermaker/main/screenings.json", "screenings.json"]) {
-    try { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) continue; cine = await r.json(); indexCine(); const box = $("cbCal"); if (box && box._redraw) box._redraw(); return; } catch {}
+    try { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) continue; cine = await r.json(); indexCine(); const box = $("cbCal"); if (box && box._redraw) box._redraw(); if (rtPane === "gent" && !ghentList) loadGhent(); return; } catch {}
   }
+}
+// In Ghent: the best films playing in Ghent's cinemas in the next two weeks (Sphinx, Studio Skoop, KASKcinema, Kinepolis…),
+// each matched to TMDB once (cached on this device) and ranked by score; only well-rated films with enough votes make the list.
+let ghentList = null, ghentBusy = false;
+const ghentCache = LS.get("marqueeGhentTm", {});
+async function loadGhent() {
+  if (ghentBusy || !cine) return; ghentBusy = true;
+  const today = iso(new Date()), end = isoAdd(today, 14), nowHm = new Date().toTimeString().slice(0, 5), shows = new Map();
+  for (const x of cine.screenings || []) { if (x.d < today || x.d > end || (x.d === today && x.h < nowHm)) continue; const k = seenKey(x.t); (shows.get(k) || shows.set(k, { t: x.t, l: [] }).get(k)).l.push(x); }
+  const work = [...shows.values()].filter(f => !(f.t in ghentCache));
+  await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const f = work.shift(); try {
+    const j = await M.tm("/search/movie", { query: f.t.replace(/\s*\((OV|NL|FR|EN|ondertiteld)[^)]*\)/gi, "").replace(/\s+(OV|NL|FR|EN|2D|3D|ATMOS|IMAX)$/i, ""), include_adult: "false" });
+    const rs = (j.results || []).filter(x => x.poster_path), want = seenKey(f.t), yr = new Date().getFullYear();
+    const best = rs.map(x => ({ x, sc: (seenKey(x.title) === want || seenKey(x.original_title) === want ? 3 : 0) + (+(x.release_date || "").slice(0, 4) >= yr - 2 ? 1 : 0) + Math.min(1, (x.popularity || 0) / 50) })).sort((a, b) => b.sc - a.sc)[0]?.x;
+    ghentCache[f.t] = best ? { m: tmdbToM(best), r: +(+best.vote_average || 0).toFixed(1), v: best.vote_count || 0 } : null;
+  } catch { } } }));
+  try { LS.set("marqueeGhentTm", ghentCache); } catch {}
+  const out = new Map();
+  for (const f of shows.values()) { const g = ghentCache[f.t]; if (!g) continue; const k = key(g.m), o = out.get(k) || { ...g, l: [] }; o.l.push(...f.l); out.set(k, o); }
+  for (const f of kpRunning(today).concat(kpOpening(today))) { const k = key(f.m); if (out.has(k)) continue; const g = ghentCache["kp:" + k] || await M.tm(`/movie/${f.m.i}`).then(j => (ghentCache["kp:" + k] = { m: f.m, r: +(+j.vote_average || 0).toFixed(1), v: j.vote_count || 0 })).catch(() => null); if (g) out.set(k, { ...g, l: [{ c: "Kinepolis Gent", d: "", h: "" }] }); }
+  try { LS.set("marqueeGhentTm", ghentCache); } catch {}
+  ghentList = [...out.values()].filter(g => g.r >= 6.5 && g.v >= 25).sort((a, b) => b.r - a.r || b.v - a.v);
+  for (const g of ghentList) rateCache[key(g.m)] = g.r;
+  ghentBusy = false; render();
+}
+function ghentHtml(s) {
+  if (!ghentList) { setTimeout(loadGhent, 0); return `<p class="hint">Checking what's playing in Ghent…</p>`; }
+  if (!ghentList.length) return `<p class="hint">Nothing well-rated playing in Ghent right now.</p>`;
+  const wd = d => fmtDay(d, "wd");
+  return `<p class="hint">Well-rated films playing in Ghent in the next two weeks, best first.</p><div class="wl-grid wl-rows pop-rows">${ghentList.map((g, i) => { const m = g.m, saw = sawIt(s, m), mine = s.wl.get(key(m))?.adders.has(me.id);
+    const cs = [...new Set(g.l.map(x => x.c))], nx = g.l.filter(x => x.d).sort((a, b) => (a.d + a.h).localeCompare(b.d + b.h))[0];
+    return `<button class="wl-row pop-row" data-open="${esc(key(m))}" aria-label="${esc(m.n)}"><span class="pop-rk">${i + 1}</span>${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b>
+      <small class="hint">${esc(cs.join(", "))}${nx ? ` · next ${esc(nx.d === iso(new Date()) ? "today" : wd(nx.d))} ${esc(nx.h)}` : ""}</small>
+      <span class="wl-rb">${rateRing(g.r)}${saw ? `<i class="row-ok">✓ seen</i>` : mine ? `<i class="row-ok">On your list</i>` : ""}</span></span></button>`; }).join("")}</div>`;
 }
 let calAll = LS.get("marqueeCalAll2", true); // false: the cinema calendar shows outings and Kinepolis releases only
 function cineHtml(dayIso) {
@@ -1207,7 +1241,7 @@ function wlCard(s, cands, wlMode) {
 }
 const myWlCount = s => { const picked = new Set(Object.values(s.picks).map(key)); return [...s.wl.values()].filter(w => !picked.has(key(w.m)) && w.adders.has(me.id) && !(x => !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)))(sawMap(s, w.m)?.get(me.id))).length; };
 const pulpPick = (opts, cur, attr, three) => `<div class="wl-pick${three ? " three" : ""}" role="tablist">${opts.map(([k, ch, l, dot], i) => `<button class="pulp-head${i ? " alt" : ""}${cur === k ? " on" : ""}${dot ? " dot" : ""}" ${attr}="${k}" role="tab" aria-selected="${cur === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>`;
-let rtPane = "pop", clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
+let rtPane = LS.get("marqueeRtPane", "pop") === "gent" ? "gent" : "pop", clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
 let popGenFor = null, popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
@@ -1381,7 +1415,7 @@ function forYouCard(s, part) {
   </div>`;
 }
 function findTitle(s, k) {
-  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
+  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || ghentList?.find(g => key(g.m) === k)?.m || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
 }
 function openTitleByKey(s, k, focusSuggest) { const m = findTitle(s, k); if (m) openTitle(s, m, focusSuggest); }
 let titleSheet = null;
@@ -2186,8 +2220,8 @@ function renderClub() {
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
-    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"]], "pop", "data-rtv")}
-      ${popHtml(s)}</div>
+    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["gent", ghentList ? `${ghentList.length} worth seeing` : "Cinemas", "In Ghent"]], rtPane, "data-rtv")}
+      ${rtPane === "gent" ? ghentHtml(s) : popHtml(s)}</div>
     </div>
 
 
