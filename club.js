@@ -1308,16 +1308,18 @@ function leaveClub(id) {
 }
 function renderSettingsExtras() {
   const st = $("setStream"), pu = $("setPush"), cl = $("setClubs");
+  const im = $("setImport"); // importing watchlists, ratings and diaries lives in Settings
+  if (im) { im.innerHTML = `<b>Import</b><button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button><p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>`;
+    im.hidden = !me || !clubs().length; im.querySelector("#lsImp").onclick = () => { if (wlApi) wlApi.openImport(); else M.toast("Open your club once first."); }; }
   // Version line at the bottom of Settings, so a screenshot shows which version a device runs.
   if (!$("appVer")) { const v = document.createElement("p"); v.id = "appVer"; v.className = "hint"; v.style.textAlign = "center"; $("setClubs")?.parentElement.appendChild(v); fetch("sw.js", { cache: "no-cache" }).then(r => r.text()).then(t => { v.textContent = "Marquee " + ((t.match(/marquee-(v\d+)/) || [])[1] || ""); }).catch(() => {}); }
   if (cl) {
     const list = clubs();
     cl.innerHTML = `<b>My clubs</b>${list.length ? list.map(c => { const s = derive(c.id), n = s.members.size, here = c.id === active()?.id;
       return `<div class="club-row"><div><b>${esc(s.name || c.name)}</b><small class="hint">${n} member${n === 1 ? "" : "s"}${here ? " · open now" : ""}</small></div>${here ? "" : `<button data-copen="${esc(c.id)}">Open</button>`}<button class="link danger" data-cleave="${esc(c.id)}">Leave</button></div>`; }).join("") : `<p class="hint">You're not in a club yet.</p>`}
-      <button id="setNewClub">Start or join a club</button>`;
+`;
     cl.querySelectorAll("[data-copen]").forEach(b => b.onclick = () => { activeId = b.dataset.copen; LS.set("marqueeClubActive", activeId); live(); render(); M.setView("club"); });
     cl.querySelectorAll("[data-cleave]").forEach(b => b.onclick = () => { const c = clubs().find(x => x.id === b.dataset.cleave); if (!c || !confirm(`Leave ${derive(c.id).name || c.name}? It's removed from all your devices. You can rejoin with an invite link.`)) return; leaveClub(c.id); renderSettingsExtras(); M.toast("Left the club."); });
-    cl.querySelector("#setNewClub").onclick = () => { M.setView("club"); setTimeout(() => $("cbNew")?.click(), 50); };
   }
   if (st) {
     const n = myServices().size;
@@ -1721,12 +1723,8 @@ function renderLists(s) {
       <button class="primary" id="genGo"${genBusy ? " disabled" : ""}>${genBusy ? "Making the list…" : "Make the list"}</button>
       <p class="hint" id="genMsg"${genMsg ? "" : " hidden"}>${esc(genMsg)}</p>
       <small class="hint">The list opens so you can check it, then 💾 Save it and 📣 Share it with the club.</small></div>
-    <div class="ls-sec"><h3>Import</h3>
-      <button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button>
-      <p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p></div>
     </div>`;
   const gq = listsEl.querySelector("#genQ"); if (gq) { if (hadFocus) { gq.focus(); try { gq.setSelectionRange(gq.value.length, gq.value.length); } catch {} } gq.oninput = () => { genQ[genType] = gq.value; }; gq.onkeydown = e => { if (e.key === "Enter") listsEl.querySelector("#genGo").click(); }; }
-  listsEl.querySelector("#lsImp").onclick = () => wlApi?.openImport();
   listsEl.querySelector("#lsNew").onclick = () => { const n = (prompt("Name your list", "") || "").trim().slice(0, 60); if (!n) return; const l = { id: "l" + rand(8), name: n, items: [] }; saveList(l); render(); openListSheet(lastState, l); };
   listsEl.querySelectorAll("[data-lsid]").forEach(b => b.onclick = () => { const l = myLists().find(x => x.id === b.dataset.lsid); if (l) openListSheet(s, l); });
   listsEl.querySelectorAll("[data-gt]").forEach(b => b.onclick = () => { genType = b.dataset.gt; LS.set("marqueeGenType", genType); genMsg = ""; renderLists(s); listsEl.querySelector("#genQ")?.focus(); });
@@ -1747,11 +1745,7 @@ function renderClubLists(s) {
   listsEl.innerHTML = `    <div class="ls-cols">
     <div class="ls-sec"><h3>Club lists</h3>
       ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${poster(l.items[0].p, "w92")}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen · from ${esc(l.by || who)}</small><span class="ls-prog"><i style="width:${Math.round(p.n / p.total * 100)}%"></i></span>${friendBars(s, l)}</span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. When ${esc(who)} shares one, it shows up here.</p>`}</div>
-    <div class="ls-sec"><h3>Import</h3>
-      <button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button>
-      <p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p></div>
     </div>`;
-  listsEl.querySelector("#lsImp").onclick = () => wlApi?.openImport();
   listsEl.querySelectorAll("[data-lsid]").forEach(b => b.onclick = () => { const l = lastState?.pub.find(x => x.id === b.dataset.lsid) || ls.find(x => x.id === b.dataset.lsid); if (l) openListSheet(lastState || s, l); });
 }
 
