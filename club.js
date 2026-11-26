@@ -114,6 +114,7 @@ function merge(clubId, list) {
     if (e.k === "saw") {
       if (e.rw) e.rw = 1;
       if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1; if (e.wd) e.wd = 1;
+      if (e.sr) { const o = {}; if (typeof e.sr === "object") for (const [n, v] of Object.entries(e.sr).slice(0, 60)) if (+n > 0 && +n < 100 && +v >= .5 && +v <= 5) o[+n] = Math.round(+v * 2) / 2; e.sr = o; }
       if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && (d === "" || /^\d{4}-\d\d-\d\d$/.test(d))) o[+n] = d; e.ss = o; }
     }
     if (e.k === "list" || e.k === "unlist") { e.lid = String(e.lid || "").slice(0, 16); e.pv = String(e.pv || "").slice(0, 16); e.name = String(e.name || "").slice(0, 60); e.pt = Math.max(0, Math.min(99, +e.pt || 0)); e.np = Math.max(1, Math.min(100, +e.np || 1));
@@ -188,7 +189,7 @@ function derive(clubId) {
       case "saw": if (e.sk) { const p0 = s.saw[e.sk]?.get(e.a); // "rw": watched it again; keep the earlier watch on the wall
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
-      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null }); break;
+      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
     }
   }
   // A title someone has watched leaves their watchlist (old imports also put every rated film on it).
@@ -1120,6 +1121,61 @@ function findTitle(s, k) {
 }
 function openTitleByKey(s, k, focusSuggest) { const m = findTitle(s, k); if (m) openTitle(s, m, focusSuggest); }
 let titleSheet = null;
+// Seasons on a series' title sheet: tap one to mark it watched and give it its own stars ("ss" dates and "sr" ratings on your saw event).
+function seasonsRow(bg, s, sk, m) {
+  const box = bg.querySelector(".ts-seasons"); if (!box) return;
+  M.tm(`/tv/${m.i}`).then(j => {
+    const list = (j.seasons || []).map(x => ({ n: x.season_number, eps: x.episode_count || 0, y: (x.air_date || "").slice(0, 4) })).filter(x => x.n > 0);
+    const seasons = list.length ? list : Array.from({ length: j.number_of_seasons || 0 }, (_, i) => ({ n: i + 1, eps: 0, y: "" }));
+    if (!seasons.length) { box.innerHTML = ""; return; }
+    const draw = () => { const x = (lastState || s).saw[sk]?.get(me.id), mine = x?.v ? x : null;
+      box.innerHTML = `<b class="ts-sh">Seasons</b><div class="ss-row">${seasons.map(q => { const on = !!mine?.ss && q.n in mine.ss, r = mine?.sr?.[q.n];
+        return `<button class="ss-chip${on ? " on" : ""}" data-ssn="${q.n}">S${q.n}${on ? " ✓" : ""}${r ? ` <i>★${r}</i>` : ""}</button>`; }).join("")}</div>
+        <small class="hint">Tap a season to mark it watched and rate it.</small>`;
+      box.querySelectorAll("[data-ssn]").forEach(b => b.onclick = () => openSeason(s, sk, m, seasons.find(q => q.n === +b.dataset.ssn), draw)); };
+    draw();
+  }).catch(() => { box.innerHTML = ""; });
+}
+function openSeason(s0, sk, m, q, redraw) {
+  const s = lastState || s0, prev = s.saw[sk]?.get(me.id)?.v ? s.saw[sk].get(me.id) : null, today = iso(new Date());
+  const had = !!prev?.ss && q.n in prev.ss, d0 = had ? prev.ss[q.n] : "";
+  let score = prev?.sr?.[q.n] || 0, old = had && !d0;
+  const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Season ${q.n}">
+    <h3>${esc(m.n)} · Season ${q.n}</h3>${q.eps || q.y ? `<small class="hint">${[q.y, q.eps ? `${q.eps} episodes` : ""].filter(Boolean).join(" · ")}</small>` : ""}
+    <div class="rev-btns rev-pick"${had ? " hidden" : ""}><button class="primary" data-when="now">Just watched</button><button data-when="old">Seen it before</button></div>
+    <div class="rev-step2"${had ? "" : " hidden"}>
+      <p class="rev-mode"><b>${old ? "Seen it before" : "Just watched"}</b> <button class="link" data-sw>change</button></p>
+      <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
+      <small class="hint">Your stars for this season (tap twice for a half star). The series keeps its own rating.</small>
+      <label class="rev-d"${old ? " hidden" : ""}>Watched on <input type="date" id="ssD" value="${d0 || today}" max="${today}"></label>
+      <button class="primary" id="ssSave">Save</button>
+    </div>
+    ${had ? `<button class="link" id="ssUn">Mark season ${q.n} as not watched</button>` : ""}
+    <button data-x>Close</button></div></div>`);
+  document.body.appendChild(bg);
+  paintStars(bg, score);
+  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
+  const step = o => { old = o; bg.querySelector(".rev-pick").hidden = true; bg.querySelector(".rev-step2").hidden = false; bg.querySelector(".rev-mode b").textContent = o ? "Seen it before" : "Just watched"; bg.querySelector(".rev-d").hidden = o; };
+  bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => step(b.dataset.when === "old"));
+  bg.querySelector("[data-sw]").onclick = () => { bg.querySelector(".rev-pick").hidden = false; bg.querySelector(".rev-step2").hidden = true; };
+  const close = () => bg.remove();
+  bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-x]")) close(); });
+  const base = () => prev ? { ...(prev.s ? { s: prev.s } : {}), ...(prev.x ? { x: prev.x } : {}), ...(prev.old ? { old: 1 } : prev.d ? { d: prev.d } : {}) } : (old ? { old: 1 } : { d: bg.querySelector("#ssD").value || today });
+  const mm = { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p };
+  bg.querySelector("#ssSave").onclick = () => {
+    const ss = { ...(prev?.ss || {}) }, sr = { ...(prev?.sr || {}) };
+    ss[q.n] = old ? "" : (bg.querySelector("#ssD").value || today); if (score) sr[q.n] = score; else delete sr[q.n];
+    close(); act("saw", { sk, v: 1, ...base(), ss, ...(Object.keys(sr).length ? { sr } : {}), m: mm });
+    M.toast(`Season ${q.n} of ${m.n} ${had ? "updated" : "marked as watched"}${score ? ` · ${starStr(score, true)}` : ""}.`); setTimeout(redraw, 50);
+  };
+  bg.querySelector("#ssUn")?.addEventListener("click", () => {
+    const ss = { ...(prev?.ss || {}) }, sr = { ...(prev?.sr || {}) }; delete ss[q.n]; delete sr[q.n];
+    close();
+    if (!Object.keys(ss).length && !prev.s && !prev.x) act("saw", { sk, v: 0 });
+    else act("saw", { sk, v: 1, ...base(), ss, ...(Object.keys(sr).length ? { sr } : {}), m: mm });
+    M.toast(`Season ${q.n} unmarked.`); setTimeout(redraw, 50);
+  });
+}
 function openTitle(s, m, focusSuggest) {
   titleSheet?.remove();
   const sk = seenKey(m.n), others = [...s.members.entries()].filter(([id]) => id !== me.id);
@@ -1147,6 +1203,7 @@ function openTitle(s, m, focusSuggest) {
     ${others.length ? `<div class="ts-sug" hidden><div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button></div>` : ""}
     ${wl && [...wl.adders.keys()].some(a => a !== me.id) ? `<small class="hint">On ${esc([...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n).join(", "))}'s list</small>` : ""}
+    ${isTv(m) ? `<div class="ts-seasons"><small class="hint">Loading seasons…</small></div>` : ""}
     <div class="ts-info"><small class="hint">Loading info…</small></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
@@ -1196,6 +1253,7 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("#tsSend").onclick = say;
   bg.querySelector("#tsSay").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) say(); });
   const close = () => { bg.remove(); if (titleSheet === bg) titleSheet = null; };
+  if (isTv(m)) seasonsRow(bg, s, sk, m);
   bg.addEventListener("click", e => { if (e.target === bg || e.target.id === "tsClose") close(); });
   bg.querySelector("[data-tsfix]")?.addEventListener("click", () => { bg.remove(); openSearch("Pick the right one", m2 => { if (key(m2) === key(m)) return; act("fix", { from: key(m), m: m2 }); M.toast(`Changed to ${m2.n}${m2.y ? ` (${m2.y})` : ""} for everyone.`); }, m.n); });
   bg.querySelector("[data-tsmore]")?.addEventListener("click", e => { e.currentTarget.hidden = true; bg.querySelector(".ts-fix").hidden = false; });
@@ -1913,9 +1971,9 @@ function scheduleDigest(s, c) {
 }
 function myWatched(s, who = me.id) {
   const out = [];
-  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk); if (!m) continue;
+  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk) || x.m; if (!m) continue;
     const ss = ssList(x.ss);
-    if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) out.push({ sk, m, d, s: x.s, x: x.x, ss: ns }); continue; }
+    if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) { const rs = ns.map(n => x.sr?.[n]).filter(Boolean); out.push({ sk, m, d, s: rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length * 2) / 2 : x.s, x: x.x, ss: ns }); } continue; }
     const rw = s.rw[sk]?.get(who);
     if (rw) rw.past.forEach((p, i) => out.push({ sk, m, d: p.d, s: p.s, x: p.x, rw: i }));
     const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x, rw: rw?.n || 0 }); }
@@ -1948,7 +2006,7 @@ function myWatchedCard(s) {
   const ppl = [...s.members.entries()].filter(([id]) => id !== me.id && myWatched(s, id).length);
   if (mwWho && mwWho !== "*" && !ppl.some(([id]) => id === mwWho)) mwWho = "";
   const wall = mwWho === "*" && ppl.length > 0; // one wall: everyone's watched titles mixed, newest first
-  const who = wall ? me.id : mwWho || me.id, whoName = mwWho && !wall ? (mwWho === me.id ? "" : s.members.get(mwWho)?.name || "") : "";
+  const who = !wall && mwWho && mwWho !== "*" ? mwWho : me.id, whoName = who !== me.id ? s.members.get(who)?.name || "" : "";
   const all = wall ? [...s.members.keys()].flatMap(id => myWatched(s, id).map(w => ({ ...w, who: id }))).sort((a, b) => b.d.localeCompare(a.d) || (b.at || 0) - (a.at || 0)) : myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
   if (!years.includes(mwYear)) mwYear = years[0];
   const list = all.filter(w => +w.d.slice(0, 4) === mwYear), shown = list;
@@ -2019,7 +2077,8 @@ function openReview(s, sk, m0, opts = {}) {
     const from = prev || old ? [] : s.sugs.filter(g => seenKey(g.m.n) === sk && g.a !== me.id && sugTo(s, g).includes(me.id));
     const ss = {}; for (const k of picked) ss[k] = prev?.ss && k in prev.ss ? prev.ss[k] : old ? "" : d;
     const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + starStr(sc, true) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
-    act("saw", { sk, v: 1, ...(rw ? { rw: 1 } : {}), ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m ? { m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } } : {}) }, news);
+    const sr = {}; for (const k of picked) if (prev?.sr?.[k]) sr[k] = prev.sr[k];
+    act("saw", { sk, v: 1, ...(Object.keys(sr).length ? { sr } : {}), ...(rw ? { rw: 1 } : {}), ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m ? { m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } } : {}) }, news);
     // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
     for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
     // Recommend: it lands in everyone else's For you as a suggestion to accept.
