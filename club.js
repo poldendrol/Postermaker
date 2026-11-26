@@ -1565,13 +1565,13 @@ function friendBars(s, l) {
   const out = ids.map((id, i) => { const n = l.items.filter(m => !!sawMap(s, m).get(id)?.v).length; return n ? `<span class="fr-prog"><em style="color:${FR_COL[i % FR_COL.length]}">${esc(s.members.get(id)?.name || "")}</em><span class="ls-prog fr"><i style="width:${Math.round(n / (l.items.length || 1) * 100)}%;background:${FR_COL[i % FR_COL.length]}"></i></span><small>${n}</small></span>` : ""; }).join("");
   return out ? `<span class="fr-progs">${out}</span>` : "";
 }
-// My wall: the challenges people pinned (📌 in a challenge), with their own progress. With nothing pinned, your closest one shows.
+// My wall: the challenges people pinned (📌 in a challenge), with their own progress.
 function chalBar(s) {
   const lists = new Map([...s.pub, ...allLists(s)].map(l => [l.id, l])), who = typeof mwWho === "undefined" ? me.id : mwWho === "*" ? "*" : mwWho || me.id;
   const progOf = (l, id) => { const n = l.items.filter(m => id === me.id ? sawIt(s, m) : !!sawMap(s, m).get(id)?.v).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
   const ids = who === "*" ? [me.id, ...[...s.members.keys()].filter(id => id !== me.id)] : [who];
   const rows = ids.flatMap(id => [...(s.pins[id] || new Map()).entries()].sort((a, b) => a[1] - b[1]).map(([lid]) => lists.get(lid)).filter(l => l?.items.length).map(l => ({ l, id, p: progOf(l, id) })));
-  if (!rows.length && (who === me.id || who === "*")) { let best = null; for (const l of allLists(s)) { const p = listProg(s, l); if (!p.n || p.done || p.total < 3) continue; const r = p.n / p.total; if (!best || r > best.p.n / best.p.total) best = { l, id: me.id, p, auto: 1 }; } if (best) rows.push(best); }
+  // Only what people pinned shows (no automatic pick).
   const many = who === "*" && new Set(rows.map(r => r.id)).size > 1;
   return rows.map(({ l, id, p, auto }) => `<button class="chal-bar${p.done ? " done" : ""}" data-chal="${esc(l.id)}"${auto ? ' title="Your closest challenge. Open a challenge and tap 📌 to choose what shows here."' : ""}><span class="chal-t">${p.done ? "🏅" : auto ? "🎯" : "📌"} ${many || id !== me.id ? `<em>${esc(id === me.id ? "You" : s.members.get(id)?.name || "")}</em> · ` : ""}<b>${esc(l.name)}</b>${p.done ? " · done!" : ` · ${p.total - p.n} to go`}</span><span class="chal-track"><i style="width:${Math.round(p.n / (p.total || 1) * 100)}%"></i></span><small>${p.n}/${p.total}</small>${id === me.id ? friendBars(s, l) : ""}</button>`).join("");
 }
