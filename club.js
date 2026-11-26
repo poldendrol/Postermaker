@@ -403,6 +403,38 @@ async function tmSearch(text) {
   return raw.filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 16)
     .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
 }
+// Activity: what friends did lately (watched, reviews, comments, suggestions, outings, shared lists), newest first.
+const actKey = id => "marqueeActRead_" + id;
+function activity(s, clubId) {
+  const E = Object.values(evs(clubId)).filter(e => !e.gone && e.a !== me?.id && now() - e.t < 864e5 * 30).sort((a, b) => a.t - b.t);
+  const burst = new Set(); { const per = {}; for (const e of E) if (e.k === "saw" && e.v) (per[e.a] ||= []).push(e);
+    for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) burst.add(xs[k]); } }
+  const out = [], tOf = e => e.m || (e.sk ? titleBySk(s, e.sk) : null);
+  for (const e of E) {
+    const m = tOf(e), who = e.n || s.members.get(e.a)?.name || "Someone";
+    if (e.k === "saw" && e.v && !e.imp && !burst.has(e) && !e.old && m) out.push({ t: e.t, who, m, ic: e.rw ? "↻" : "🎬", txt: `${e.rw ? "watched again" : "watched"} <b>${esc(m.n)}</b>${e.s ? ` <span class="stars">${starStr(e.s, true)}</span>` : ""}`, x: e.x });
+    else if (e.k === "say" && m) out.push({ t: e.t, who, m, ic: "💬", txt: `on <b>${esc(m.n)}</b>`, x: e.x });
+    else if (e.k === "sug" && m && (e.to || []).some(id => id === "*" || id === me.id)) out.push({ t: e.t, who, m, ic: "📣", txt: `suggests <b>${esc(m.n)}</b> to ${(e.to || []).includes("*") ? "everyone" : "you"}` });
+    else if (e.k === "nom" && e.tr === "m" && m) out.push({ t: e.t, who, m, ic: "🍿", txt: `wants to see <b>${esc(m.n)}</b> at the cinema` });
+    else if (e.k === "list" && !e.pt) out.push({ t: e.t, who, ic: "📋", txt: `shared a list: <b>${esc(e.name || "a list")}</b>`, list: e.lid });
+    else if (e.k === "join") out.push({ t: e.t, who, ic: "👋", txt: "joined the club" });
+  }
+  return out.reverse().slice(0, 80);
+}
+function actNew(s) { const c = active(); if (!c || !s) return 0; const since = LS.get(actKey(c.id), 0); return activity(s, c.id).filter(a => a.t > since).length; }
+function openActivity() {
+  const c = active(), s = lastState; if (!c || !s) return;
+  const since = LS.get(actKey(c.id), 0), list = activity(s, c.id); LS.set(actKey(c.id), now());
+  let day = "";
+  const rows = list.map((a, i) => { const d = iso(new Date(a.t)), head = d !== day ? `<h4 class="wl-sec">${esc(d === iso(new Date()) ? "Today" : d === isoAdd(iso(new Date()), -1) ? "Yesterday" : new Date(a.t).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))}</h4>` : ""; day = d;
+    return `${head}<div class="act-i${a.t > since ? " new" : ""}" data-ai="${i}">${a.m ? poster(a.m.p, "w92") : `<span class="act-ic">${a.ic}</span>`}<div class="body"><span><b>${esc(a.who)}</b> ${a.txt}</span>${a.x ? `<small class="hint">“${esc(a.x)}”</small>` : ""}<small class="hint">${a.ic} ${esc(new Date(a.t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }))}</small></div></div>`; }).join("");
+  const bg = el(`<div class="sheet-bg"><div class="sheet act-sheet" role="dialog" aria-label="What's new"><h3>What's new</h3>
+    ${rows || `<p class="hint">Nothing from your friends in the last 30 days yet. When they watch, review, suggest or plan an outing, it shows up here.</p>`}<button data-x>Close</button></div></div>`);
+  document.body.appendChild(bg);
+  bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-x]")) return bg.remove(); const r = e.target.closest("[data-ai]"); if (!r) return; const a = list[+r.dataset.ai];
+    if (a.m) { bg.remove(); openTitle(lastState, a.m); } else if (a.list) { bg.remove(); openListsTab(); } });
+  render();
+}
 // One search for everything: what the club knows about a title (your list, your log, friends) plus anything on TMDB.
 function openFind() {
   const bg = el(`<div class="sheet-bg"><div class="sheet find-sheet" role="dialog" aria-label="Search">
@@ -1949,7 +1981,7 @@ function renderClub() {
   view.innerHTML = `
     <div class="fr-card">
       <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div></div>
-        <button class="cb-find" id="cbFind" aria-label="Search" title="Search (press /)">🔍<span> Search</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite">Invite</button></div>
+        <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Search" title="Search (press /)">🔍<span> Search</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
     <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
@@ -2014,6 +2046,7 @@ function bind(c, s, cands, movie) {
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => setClubTab(b.dataset.ct));
   $("cbSet")?.addEventListener("click", () => M.setView("settings"));
   $("cbFind")?.addEventListener("click", openFind);
+  $("cbAct")?.addEventListener("click", openActivity);
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate what to watch next" : "Nominate the first movie", m => {
