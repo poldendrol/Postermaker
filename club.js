@@ -2082,7 +2082,7 @@ function renderClub() {
         <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Search" title="Search (press /)">🔍<span> Search</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
+    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "Popular", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop") mwPane = "list";
@@ -2090,13 +2090,13 @@ function renderClub() {
       ${mwPane === "fy" ? forYouCard(s) : mwPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1">
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
-      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], lsPane, "data-lsv")}
+      const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
+      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2">
-    ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
-      return `<div class="fr-card" data-tab="weekly">${pulpPick([["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["pop", "This week", "Popular"]], clubPane, "data-cpv")}
-      ${clubPane === "pop" ? popHtml(s) : wlCard(s, cands, "club")}</div>`; })()}
+    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"]], "pop", "data-cpv")}
+      ${popHtml(s)}</div>
     </div>
 
 
