@@ -1208,7 +1208,7 @@ function wlCard(s, cands, wlMode) {
 }
 const myWlCount = s => { const picked = new Set(Object.values(s.picks).map(key)); return [...s.wl.values()].filter(w => !picked.has(key(w.m)) && w.adders.has(me.id) && !(x => !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)))(sawMap(s, w.m)?.get(me.id))).length; };
 const pulpPick = (opts, cur, attr, three) => `<div class="wl-pick${three ? " three" : ""}" role="tablist">${opts.map(([k, ch, l, dot], i) => `<button class="pulp-head${i ? " alt" : ""}${cur === k ? " on" : ""}${dot ? " dot" : ""}" ${attr}="${k}" role="tab" aria-selected="${cur === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>`;
-let rtPane = LS.get("marqueeRtPane", "pop"), clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
+let rtPane = "pop", clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
 let popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
@@ -1550,7 +1550,7 @@ function openTitle(s, m, focusSuggest) {
 
 // ---------- Lists: imports, your own lists and ready-made ones (Oscars, top rated…), with a badge for every list you finish ----------
 let listsEl = null;
-function openListsTab() { rtPane = "lists"; LS.set("marqueeRtPane", rtPane); M.setView("club"); setClubTab("weekly"); render(); }
+function openListsTab() { mwPane = "ch"; M.setView("club"); setClubTab("mine"); render(); }
 let wlApi = null, lsOpen = null, oscYear = new Date().getFullYear(), oscMode = "win", bestYear = new Date().getFullYear() - 1;
 const myLists = () => Object.values(LS.get("marqueeLists", {})).filter(l => l && !l.gone && Array.isArray(l.items)).sort((a, b) => (b.at || 0) - (a.at || 0));
 function saveList(l) { const all = LS.get("marqueeLists", {}); all[l.id] = { ...l, at: now() }; LS.set("marqueeLists", all); window.MarqueeAccount?.save?.(); }
@@ -1559,6 +1559,13 @@ const sawIt = (s, m) => { const x = sawMap(s, m)?.get(me.id); return !!x?.v && (
 const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
 // Only the club's list maker (whoever started the club, or already has lists) sees the tools; everyone else gets the lists they published.
 const listMaker = s => s.owner === me.id || myLists().length > 0;
+// Under your own (yellow) bar: one bar per friend in their own colour, so you can see who's ahead.
+const FR_COL = ["#4aa8ff", "#3bb273", "#c77dff", "#ff8a3d", "#2ec4b6", "#ff5fa2"];
+function friendBars(s, l) {
+  const ids = [...s.members.keys()].filter(id => id !== me.id).sort();
+  const out = ids.map((id, i) => { const n = l.items.filter(m => !!sawMap(s, m).get(id)?.v).length; return n ? `<span class="fr-prog"><em style="color:${FR_COL[i % FR_COL.length]}">${esc(s.members.get(id)?.name || "")}</em><span class="ls-prog fr"><i style="width:${Math.round(n / (l.items.length || 1) * 100)}%;background:${FR_COL[i % FR_COL.length]}"></i></span><small>${n}</small></span>` : ""; }).join("");
+  return out ? `<span class="fr-progs">${out}</span>` : "";
+}
 // My wall: the challenges people pinned (📌 in a challenge), with their own progress. With nothing pinned, your closest one shows.
 function chalBar(s) {
   const lists = new Map([...s.pub, ...allLists(s)].map(l => [l.id, l])), who = typeof mwWho === "undefined" ? me.id : mwWho === "*" ? "*" : mwWho || me.id;
@@ -1567,7 +1574,7 @@ function chalBar(s) {
   const rows = ids.flatMap(id => [...(s.pins[id] || new Map()).entries()].sort((a, b) => a[1] - b[1]).map(([lid]) => lists.get(lid)).filter(l => l?.items.length).map(l => ({ l, id, p: progOf(l, id) })));
   if (!rows.length && (who === me.id || who === "*")) { let best = null; for (const l of allLists(s)) { const p = listProg(s, l); if (!p.n || p.done || p.total < 3) continue; const r = p.n / p.total; if (!best || r > best.p.n / best.p.total) best = { l, id: me.id, p, auto: 1 }; } if (best) rows.push(best); }
   const many = who === "*" && new Set(rows.map(r => r.id)).size > 1;
-  return rows.map(({ l, id, p, auto }) => `<button class="chal-bar${p.done ? " done" : ""}" data-chal="${esc(l.id)}"${auto ? ' title="Your closest challenge. Open a challenge and tap 📌 to choose what shows here."' : ""}><span class="chal-t">${p.done ? "🏅" : auto ? "🎯" : "📌"} ${many || id !== me.id ? `<em>${esc(id === me.id ? "You" : s.members.get(id)?.name || "")}</em> · ` : ""}<b>${esc(l.name)}</b>${p.done ? " · done!" : ` · ${p.total - p.n} to go`}</span><span class="chal-track"><i style="width:${Math.round(p.n / (p.total || 1) * 100)}%"></i></span><small>${p.n}/${p.total}</small></button>`).join("");
+  return rows.map(({ l, id, p, auto }) => `<button class="chal-bar${p.done ? " done" : ""}" data-chal="${esc(l.id)}"${auto ? ' title="Your closest challenge. Open a challenge and tap 📌 to choose what shows here."' : ""}><span class="chal-t">${p.done ? "🏅" : auto ? "🎯" : "📌"} ${many || id !== me.id ? `<em>${esc(id === me.id ? "You" : s.members.get(id)?.name || "")}</em> · ` : ""}<b>${esc(l.name)}</b>${p.done ? " · done!" : ` · ${p.total - p.n} to go`}</span><span class="chal-track"><i style="width:${Math.round(p.n / (p.total || 1) * 100)}%"></i></span><small>${p.n}/${p.total}</small>${id === me.id ? friendBars(s, l) : ""}</button>`).join("");
 }
 document.addEventListener("click", e => { const b = e.target.closest("[data-chal]"); if (!b || !lastState) return; const id = b.dataset.chal, own = allLists(lastState).find(x => x.id === id && !x.club), l = own || lastState.pub.find(x => x.id === id); if (l) openListSheet(lastState, l); });
 const allLists = s => { const mine = listMaker(s) ? myLists() : []; return [...mine, ...s.pub.filter(p => !mine.some(l => l.id === p.id))]; };
@@ -1649,7 +1656,7 @@ function openListSheet(s, l, ready, keepY) {
   const club = !!l.club, mine = !ready && !club, pub = mine && pubOf(s, l), stale = pub && (pub.name !== l.name || !sameItems(pub.items, l.items));
   const bg = el(`<div class="sheet-bg"><div class="sheet ls-sheet" role="dialog" aria-label="${esc(l.name)}">
     <h3>${p.done ? "🏅 " : ""}${esc(l.name)}</h3>
-    <div class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></div>
+    <div class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></div>${friendBars(s, l)}
     <small class="hint">${p.total ? `You've seen ${p.n} of ${p.total}${p.done ? " · badge earned!" : ` · see them all for a badge`}${club && l.by ? ` · from ${esc(l.by)}` : ""}` : "Empty list. Add titles below."}</small>
     <div class="ts-btns">${toAdd.length ? `<button class="ts-btn" data-lsa="wl">＋ ${club ? `Add list to my watchlist (${toAdd.length})` : `${toAdd.length} to my watchlist`}</button>` : `<button class="ts-btn on" disabled>${unseen.length ? "✓ All on your watchlist" : "✓ All seen"}</button>`}${ready ? `<button class="ts-btn" data-lsa="save">💾 Save as my list</button>` : mine ? `<button class="ts-btn" data-lsa="add">＋ Add title</button>` : ""}</div>
     ${(mine || club) && l.id && l.items.length ? (on => `<button class="ts-btn pin-btn${on ? " on" : ""}" data-lsa="${on ? "unpin" : "pin"}">📌 ${on ? "On my wall · tap to remove" : "Show on my wall"}</button>`)(!!s.pins?.[me.id]?.has(l.id)) : ""}
@@ -1697,7 +1704,7 @@ function renderLists(s) {
   const yrs = Array.from({ length: new Date().getFullYear() - 1928 }, (_, i) => new Date().getFullYear() - i);
   listsEl.innerHTML = `    <div class="ls-cols">
     <div class="ls-sec"><h3>My lists</h3>
-      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}${pubOf(s, l) ? " shared" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? ` · <span class="ls-sh">● Shared with the club</span>` : ""}</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}${pubOf(s, l) ? " shared" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? ` · <span class="ls-sh">● Shared with the club</span>` : ""}</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span>${friendBars(s, l)}</span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
       <button class="primary" id="lsNew">＋ New list</button>
       <p class="hint">Open a list and tap 📣 Share to put it in everyone's Lists.</p></div>
     <div class="ls-sec gen"><h3>Make a list</h3>
@@ -1736,7 +1743,7 @@ function renderClubLists(s) {
   const ls = s.pub, done = ls.filter(l => listProg(s, l).done), who = s.members.get(s.owner)?.name || "the club";
   listsEl.innerHTML = `    <div class="ls-cols">
     <div class="ls-sec"><h3>Club lists</h3>
-      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${poster(l.items[0].p, "w92")}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen · from ${esc(l.by || who)}</small><span class="ls-prog"><i style="width:${Math.round(p.n / p.total * 100)}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. When ${esc(who)} shares one, it shows up here.</p>`}</div>
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${poster(l.items[0].p, "w92")}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen · from ${esc(l.by || who)}</small><span class="ls-prog"><i style="width:${Math.round(p.n / p.total * 100)}%"></i></span>${friendBars(s, l)}</span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. When ${esc(who)} shares one, it shows up here.</p>`}</div>
     <div class="ls-sec"><h3>Import</h3>
       <button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button>
       <p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p></div>
@@ -2174,17 +2181,16 @@ function renderClub() {
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0"><h2 class="col-title">My wall</h2>    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop" || mwPane === "old") mwPane = "list";
-      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}${chalBar(s)}
-      ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
+      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Challenges"]], mwPane, "data-mwv", true)}
+      ${mwPane === "ch" ? `<div id="listsView"></div>` : `${chalBar(s)}${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}`}</div>`; })()}
     </div><div class="ccol c1"><h2 class="col-title">Library</h2>
     ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
       return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
-    ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
-      return `<div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Challenges"]], rtPane, "data-rtv")}
-      ${rtPane === "lists" ? `<div id="listsView"></div>` : popHtml(s)}</div>`; })()}
+    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"]], "pop", "data-rtv")}
+      ${popHtml(s)}</div>
     </div>
 
 
