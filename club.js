@@ -139,8 +139,20 @@ function merge(clubId, list) {
   return fresh;
 }
 
+// Before 26 Nov 2026 a log could be saved to an older title with the same name (the app looked titles up by name).
+// A dated watch logged in the year a newer same-name title came out belongs to that newer one (Resident Evil 2026, not 2002), and so do suggestions sent with it.
+function sameNameRepair(all) {
+  const CUT = 1795701600000, yr = v => +String(v || "").slice(0, 4) || 0, pool = new Map();
+  for (const e of all) if (e.m?.t && e.m.i != null && e.m.n) { const b = seenKey(e.m.n), mp = pool.get(b) || pool.set(b, new Map()).get(b); mp.set(key(e.m), e.m); }
+  const newer = (m, y) => { const mp = pool.get(seenKey(m.n)); if (!mp || mp.size < 2 || !y) return null; return [...mp.values()].find(o => key(o) !== key(m) && o.t === m.t && yr(o.y) === y && yr(m.y) && yr(m.y) < y) || null; };
+  const moved = new Map(), out = all.map(e => {
+    if (e.t >= CUT || e.k !== "saw" || !e.v || !e.m || !e.d || e.old || e.imp) return e;
+    const o = newer(e.m, yr(e.d)); if (!o) return e; moved.set(e.a + "|" + seenKey(e.m.n), e.t); return { ...e, m: o, sk: skOf(o) };
+  });
+  return out.map(e => { if (e.t >= CUT || e.k !== "sug" || !e.m) return e; const t0 = moved.get(e.a + "|" + seenKey(e.m.n)); if (t0 == null || Math.abs(e.t - t0) > 6e5) return e; const o = newer(e.m, new Date(e.t).getFullYear()); return o ? { ...e, m: o } : e; });
+}
 function derive(clubId) {
-  const E = Object.values(evs(clubId)).filter(e => !e.gone).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
+  const E = sameNameRepair(Object.values(evs(clubId)).filter(e => !e.gone).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1)));
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
@@ -540,7 +552,7 @@ async function openWelcome(c) {
 // Activity: what friends did lately (watched, reviews, comments, suggestions, outings, shared lists), newest first.
 const actKey = id => "marqueeActRead_" + id;
 function activity(s, clubId) {
-  const E = Object.values(evs(clubId)).filter(e => !e.gone && e.a !== me?.id && now() - e.t < 864e5 * 30).sort((a, b) => a.t - b.t);
+  const E = sameNameRepair(Object.values(evs(clubId)).filter(e => !e.gone)).filter(e => e.a !== me?.id && now() - e.t < 864e5 * 30).sort((a, b) => a.t - b.t);
   const burst = new Set(); { const per = {}; for (const e of E) if (e.k === "saw" && e.v) (per[e.a] ||= []).push(e);
     for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) burst.add(xs[k]); } }
   const out = [], tOf = e => e.m || (e.sk ? titleBySk(s, e.sk) : null);
