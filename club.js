@@ -603,7 +603,7 @@ function openFind() {
   };
   const row = (s, m, i) => { const st = status(s, m);
     return `<div class="find-i" data-fi="${i}">${poster(m.p, "w92")}<div class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><small class="hint">${isTv(m) ? "Series" : "Film"}</small>${st.tags ? `<div class="fts">${st.tags}</div>` : ""}</div>
-      <div class="find-btns"><button class="find-add primary" data-flog="${i}">${st.seen ? "✎ Edit" : "✓ Watched"}</button>${!st.seen && !st.onMine ? `<button class="find-add" data-fadd="${i}">＋ List</button>` : ""}</div></div>`; };
+      <div class="find-btns">${st.seen ? `<button class="find-add" data-flog="${i}">✎ Edit my log</button><button class="find-add" data-fnow="${i}">↻ Watched it again</button>` : `${st.onMine ? "" : `<button class="find-add" data-fadd="${i}">＋ Add to watchlist</button>`}<button class="find-add primary" data-fnow="${i}">🎬 I just watched this</button><button class="find-add" data-fold="${i}">↺ I've seen this before</button>`}</div></div>`; };
   const draw = (local, remote) => { const s = lastState; items = [...local, ...(remote || [])];
     res.innerHTML = (local.length ? `<h4 class="wl-sec">In your club <i>${local.length}</i></h4>${local.map((m, i) => row(s, m, i)).join("")}` : "")
       + (remote === null ? `<p class="hint">Searching…</p>` : remote.length ? `<h4 class="wl-sec">${local.length ? "More results" : "Results"}</h4>${remote.map((m, i) => row(s, m, local.length + i)).join("")}` : local.length ? "" : `<p class="hint">Nothing found.</p>`); };
@@ -615,6 +615,7 @@ function openFind() {
   res.addEventListener("click", e => {
     const a = e.target.closest("[data-fadd]"); if (a) { const m = items[+a.dataset.fadd]; act("wl", { m }); M.toast(`${m.n} added to your Personal watchlist.`); a.replaceWith(Object.assign(document.createElement("span"), { className: "ft", textContent: "On your list" })); return; }
     const lg = e.target.closest("[data-flog]"); if (lg) { const m = items[+lg.dataset.flog]; close(); openReview(lastState, skOf(m), m); return; }
+    const nw = e.target.closest("[data-fnow], [data-fold]"); if (nw) { const m = items[+(nw.dataset.fnow ?? nw.dataset.fold)]; const old = "fold" in nw.dataset; const sh = bg.querySelector(".sheet"); openReview(lastState, skOf(m), m, old ? { host: bg, old: true } : { host: bg, log: true, now: true }); return; }
     const r = e.target.closest("[data-fi]"); if (r) { const m = items[+r.dataset.fi]; close(); openTitle(lastState, m); }
   });
   // Before typing: what you looked up lately, and what's popular this week that you haven't seen, so logging is often two taps.
@@ -622,11 +623,11 @@ function openFind() {
     const rec = LS.get("marqueeFindRecent", []).filter(m => m?.n).slice(0, 6), rk = new Set(rec.map(key));
     const pop = (popList || []).filter(m => !rk.has(key(m)) && !seen(m)).slice(0, 6);
     items = [...rec, ...pop];
-    res.innerHTML = `<p class="hint">Tap ✓ Watched to log a title (just now or seen before), ＋ List to save it for later, or the title for everything else.</p>`
+    res.innerHTML = `<p class="hint">Find a title, then add it to your watchlist or log it. Tap the title itself for everything else.</p>`
       + (rec.length ? `<h4 class="wl-sec">Recent</h4>${rec.map((m, i) => row(s, m, i)).join("")}` : "")
       + (pop.length ? `<h4 class="wl-sec">Popular this week</h4>${pop.map((m, i) => row(s, m, rec.length + i)).join("")}` : ""); };
   const remember = m => { const l = LS.get("marqueeFindRecent", []).filter(x => key(x) !== key(m)); l.unshift({ t: m.t, i: m.i, n: m.n, y: m.y, p: m.p }); LS.set("marqueeFindRecent", l.slice(0, 8)); };
-  res.addEventListener("click", e => { const b = e.target.closest("[data-flog], [data-fadd], [data-fi]"); if (!b) return; const m = items[+(b.dataset.flog ?? b.dataset.fadd ?? b.dataset.fi)]; if (m) remember(m); }, true);
+  res.addEventListener("click", e => { const b = e.target.closest("[data-flog], [data-fadd], [data-fi], [data-fnow], [data-fold]"); if (!b) return; const m = items[+(b.dataset.flog ?? b.dataset.fadd ?? b.dataset.fi ?? b.dataset.fnow ?? b.dataset.fold)]; if (m) remember(m); }, true);
   drawStart(); if (!popList && !popBusy) loadPop().then(() => { if (q.value.trim().length < 2 && document.body.contains(bg)) drawStart(); });
   setTimeout(() => q.focus(), 50);
 }
@@ -1450,9 +1451,11 @@ function openTitle(s, m, focusSuggest) {
         ${(() => { const club = [...(s.saw[sk] || new Map()).values()].map(x => x.v && x.s).filter(Boolean), cAvg = club.length ? club.reduce((x, y) => x + y, 0) / club.length : 0;
           return `<div class="ts-score club">${cAvg ? `<span class="rring big" style="--p:${Math.round(cAvg * 20)};--c:var(--accent)"><b>${cAvg.toFixed(1)}</b></span>` : `<span class="rring big" style="--p:0;--c:var(--accent)"><b>–</b></span>`}<div><b class="ts-lbl">Club${cAvg ? ` <span class="ts-stars" style="--c:var(--accent)">${starStr(cAvg)}</span>` : ""}</b><small class="hint">${cAvg ? `${club.length} rating${club.length === 1 ? "" : "s"}` : "No ratings yet"}${seen.length ? ` · watched by ${esc(seen.join(", "))}` : ""}</small></div></div>`; })()}
       </div></div></div>
-    <div class="ts-btns">
-      <button class="ts-btn${wl?.adders.has(me.id) ? " on" : ""}" data-tslist>${wl?.adders.has(me.id) ? "✓ On my list" : "＋ My list"}</button>
-      <button class="ts-btn${s.saw[sk]?.get(me.id)?.v && (!s.saw[sk].get(me.id).m || key(s.saw[sk].get(me.id).m) === key(m)) ? " on" : ""}" data-tsw>${s.saw[sk]?.get(me.id)?.v && (!s.saw[sk].get(me.id).m || key(s.saw[sk].get(me.id).m) === key(m)) ? "✓ Watched" : "👁 Watched?"}</button>
+    <div class="ts-btns three">
+      ${(() => { const x = s.saw[sk]?.get(me.id), seen = !!x?.v && (!x.m || key(x.m) === key(m)), onL = !!wl?.adders.has(me.id);
+        return `<button class="ts-btn${onL ? " on" : ""}" data-tslist><span>${onL ? "✓" : "＋"}</span>${onL ? "On my watchlist" : "Add to watchlist"}</button>`
+          + (seen ? `<button class="ts-btn on" data-tsw><span>✓</span>Watched · edit</button><button class="ts-btn" data-tsnow><span>↻</span>I watched it again</button>`
+            : `<button class="ts-btn" data-tsnow><span>🎬</span>I just watched this</button><button class="ts-btn" data-tsold><span>↺</span>I've seen this before</button>`); })()}
     </div>
     ${(() => { const x = s.saw[sk]?.get(me.id); if (!x?.v || (x.m && key(x.m) !== key(m))) return "";
       return `<div class="ts-my"><small class="hint">Your score</small><div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div><small class="hint ts-myv">${x.s ? `${x.s}/5` : "tap to rate"}</small></div>`; })()}
@@ -1533,6 +1536,8 @@ function openTitle(s, m, focusSuggest) {
   const reopen = () => setTimeout(() => { if (!bg.isConnected) return; close(); openTitle(derive(active().id), m); }, 80);
   bg.querySelector("[data-tslist]")?.addEventListener("click", () => { const on = !!wl?.adders.has(me.id); act(on ? "wldrop" : "wl", { m }); M.toast(on ? `${m.n} removed from your list.` : `${m.n} added to your list.`); reopen(); });
   bg.querySelector("[data-tsw]")?.addEventListener("click", () => { if (titleSheet === bg) titleSheet = null; openReview(s, sk, m, { host: bg }); });
+  bg.querySelector("[data-tsnow]")?.addEventListener("click", () => { if (titleSheet === bg) titleSheet = null; openReview(s, sk, m, { host: bg, log: true, now: true }); });
+  bg.querySelector("[data-tsold]")?.addEventListener("click", () => { if (titleSheet === bg) titleSheet = null; openReview(s, sk, m, { host: bg, old: true }); });
   bg.querySelector("[data-tsedit]")?.addEventListener("click", () => { if (titleSheet === bg) titleSheet = null; openReview(s, sk, m, { host: bg }); });
   const sugOpenBtn = bg.querySelector("#tsSugOpen"), sugBox = bg.querySelector(".ts-sug");
   sugOpenBtn?.addEventListener("click", () => { sugBox.hidden = !sugBox.hidden; sugOpenBtn.classList.toggle("on", !sugBox.hidden); if (!sugBox.hidden) sugBox.scrollIntoView({ block: "nearest" }); });
@@ -1994,7 +1999,7 @@ function leadersHtml(s) {
   const uniq = id => new Set(W[id].map(w => w.sk)).size;
   // Your own wrap-up for the chosen year (only what you logged in Marquee, like every year stat).
   const myWrap = (() => {
-    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap Watched? on a title and your wrap-up fills itself.</p>`; }
+    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap ＋ Log at the top to log what you watch, and your wrap-up fills itself.</p>`; }
     const films = Wm.filter(w => !isTv(w.m)).length, series = Wm.length - films;
     const fav = [...Wm].filter(w => w.s).sort((a, b) => b.s - a.s || b.d.localeCompare(a.d))[0];
     const gc = {}; for (const w of Wm) { const g = genreOf(w.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; } const genre = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -2375,7 +2380,7 @@ function myWatchedCard(s) {
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${wall ? " by the club" : ""}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap Watched? on any title, or + Log for something that isn't on a list.`}</p>
+    <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${wall ? " by the club" : ""}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap ＋ Log at the top to log what you watched.`}</p>
     <div class="mw-list">${rows}</div>
   </div>`;
 }
@@ -2421,7 +2426,7 @@ function openReview(s, sk, m0, opts = {}) {
   bg.querySelector("#revMode").onclick = () => { bg.querySelector(".rev-pick").hidden = false; bg.querySelector(".rev-step2").hidden = true; bg.querySelector(".rev-mode").hidden = true; };
   bg.querySelector("#revSave").onclick = () => save(true);
   bg.querySelector("#revAgain")?.addEventListener("click", e => { again = true; e.currentTarget.remove(); bg.querySelector("h3").textContent = name; bg.querySelector("#revD").value = today; bg.querySelector("#revX").value = ""; score = 0; paintStars(bg, 0); step(false); });
-  if (prev) step(opts.log ? false : !!prev.old); else if (opts.old) step(true);
+  if (opts.now) step(false); else if (opts.old && !prev) step(true); else if (prev) step(opts.log ? false : !!prev.old);
   bg.querySelector("#revUn")?.addEventListener("click", () => { bg.remove(); act("saw", { sk, v: 0 }); });
   const save = (withReview) => {
     const x = withReview ? bg.querySelector("#revX").value.trim().slice(0, 300) : "", sc = withReview ? score : 0;
