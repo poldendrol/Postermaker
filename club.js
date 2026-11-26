@@ -1614,6 +1614,11 @@ function friendBars(s, l) {
   return out ? `<span class="fr-progs">${out}</span>` : "";
 }
 // My wall: the challenges people pinned (📌 in a challenge), with their own progress.
+// Friends without an email login get a new id on every new phone or browser. Nudge them to log in, so they stay one person everywhere.
+function loginNudge() {
+  if (M.acct !== "out" || LS.get("marqueeNudgeOff", 0) > Date.now()) return "";
+  return `<div class="nudge"><p><b>Log in with your email</b> so you stay the same person on every phone and computer, and nothing you log gets lost.</p><div class="nudge-b"><button class="primary" data-nudge="go">Log in</button><button class="link" data-nudge="later">Not now</button></div></div>`;
+}
 function chalBar(s) {
   const lists = new Map([...s.pub, ...allLists(s)].map(l => [l.id, l])), who = typeof mwWho === "undefined" ? me.id : mwWho === "*" ? "*" : mwWho || me.id;
   const progOf = (l, id) => { const n = l.items.filter(m => id === me.id ? sawIt(s, m) : !!sawMap(s, m).get(id)?.v).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
@@ -2186,6 +2191,7 @@ function historyHtml(s) {
 let clubTab = "mine"; // opening the app always lands on My wall
 const navTab = () => document.querySelectorAll("#nav [data-ct]").forEach(b => b.toggleAttribute("aria-current", document.body.dataset.view === "club" && b.dataset.ct === clubTab));
 document.addEventListener("marquee:view", () => setTimeout(navTab, 0));
+addEventListener("marquee-auth", () => { if (view && !view.hidden) renderClub(); });
 document.addEventListener("marquee:clubtab", e => { setClubTab(e.detail); render(); });
 function setClubTab(t) { clubTab = t; setTimeout(navTab, 0); try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
 // First visit: four tips that point at the three columns (or the phone tabs) and the Log button. Shown once per device.
@@ -2254,7 +2260,7 @@ function renderClub() {
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0"><h2 class="col-title">My wall</h2>    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop" || mwPane === "old") mwPane = "list";
-      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Challenges"]], mwPane, "data-mwv", true)}
+      return `<div class="fr-card" data-tab="mine">${loginNudge()}${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Challenges"]], mwPane, "data-mwv", true)}
       ${mwPane === "ch" ? `<div id="listsView"></div>` : `${chalBar(s)}${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}`}</div>`; })()}
     </div><div class="ccol c1"><h2 class="col-title">Library</h2>
     ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
@@ -2302,6 +2308,7 @@ function renderClub() {
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
+  document.querySelectorAll("[data-nudge]").forEach(b => b.onclick = () => { if (b.dataset.nudge === "later") { LS.set("marqueeNudgeOff", Date.now() + 7 * 864e5); renderClub(); return; } M.setView("settings"); setTimeout(() => { const f = document.getElementById("acctEmail") || document.getElementById("acct"); f?.scrollIntoView({ block: "center" }); f?.focus(); }, 150); });
   document.querySelectorAll("[data-mwysel]").forEach(x => x.onchange = () => { mwYear = +x.value; mwAll = false; renderClub(); });
   if (!LS.get("marqueeTour3", false)) setTimeout(maybeTour, 900);
 }

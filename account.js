@@ -80,6 +80,7 @@ async function start() {
 
   A.onAuthStateChanged(auth, async u => {
     unsub?.(); unsub = null; user = u; render();
+    if (M) { M.acct = u ? "in" : "out"; dispatchEvent(new CustomEvent("marquee-auth")); }
     if (!u) return;
     const ref = F.doc(db, "sync", u.uid);
     let first = true;
