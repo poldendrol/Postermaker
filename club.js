@@ -868,7 +868,7 @@ function bindCinema(s) {
 }
 
 // ---------- club watchlist ----------
-let wlAll = false, wlQ = "", wlMsg = "", wlType = "all", wlView = "common", wlNobody = false;
+let wlAll = false, wlQs = {}, wlMsg = "", wlType = "all", wlView = "common", wlNobody = false;
 // Watchlist: "mine" (what I added) or "club" (what the friends I pick added). wlFriends empty = all friends.
 let wlMode = LS.get("marqueeWlMode", "club"), wlFriends = new Set(LS.get("marqueeWlFriends", [])), wlUnseen = LS.get("marqueeWlUnseen", true);
 function parseCsv(text) {
@@ -884,6 +884,7 @@ function parseCsv(text) {
   return rows;
 }
 function wlCard(s, cands, wlMode) {
+  const wlQ = wlQs[wlMode] || ""; // each list has its own search box
   const nominated = new Map(cands.map(x => [key(x.m), x]));
   const seenBy = t => [...(s.saw[seenKey(t)] || new Map()).values()].filter(x => x.v).length;
   const picked = new Set(Object.values(s.picks).map(key)); // already watched as a club: lives in History now
@@ -941,7 +942,7 @@ function wlCard(s, cands, wlMode) {
     ${wlMode === "old" ? seenBeforeCard(s) : `
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
     <div class="wl-tools">${wlMode === "club" && friends.length ? `<div class="wl-views wl-fr">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}<button class="primary" id="cwAdd">+ Add</button></div>` : ""}
-      ${items.length > 12 || wlQ ? `<input type="search" id="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : `<button class="primary" id="cwAdd">+ Add</button>`}</div>
+      ${items.length > 12 || wlQ ? `<input type="search" id="wlQ_${wlMode}" class="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : `<button class="primary" id="cwAdd">+ Add</button>`}</div>
     ${preStream.length > 1 ? (() => { const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
       const tog = (attr, on, l) => `<button class="tog${on ? " on" : ""}" ${attr}="${on ? 0 : 1}" aria-pressed="${on}">${l}</button>`;
       return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["added", "Added"], ["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], wlSort)}${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}</div>
@@ -1586,7 +1587,7 @@ function bindWl(s, cands) {
       else addAll(r.out, `From their ${r.src}`, r.seenIt);
     } catch (x) { console.error(x); status("Couldn't read that file. Try exporting it again."); }
   });
-  view.querySelectorAll("#wlQ").forEach(q => q.addEventListener("input", e => { wlQ = e.target.value.toLowerCase(); keepInputs(renderClub); }));
+  view.querySelectorAll("input.wlQ").forEach(q => q.addEventListener("input", e => { wlQs[e.target.id.slice(4)] = e.target.value.toLowerCase(); keepInputs(renderClub); }));
   cineEl.querySelectorAll("[data-cnv]").forEach(x => x.onclick = () => { cinePane = x.dataset.cnv; render(); });
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
   view.querySelectorAll("[data-pops]").forEach(x => x.onclick = () => { popSort = x.dataset.pops; render(); });
