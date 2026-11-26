@@ -2127,7 +2127,7 @@ function renderClub() {
   if (vs) vsSeen.add(vsKey);
   const calH = calEvents(s, "home"), calC = calEvents(s, "cine");
   const cineDot = outings(s).some(o => !o.ins.has(me.id) && o.at > (s.members.get(me.id)?.last || 0) - 864e5 * 7);
-  view.dataset.tab = clubTab;
+  view.dataset.tab = clubTab; setTimeout(navTab, 0);
 
   view.innerHTML = `
     <div class="fr-card">
