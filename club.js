@@ -1209,7 +1209,7 @@ const myWlCount = s => { const picked = new Set(Object.values(s.picks).map(key))
 const pulpPick = (opts, cur, attr, three) => `<div class="wl-pick${three ? " three" : ""}" role="tablist">${opts.map(([k, ch, l, dot], i) => `<button class="pulp-head${i ? " alt" : ""}${cur === k ? " on" : ""}${dot ? " dot" : ""}" ${attr}="${k}" role="tab" aria-selected="${cur === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>`;
 let rtPane = "pop", clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
-let popList = null, popBusy = false, popType = "movie", popSort = "pop";
+let popGenFor = null, popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
   if (popBusy) return; popBusy = true;
   try {
@@ -1220,14 +1220,18 @@ async function loadPop() {
   popBusy = false; render();
 }
 function popHtml(s) {
-  const tile = w => { const r = rateOf(w.m), x = sawMap(s, w.m)?.get(me.id), saw = !!x?.v && (!x.m || key(x.m) === key(w.m)), n = w.adders.size;
-    return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}${saw ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}<span class="tile-t"><b>${esc(w.m.n)}</b><small>${esc([w.m.y, n ? `${n} want it` : ""].filter(Boolean).join(" · "))}${r ? rateRing(r) : ""}</small></span></button>`; };
+  // Same readable rows as the watchlist: rank, poster, title, score, and whether you've seen it or listed it.
+  const tile = (w, rank) => { const r = rateOf(w.m), g = genreOf(w.m), saw = sawIt(s, w.m), mine = w.adders.has(me.id), n = w.adders.size;
+    return `<button class="wl-row pop-row" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}"><span class="pop-rk">${rank}</span>${poster(w.m.p, "w92")}<span class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}</b>
+      <small class="hint">${[isTv(w.m) ? "Series" : "", g && g !== "Other" ? g : "", n && !mine ? `${n} want it` : ""].filter(Boolean).map(esc).join(" · ")}</small>
+      <span class="wl-rb">${r ? rateRing(r) : ""}${saw ? `<i class="row-ok">✓ seen</i>` : mine ? `<i class="row-ok">On your list</i>` : ""}</span></span></button>`; };
   if (!popList) { loadPop(); return `<p class="hint">Loading what's popular this week…</p>`; }
   if (!popList.length) return `<p class="hint">Couldn't load the popular list. Check your connection.</p>`;
   const sg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
   const seg = `<div class="wl-filt"><div class="wl-frow">${sg("data-pops", [["pop", "Most popular"], ["rate", "★ Rating"]], popSort)}${sg("data-popt", [["movie", "Films"], ["tv", "Series"]], popType)}</div></div>`;
   const ranked = popList.map((m, i) => ({ m, i })); if (popSort === "rate") ranked.sort((a, b) => rateOf(b.m) - rateOf(a.m));
-  return `${seg}<div class="wl-grid pop-grid">${ranked.map(({ m }, i) => { const w = s.wl.get(key(m)) || { m, adders: new Map() }; return tile({ ...w, m: w.m || m }).replace('<button class="wl-tile"', `<button class="wl-tile" data-rank="${i + 1}"`); }).join("")}</div>`;
+  if (popGenFor !== popList && ranked.some(({ m }) => !genreCache[key(m)])) { popGenFor = popList; setTimeout(() => fillGenres(ranked.map(({ m }) => ({ m }))), 0); }
+  return `${seg}<div class="wl-grid wl-rows pop-rows">${ranked.map(({ m }, i) => { const w = s.wl.get(key(m)) || { m, adders: new Map() }; return tile({ ...w, m: w.m || m }, i + 1); }).join("")}</div>`;
 }
 // ---------- genres for the watchlist rows (cached on this device) ----------
 const genreCache = LS.get("marqueeGenres", {});
