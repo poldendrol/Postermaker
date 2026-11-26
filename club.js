@@ -1208,6 +1208,8 @@ function openTitle(s, m, focusSuggest) {
       <button class="ts-btn${wl?.adders.has(me.id) ? " on" : ""}" data-tslist>${wl?.adders.has(me.id) ? "✓ On my list" : "＋ My list"}</button>
       <button class="ts-btn${s.saw[sk]?.get(me.id)?.v && (!s.saw[sk].get(me.id).m || key(s.saw[sk].get(me.id).m) === key(m)) ? " on" : ""}" data-tsw>${s.saw[sk]?.get(me.id)?.v && (!s.saw[sk].get(me.id).m || key(s.saw[sk].get(me.id).m) === key(m)) ? "✓ Watched" : "👁 Watched?"}</button>
     </div>
+    ${(() => { const x = s.saw[sk]?.get(me.id); if (!x?.v || (x.m && key(x.m) !== key(m))) return "";
+      return `<div class="ts-my"><small class="hint">Your score</small><div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div><small class="hint ts-myv">${x.s ? `${x.s}/5` : "tap to rate"}</small></div>`; })()}
     ${(() => { const pv = s.sawPrev[sk]?.get(me.id), cur = s.saw[sk]?.get(me.id); if (!pv || (cur?.v && (!pv.x || cur.x === pv.x) && (!pv.d || cur.d === pv.d) && (!pv.s || cur.s === pv.s))) return "";
       return `<button class="chip ts-restore" data-tsrestore>↺ Bring back your earlier log${pv.m?.y ? ` of ${esc(pv.m.n)} (${esc(pv.m.y)})` : ""}${pv.d ? ` · ${esc(pv.d)}` : ""}${pv.s ? ` · ${starStr(pv.s, true)}` : ""}${pv.x ? ` · “${esc(pv.x.slice(0, 50))}”` : ""}</button>`; })()}
     <div class="ts-acts">
@@ -1271,6 +1273,11 @@ function openTitle(s, m, focusSuggest) {
   bg.addEventListener("click", e => { if (e.target === bg || e.target.id === "tsClose") close(); });
   bg.querySelector("[data-tsfix]")?.addEventListener("click", () => { bg.remove(); openSearch("Pick the right one", m2 => { if (key(m2) === key(m)) return; act("fix", { from: key(m), m: m2 }); M.toast(`Changed to ${m2.n}${m2.y ? ` (${m2.y})` : ""} for everyone.`); }, m.n); });
   bg.querySelector("[data-tsmore]")?.addEventListener("click", e => { const f = bg.querySelector(".ts-fix"); f.hidden = !f.hidden; e.currentTarget.classList.toggle("on", !f.hidden); if (!f.hidden) f.scrollIntoView({ block: "nearest" }); });
+  { let cur = s.saw[sk]?.get(me.id)?.s || 0; const box = bg.querySelector(".ts-my");
+    if (box) { paintStars(box, cur); box.querySelectorAll(".mstars button").forEach(b => b.onclick = () => {
+      const x = (lastState || s).saw[sk]?.get(me.id); if (!x?.v) return; cur = halfTap(cur, +b.dataset.s); paintStars(box, cur); box.querySelector(".ts-myv").textContent = `${cur}/5`;
+      act("saw", { sk, v: 1, ...(x.old ? { old: 1 } : x.d ? { d: x.d } : {}), s: cur, ...(x.x ? { x: x.x } : {}), ...(x.ss ? { ss: x.ss } : {}), ...(x.sr ? { sr: x.sr } : {}), ...(x.imp ? { imp: 1 } : {}), ...(x.wd ? { wd: x.wd } : {}), m: x.m || { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } });
+      const r = bg.querySelector(".ts-rev.mine .stars"); if (r) r.textContent = starStr(cur); }); } }
   bg.querySelector("[data-tsrestore]")?.addEventListener("click", () => { const pv = s.sawPrev[sk]?.get(me.id); if (!pv) return; close();
     act("saw", { sk, v: 1, ...(pv.old ? { old: 1 } : pv.d ? { d: pv.d } : {}), ...(pv.s ? { s: pv.s } : {}), ...(pv.x ? { x: pv.x } : {}), ...(pv.ss ? { ss: pv.ss } : {}), ...(pv.sr ? { sr: pv.sr } : {}), ...(pv.m ? { m: pv.m } : {}) });
     M.toast(`Your log of ${pv.m?.n || m.n} is back.`); });
