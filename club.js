@@ -1190,7 +1190,6 @@ function wlCard(s, cands, wlMode) {
   };
   return `<div id="wlCard">
     ${wlMode === "mine" ? (n => n ? `<button class="wl-clash" data-clash>⚠️ ${n} title${n === 1 ? " is" : "s are"} on your watchlist but also marked as seen. <b>Check ${n === 1 ? "it" : "them"}</b></button>` : "")(seenClash(s).length) : ""}
-    ${wlMode === "mine" && myTvInProgress(s).length ? `<div class="up-next" id="upNext"><h4 class="wl-sec">📺 Up next</h4><small class="hint">Checking your series…</small></div>` : ""}
     ${wlMode === "mine" ? `<p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>` : ""}
     ${wlMode === "club" && location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
     ${wlMode === "old" ? seenBeforeCard(s) : `
