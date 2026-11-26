@@ -715,7 +715,7 @@ function render() {
     renderStart();
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
     $("hsGo").onclick = () => M.setView("club");
-    if (listsEl) listsEl.innerHTML = `<div class="fr-card"><h3>Lists</h3><p class="hint">Start or join a movie club first. Then you can import lists, make your own and add ready-made ones like the Oscar winners.</p></div>`;
+    if (listsEl) listsEl.innerHTML = `<div class="fr-card"><h3>Challenges</h3><p class="hint">Start or join a movie club first. Then you can import lists, make your own and add ready-made ones like the Oscar winners.</p></div>`;
     if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching, reviews and outings get ranked here.</p></div>`;
     if (mwView) mwView.innerHTML = `<div class="fr-card"><h3>My watched list</h3><p class="hint">Start or join a movie club first, then everything you watch is logged here with its date.</p></div>`;
     return;
@@ -2135,20 +2135,20 @@ function renderClub() {
         <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Log or find a title" title="Log or find any title (press /)">＋<span> Log</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "Explore", false]]
+    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Library", false], ["weekly", "Explore", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0"><h2 class="col-title">My wall</h2>    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop" || mwPane === "old") mwPane = "list";
       return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
       ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
-    </div><div class="ccol c1"><h2 class="col-title">Lists</h2>
+    </div><div class="ccol c1"><h2 class="col-title">Library</h2>
     ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
       return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
-      return `<div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], rtPane, "data-rtv")}
+      return `<div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Challenges"]], rtPane, "data-rtv")}
       ${rtPane === "lists" ? `<div id="listsView"></div>` : popHtml(s)}</div>`; })()}
     </div>
 
