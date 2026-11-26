@@ -1311,6 +1311,8 @@ async function byTitles(pairs) {
     return null; } catch { return null; } }));
   return out.filter(Boolean);
 }
+const GENRES = [[28, "Action"], [12, "Adventure"], [16, "Animation"], [35, "Comedy"], [80, "Crime"], [99, "Documentary"], [18, "Drama"], [10751, "Family"], [14, "Fantasy"], [36, "History"], [27, "Horror"], [10402, "Music"], [9648, "Mystery"], [10749, "Romance"], [878, "Science fiction"], [53, "Thriller"], [10752, "War"], [37, "Western"]];
+let genType = LS.get("marqueeGenType", "person"), genQ = { person: "", topic: "" }, genGenre = 27, genBusy = false, genMsg = "";
 const OSC = `?award rdfs:label ?al. FILTER(LANG(?al) = "en" && STRSTARTS(?al, "Academy Award for"))`;
 const READY = {
   osc: { name: y => `Oscar winners ${y}`, load: async y => {
@@ -1339,6 +1341,17 @@ const READY = {
     const first = await M.tm("/discover/movie", { with_keywords: kw.id, sort_by: "primary_release_date.asc", "vote_count.gte": 50, page: 1 });
     const pages = Math.min(first.total_pages || 1, 15), rest = pages > 1 ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) => M.tm("/discover/movie", { with_keywords: kw.id, sort_by: "primary_release_date.asc", "vote_count.gte": 50, page: i + 2 }))) : [];
     return [first, ...rest].flatMap(d => d.results || []).filter(x => x.release_date && x.release_date <= iso(new Date())).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
+  // Any topic TMDB tags films with: "zombie", "time travel", "heist", "based on novel or book"…
+  topic: { name: q => `${q[0].toUpperCase()}${q.slice(1)} movies`, load: async q => {
+    const find = async t => ((await M.tm("/search/keyword", { query: t })).results || []);
+    let ks = await find(q); if (!ks.length && /s$/i.test(q)) ks = await find(q.replace(/s$/i, ""));
+    const k = ks.find(x => x.name.toLowerCase() === q.toLowerCase() || x.name.toLowerCase() === q.toLowerCase().replace(/s$/, "")) || ks[0];
+    if (!k) return [];
+    READY.topic.who = k.name;
+    const go = page => M.tm("/discover/movie", { with_keywords: k.id, sort_by: "primary_release_date.asc", "vote_count.gte": 25, page });
+    const first = await go(1), n = Math.min(first.total_pages || 1, 15), rest = n > 1 ? await Promise.all(Array.from({ length: n - 1 }, (_, i) => go(i + 2))) : [];
+    return [first, ...rest].flatMap(d => d.results || []).filter(x => x.release_date && x.release_date <= iso(new Date())).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
+  genre: { name: g => `Best ${GENRES.find(x => x[0] === +g)?.[1].toLowerCase() || ""} films`, load: async g => (await Promise.all([1, 2, 3, 4, 5].map(page => M.tm("/discover/movie", { with_genres: g, sort_by: "vote_average.desc", "vote_count.gte": 1500, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i).slice(0, 100) },
   best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
 };
 function listTiles(s, items, canDrop) {
@@ -1378,46 +1391,54 @@ function openListSheet(s, l, ready) {
 }
 async function openReady(s, kind, y) {
   const r = READY[kind]; let name = r.name(y);
-  M.toast(`Loading ${name}…`);
-  try { const items = await r.load(y); if (kind === "dir" && r.who) name = r.name(r.who); if (!items.length) { M.toast(`Couldn't find anything for ${name}.`); return; } openListSheet(lastState || s, { id: "", name, items, src: kind + (y ? ":" + y : "") }, true); }
-  catch (e) { console.error(e); M.toast(`Couldn't load ${name} right now. Try again in a moment.`); }
+  const say = t => { genMsg = t; const m = $("genMsg"); if (m) { m.textContent = t; m.hidden = !t; } const g = $("genGo"); if (g) { g.disabled = genBusy; g.textContent = genBusy ? "Making the list…" : "Make the list"; } };
+  genBusy = true; say(`Looking up ${name}…`);
+  try {
+    const items = await r.load(y); if ((kind === "dir" || kind === "topic") && r.who) name = r.name(r.who);
+    genBusy = false;
+    if (!items.length) { say(`Found nothing for ${name}. Try another spelling or a different year.`); return; }
+    say(""); openListSheet(lastState || s, { id: "", name, items, src: kind + (y ? ":" + y : "") }, true);
+  } catch (e) { console.error(e); genBusy = false; say(`Couldn't load ${name}: ${kind.startsWith("osc") || kind === "bp" ? "the Oscar database (Wikidata) didn't answer" : "TMDB didn't answer"}. Check your connection and try again.`); }
 }
 function renderLists(s) {
   listsEl = $("listsView"); if (!listsEl) return;
   if (!listMaker(s)) return renderClubLists(s);
-  const ls = myLists(), done = allLists(s).filter(l => listProg(s, l).done), keepQ = listsEl.querySelector("#dirQ")?.value || "", hadFocus = document.activeElement?.id === "dirQ";
+  const ls = myLists(), done = allLists(s).filter(l => listProg(s, l).done), hadFocus = document.activeElement?.id === "genQ";
   const yrs = Array.from({ length: new Date().getFullYear() - 1928 }, (_, i) => new Date().getFullYear() - i);
   listsEl.innerHTML = `    <div class="ls-cols">
     <div class="ls-sec"><h3>My lists</h3>
       ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? " · 📣 shared" : ""}</small><span class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></span></span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
       <button class="primary" id="lsNew">＋ New list</button>
       <p class="hint">Open a list and tap 📣 Share to put it in everyone's Lists.</p></div>
-    <div class="ls-sec"><h3>Ready-made lists</h3>
-      <div class="ls-ready">
-        <div class="ls-r"><b>🏆 Oscars</b><div class="ls-rc"><select id="oscY" aria-label="Ceremony year">${yrs.map(y => `<option${y === oscYear ? " selected" : ""}>${y}</option>`).join("")}</select>
-          <div class="seg">${[["win", "All winners"], ["nom", "Best Picture nominees"]].map(([k, l]) => `<button class="${k === oscMode ? "on" : ""}" data-oscm="${k}">${l}</button>`).join("")}</div><button class="primary" data-ready="osc">Show</button></div></div>
-        <div class="ls-r"><b>🎬 Every Best Picture winner</b><div class="ls-rc"><button data-ready="bp">Show</button></div></div>
-        <div class="ls-r"><b>⭐ Best films of a year</b><div class="ls-rc"><select id="bestY" aria-label="Year">${yrs.map(y => `<option${y === bestYear ? " selected" : ""}>${y}</option>`).join("")}</select><button data-ready="best">Show</button></div></div>
-        <div class="ls-r"><b>🎥 Every film by a director or actor</b><div class="ls-rc"><input type="search" id="dirQ" placeholder="e.g. Christopher Nolan or Jenna Coleman" autocomplete="off" enterkeyhint="search"><button data-ready="dir">Show</button></div></div>
-        <div class="ls-r"><b>🧛 Christopher Lee as Dracula</b><div class="ls-rc"><button data-ready="lee">Show</button></div></div>
-        <div class="ls-r"><b>🎮 Video game movies</b><div class="ls-rc"><button data-ready="game">Show</button></div></div>
-        <div class="ls-r"><b>💯 Top 100 rated films</b><div class="ls-rc"><button data-ready="top">Show</button></div></div>
-      </div></div>
+    <div class="ls-sec gen"><h3>Make a list</h3>
+      <div class="gen-types">${[["person", "👤 Director or actor"], ["topic", "🏷️ Topic"], ["genre", "🎭 Best of a genre"], ["best", "⭐ Best of a year"], ["osc", "🏆 Oscars"], ["bp", "🎬 All Best Picture winners"], ["top", "💯 Top 100"], ["game", "🎮 Video games"], ["lee", "🧛 Lee as Dracula"]].map(([k, l]) => `<button class="chip${genType === k ? " on" : ""}" data-gt="${k}">${l}</button>`).join("")}</div>
+      <div class="gen-ctl">${genType === "person" ? `<input type="search" id="genQ" placeholder="A name, e.g. Jenna Coleman" value="${esc(genQ.person)}" autocomplete="off" enterkeyhint="go">`
+        : genType === "topic" ? `<input type="search" id="genQ" placeholder="e.g. zombies, time travel, heist" value="${esc(genQ.topic)}" autocomplete="off" enterkeyhint="go">`
+        : genType === "genre" ? `<select id="genG" aria-label="Genre">${GENRES.map(([id, n]) => `<option value="${id}"${id === genGenre ? " selected" : ""}>${n}</option>`).join("")}</select>`
+        : genType === "best" ? `<select id="genY" aria-label="Year">${yrs.map(y => `<option${y === bestYear ? " selected" : ""}>${y}</option>`).join("")}</select>`
+        : genType === "osc" ? `<select id="genY" aria-label="Ceremony year">${yrs.map(y => `<option${y === oscYear ? " selected" : ""}>${y}</option>`).join("")}</select><div class="seg">${[["win", "All winners"], ["nom", "Best Picture nominees"]].map(([k, l]) => `<button class="${k === oscMode ? "on" : ""}" data-oscm="${k}">${l}</button>`).join("")}</div>`
+        : `<small class="hint">${{ bp: "Every film that won Best Picture, newest first.", top: "TMDB's 100 highest rated films.", game: "Every film based on a video game, oldest first.", lee: "The 9 films where Christopher Lee plays Dracula." }[genType]}</small>`}</div>
+      <button class="primary" id="genGo"${genBusy ? " disabled" : ""}>${genBusy ? "Making the list…" : "Make the list"}</button>
+      <p class="hint" id="genMsg"${genMsg ? "" : " hidden"}>${esc(genMsg)}</p>
+      <small class="hint">The list opens so you can check it, then 💾 Save it and 📣 Share it with the club.</small></div>
     <div class="ls-sec"><h3>Import</h3>
       <button class="imp-card" id="lsImp"><span class="imp-ic"><i class="imdb">IMDb</i><i class="lb"><b></b><b></b><b></b></i></span><span class="imp-tx"><b>Import from IMDb or Letterboxd</b><small>Watchlists go on your Personal watchlist; ratings and diaries mark titles as watched</small></span><span class="imp-go">›</span></button>
       <p class="hint" id="lsStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p></div>
     </div>`;
-  const dq = listsEl.querySelector("#dirQ"); dq.value = keepQ; if (hadFocus) dq.focus();
+  const gq = listsEl.querySelector("#genQ"); if (gq) { if (hadFocus) { gq.focus(); try { gq.setSelectionRange(gq.value.length, gq.value.length); } catch {} } gq.oninput = () => { genQ[genType] = gq.value; }; gq.onkeydown = e => { if (e.key === "Enter") listsEl.querySelector("#genGo").click(); }; }
   listsEl.querySelector("#lsImp").onclick = () => wlApi?.openImport();
   listsEl.querySelector("#lsNew").onclick = () => { const n = (prompt("Name your list", "") || "").trim().slice(0, 60); if (!n) return; const l = { id: "l" + rand(8), name: n, items: [] }; saveList(l); render(); openListSheet(lastState, l); };
   listsEl.querySelectorAll("[data-lsid]").forEach(b => b.onclick = () => { const l = myLists().find(x => x.id === b.dataset.lsid); if (l) openListSheet(s, l); });
-  listsEl.querySelector("#oscY").onchange = e => { oscYear = +e.target.value; };
-  listsEl.querySelector("#bestY").onchange = e => { bestYear = +e.target.value; };
+  listsEl.querySelectorAll("[data-gt]").forEach(b => b.onclick = () => { genType = b.dataset.gt; LS.set("marqueeGenType", genType); genMsg = ""; renderLists(s); listsEl.querySelector("#genQ")?.focus(); });
   listsEl.querySelectorAll("[data-oscm]").forEach(b => b.onclick = () => { oscMode = b.dataset.oscm; renderLists(s); });
-  listsEl.querySelectorAll("[data-ready]").forEach(b => b.onclick = () => { const k = b.dataset.ready;
-    if (k === "dir") { const q = listsEl.querySelector("#dirQ").value.trim(); if (!q) { listsEl.querySelector("#dirQ").focus(); return; } return openReady(s, "dir", q); }
-    openReady(s, k === "osc" ? (oscMode === "nom" ? "oscnom" : "osc") : k, k === "osc" ? oscYear : k === "best" ? bestYear : 0); });
-  listsEl.querySelector("#dirQ").addEventListener("keydown", e => { if (e.key === "Enter") listsEl.querySelector('[data-ready="dir"]').click(); });
+  const gy = listsEl.querySelector("#genY"); if (gy) gy.onchange = e => { if (genType === "osc") oscYear = +e.target.value; else bestYear = +e.target.value; };
+  const gg = listsEl.querySelector("#genG"); if (gg) gg.onchange = e => { genGenre = +e.target.value; };
+  listsEl.querySelector("#genGo").onclick = () => { if (genBusy) return;
+    if (genType === "person" || genType === "topic") { const q = (genQ[genType] || "").trim(); if (!q) { listsEl.querySelector("#genQ").focus(); return; } return openReady(s, genType === "person" ? "dir" : "topic", q); }
+    if (genType === "osc") return openReady(s, oscMode === "nom" ? "oscnom" : "osc", oscYear);
+    if (genType === "best") return openReady(s, "best", bestYear);
+    if (genType === "genre") return openReady(s, "genre", genGenre);
+    openReady(s, genType, 0); };
 }
 
 // What everyone but the list maker sees: the shared lists, plus their own import.
