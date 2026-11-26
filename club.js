@@ -403,6 +403,38 @@ async function tmSearch(text) {
   return raw.filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 16)
     .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
 }
+// Welcome for a friend who just joined: step 1 was their name; step 2 tick films they've seen; step 3 add a few to their watchlist.
+async function openWelcome(c) {
+  LS.set("marqueeWelcomed_" + c.id, true);
+  const s = derive(c.id), uniq = a => a.filter((m, i) => m && a.findIndex(o => key(o) === key(m)) === i);
+  const clubSeen = Object.entries(s.saw).flatMap(([sk, mp]) => [...mp.entries()].filter(([id, x]) => id !== me.id && x.v && !x.imp).map(() => titleBySk(s, sk)));
+  const clubWant = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id)).map(w => w.m);
+  const tmList = async (path, t) => { try { const j = await M.tm(path); return (j.results || []).filter(x => x.poster_path).map(x => ({ t: x.media_type || t, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path })).filter(m => m.t === "movie" || m.t === "tv"); } catch { return []; } };
+  const bg = el(`<div class="sheet-bg"><div class="sheet wel-sheet" role="dialog" aria-label="Welcome"><div class="wel-body"><p class="hint">Loading…</p></div></div></div>`);
+  document.body.appendChild(bg);
+  const [top, trend] = await Promise.all([tmList("/movie/top_rated", "movie"), tmList("/trending/all/week", "movie")]);
+  const seenPool = uniq([...clubSeen, ...top]).slice(0, 24), wantPool = uniq([...clubWant, ...trend, ...top.slice(12)]).slice(0, 24);
+  const seen = new Set(), want = new Set(), body = bg.querySelector(".wel-body");
+  const grid = (pool, set, attr) => `<div class="wl-grid wl-rows">${pool.map((m, i) => `<button class="wl-row wel-r${set.has(i) ? " on" : ""}" ${attr}="${i}">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><i class="wel-tick">${set.has(i) ? "✓" : "＋"}</i></span></button>`).join("")}</div>`;
+  const step = n => {
+    if (n === 2) body.innerHTML = `<small class="wel-step">Step 2 of 3</small><h3>Welcome to ${esc(s.name || c.name)}, ${esc(me.name)}! 🍿</h3><p class="hint">Tap the films you've already seen. It helps the club suggest the right things and shows how much your taste matches.</p>${grid(seenPool, seen, "data-ws")}<div class="wel-nav"><button data-wskip>Skip</button><button class="primary" data-wnext>Next${seen.size ? ` (${seen.size} seen)` : ""}</button></div>`;
+    else body.innerHTML = `<small class="wel-step">Step 3 of 3</small><h3>What do you want to watch?</h3><p class="hint">Add a few to your Personal watchlist. The ones your friends want too are at the top.</p>${grid(wantPool.filter(m => !seenPool.some((o, i) => seen.has(i) && key(o) === key(m))), want, "data-ww")}<div class="wel-nav"><button data-wback>Back</button><button class="primary" data-wdone>Done${want.size ? ` (${want.size} added)` : ""}</button></div>`;
+  };
+  let wantShown = [];
+  bg.addEventListener("click", e => {
+    const a = e.target.closest("[data-ws]"); if (a) { const i = +a.dataset.ws; seen.has(i) ? seen.delete(i) : seen.add(i); const y = bg.querySelector(".sheet").scrollTop; step(2); bg.querySelector(".sheet").scrollTop = y; return; }
+    const b = e.target.closest("[data-ww]"); if (b) { const i = +b.dataset.ww; want.has(i) ? want.delete(i) : want.add(i); const y = bg.querySelector(".sheet").scrollTop; step(3); bg.querySelector(".sheet").scrollTop = y; return; }
+    if (e.target.closest("[data-wnext]") || e.target.closest("[data-wskip]")) { if (e.target.closest("[data-wskip]")) seen.clear(); step(3); bg.querySelector(".sheet").scrollTop = 0; return; }
+    if (e.target.closest("[data-wback]")) { step(2); return; }
+    if (e.target.closest("[data-wdone]")) {
+      wantShown = wantPool.filter(m => !seenPool.some((o, i) => seen.has(i) && key(o) === key(m)));
+      const evs2 = [...[...seen].map(i => seenPool[i]).map(m => ["saw", { sk: seenKey(m.n), v: 1, old: 1, m }]), ...[...want].map(i => wantShown[i]).map(m => ["wl", { m }])];
+      bg.remove(); if (evs2.length) actMany(evs2, null);
+      M.toast(`You're all set${seen.size ? ` · ${seen.size} seen` : ""}${want.size ? ` · ${want.size} on your watchlist` : ""}. Enjoy the club!`); render();
+    }
+  });
+  step(2);
+}
 // Activity: what friends did lately (watched, reviews, comments, suggestions, outings, shared lists), newest first.
 const actKey = id => "marqueeActRead_" + id;
 function activity(s, clubId) {
@@ -541,8 +573,9 @@ function renderStart() {
     const n = nameOk(); if (!n) return;
     ensureMe(n); addClub(inv); pendingInvite = null; showStart = false;
     render(); await pull(inv.id);
-    const s = derive(inv.id); if (![...s.members.keys()].includes(me.id)) act("join");
+    const s = derive(inv.id), fresh = ![...s.members.keys()].includes(me.id); if (fresh) act("join");
     live(); render();
+    if (fresh && !LS.get("marqueeWelcomed_" + inv.id, false)) setTimeout(() => openWelcome(inv), 400);
   });
   $("cbCreate").onclick = () => {
     const n = nameOk(); if (!n) return;
