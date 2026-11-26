@@ -2093,17 +2093,17 @@ function renderClub() {
     </div>
     <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "Explore", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
-    <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
+    <div class="ccol c0"><h2 class="col-title">My wall</h2>    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
       if (mwPane === "pop" || mwPane === "old") mwPane = "list";
       return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
       ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
-    </div><div class="ccol c1">
+    </div><div class="ccol c1"><h2 class="col-title">Lists</h2>
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
       const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
       return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
-    </div><div class="ccol c2">
+    </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
     <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], rtPane, "data-rtv")}
       ${rtPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : popHtml(s)}</div>
     </div>
