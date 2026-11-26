@@ -932,6 +932,10 @@ function wlCard(s, cands, wlMode) {
   const tile = w => {
     const l = provCache[key(w.m)]?.l || [], mp = l.filter(p => svc.has(p.id)), pv = (mp.length ? mp : l)[0];
     const mx = s.saw[seenKey(w.m.n)]?.get(me.id), mineSaw = !!mx?.v && (!mx.m || key(mx.m) === key(w.m)), n = w.adders.size;
+    if (wlMode === "mine") { const r = rateOf(w.m), g = genreOf(w.m);
+      return `<button class="wl-row" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w92")}<span class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}</b>
+        <small class="hint">${[isTv(w.m) ? "Series" : "", g && g !== "Other" ? g : ""].filter(Boolean).map(esc).join(" · ")}${n > 1 ? `${isTv(w.m) || (g && g !== "Other") ? " · " : ""}${n} want it` : ""}</small>
+        <span class="wl-rb">${r ? rateRing(r) : ""}${pv ? `<img class="row-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}${mineSaw ? `<i class="row-ok">✓ seen</i>` : ""}</span></span></button>`; }
     return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}
       ${pv ? `<img class="tile-prov${mp.length ? " mine" : ""}" src="${M.IMG}w92${esc(pv.logo)}" alt="${esc(pv.n)}" title="${esc(pv.n)}">` : ""}
       ${mineSaw ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}
@@ -939,11 +943,12 @@ function wlCard(s, cands, wlMode) {
   };
   // Long lists become Netflix-style rows per genre (each title in its main genre); short ones stay a simple grid.
   const tiles = list => {
-    if (!grouped) return `<div class="wl-grid">${list.map(tile).join("")}</div>`;
+    const gc = wlMode === "mine" ? "wl-grid wl-rows" : "wl-grid";
+    if (!grouped) return `<div class="${gc}">${list.map(tile).join("")}</div>`;
     if (list.some(w => !genreCache[key(w.m)])) setTimeout(() => fillGenres(list), 0);
     const groups = {}; for (const w of list) (groups[genreOf(w.m) || "Loading…"] ||= []).push(w);
     return Object.entries(groups).sort((a, b) => (a[0] === "Loading…") - (b[0] === "Loading…") || (a[0] === "Other") - (b[0] === "Other") || b[1].length - a[1].length)
-      .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="wl-grid">${ws.map(tile).join("")}</div></details>`).join("");
+      .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="${gc}">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div id="wlCard">
     ${wlMode === "mine" ? `<p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>` : ""}
@@ -2194,7 +2199,7 @@ function openReview(s, sk, m0, opts = {}) {
     let x = r.right + 12; if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 12);
     const y = Math.min(Math.max(8, r.top + r.height / 2 - h / 2), innerHeight - h - 8); card.style.left = x + "px"; card.style.top = y + "px"; };
   document.addEventListener("mouseover", e => {
-    const row = e.target.closest?.(".mw-i[data-open]"); if (row === cur) return; hide(); if (!row || !lastState) return; cur = row;
+    const row = e.target.closest?.(".mw-i[data-open], .wl-row[data-open]"); if (row === cur) return; hide(); if (!row || !lastState) return; cur = row;
     timer = setTimeout(() => {
       const m = findTitle(lastState, row.dataset.open); if (!m || cur !== row) return;
       card = el(`<div class="hov-card" role="tooltip">${m.p ? `<img src="${M.IMG}w342${esc(m.p)}" alt="">` : ""}<div class="hov-b"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><small class="hint hov-f">${isTv(m) ? "Series" : "Film"}</small><small class="hint">Loading…</small></div></div>`);
