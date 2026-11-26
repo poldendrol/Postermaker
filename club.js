@@ -192,9 +192,12 @@ function derive(clubId) {
         if (e.v && e.m && s.sawAlt[key(e.m)]?.has(e.a)) s.sawAlt[key(e.m)].delete(e.a);
         // Remember a real log (date, stars or review) that a later change wiped, so it can be brought back from the title sheet.
         if (p0?.v && !p0.imp && (p0.d || p0.x || p0.s) && (!e.v || (p0.x && !e.x) || (p0.d && !e.d && !e.old) || (p0.m && e.m && key(p0.m) !== key(e.m)))) (s.sawPrev[e.sk] ||= new Map()).set(e.a, { ...p0 });
+        // Editing stars or a review of an undated watch (import or quick tap) keeps it where it was: it isn't a new "just watched".
+        // Before 26 Nov 2026 the review sheet stamped today's date on such edits; those get repaired here too.
+        if (e.v && p0?.v && !e.rw && !e.old && !p0.d && !p0.old && (!e.d || (e.t < 1795698000000 && e.d === iso(new Date(e.t)) && iso(new Date(p0.at0 || p0.at || 0)) !== e.d && (e.x || "") === (p0.x || "")))) { e = { ...e, d: "", at0: p0.at0 || p0.at, imp: e.imp || p0.imp }; }
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
-      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
+      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
     }
   }
   // A title someone has watched leaves their watchlist (old imports also put every rated film on it).
@@ -206,7 +209,8 @@ function derive(clubId) {
   s.round = r => R(r);
   // Old imports weren't flagged: anything marked watched in a burst (5+ titles within milliseconds) came from a file, so treat it as imported everywhere.
   const per = {}; for (const mp of Object.values(s.saw)) for (const [id, x] of mp) if (x.v && !x.imp) (per[id] ||= []).push(x);
-  for (const xs of Object.values(per)) { xs.sort((a, b) => a.at - b.at); for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].at - xs[j - 1].at <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) xs[k].imp = true; } }
+  const T0 = x => x.at0 || x.at;
+  for (const xs of Object.values(per)) { xs.sort((a, b) => T0(a) - T0(b)); for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && T0(xs[j]) - T0(xs[j - 1]) <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) xs[k].imp = true; } }
   if (clubId === activeId || clubId === active()?.id) asFilm = films;
   s.films = films;
   s.owner = E.find(e => e.k === "meta")?.a || "";
@@ -2019,7 +2023,7 @@ function titleBySk(s, sk) {
 // My watched list: the date I watched it (picked in the review sheet), else the day I tapped Watched. Bulk imports without a date don't count.
 // Only what you log in Marquee counts per year. Imported titles count only if you switch on "Letterboxd diary dates" (and the diary has a date).
 let mwDiary = LS.get("marqueeMwDiary", false);
-const watchedOn = x => x.old ? "" : x.imp ? (mwDiary && x.wd) || "" : x.d || iso(new Date(x.at || 0));
+const watchedOn = x => x.old ? "" : x.imp ? (mwDiary && x.wd) || "" : x.d || iso(new Date(x.at0 || x.at || 0));
 // How much two members agree: films both rated, 100% = same stars every time (needs 3+ films in common).
 function agreeOf(s, a, b) {
   const ds = []; for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(a), y = mp.get(b); if (x?.v && y?.v && x.s && y.s) ds.push({ sk, d: Math.abs(x.s - y.s), a: x.s, b: y.s }); }
@@ -2158,7 +2162,8 @@ function openReview(s, sk, m0, opts = {}) {
     const ss = {}; for (const k of picked) ss[k] = prev?.ss && k in prev.ss ? prev.ss[k] : old ? "" : d;
     const news = from.length ? { to: [...new Set(from.map(g => g.a))], title: `${me.name} watched ${name}${sc ? " " + starStr(sc, true) : ""}`, body: x || `Your suggestion${from.length > 1 ? "s" : ""} worked.` } : null;
     const sr = {}; for (const k of picked) if (prev?.sr?.[k]) sr[k] = prev.sr[k];
-    act("saw", { sk, v: 1, ...(Object.keys(sr).length ? { sr } : {}), ...(rw ? { rw: 1 } : {}), ...(old ? { old: 1 } : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m ? { m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } } : {}) }, news);
+    const keepUndated = prev && !again && !old && !prev.d && !prev.old && d === today;
+    act("saw", { sk, v: 1, ...(Object.keys(sr).length ? { sr } : {}), ...(rw ? { rw: 1 } : {}), ...(old ? { old: 1 } : keepUndated ? (prev.imp ? { imp: 1 } : {}) : { d }), ...(picked.size ? { ss } : {}), ...(sc ? { s: sc } : {}), ...(x ? { x } : {}), ...(m ? { m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } } : {}) }, news);
     // Cancel my "Still on for…?" nudges for this title: an empty recipient list makes the sender drop it.
     for (const g of s.sugs.filter(g => seenKey(g.m.n) === sk && accAt(s, g, me.id))) window.MarqueePush?.send({ to: [], id: `acc_${g.id}_${me.id}`.replace(/[^\w]/g, "").slice(0, 60), title: "-", body: "" });
     // Recommend: it lands in everyone else's For you as a suggestion to accept.
