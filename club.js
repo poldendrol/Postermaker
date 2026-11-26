@@ -135,7 +135,7 @@ function derive(clubId) {
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawAlt: {} };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawAlt: {}, sawPrev: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {}, fixes = {}, films = new Set();
   for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
@@ -190,6 +190,8 @@ function derive(clubId) {
         // A different film with the same name (e.g. Resident Evil 2002 vs 2026) never overwrites a real log of the other one: it's kept on the side.
         if (e.v && e.m && p0?.v && p0.m && key(p0.m) !== key(e.m) && (p0.d || p0.s || p0.x || p0.ss) && !p0.imp && !(fixes[key(p0.m)] && key(fixes[key(p0.m)]) === key(e.m))) { (s.sawAlt[key(e.m)] ||= new Map()).set(e.a, { v: 1, at: e.t, m: e.m, s: +e.s || 0, old: !!e.old, d: e.d || "" }); break; }
         if (e.v && e.m && s.sawAlt[key(e.m)]?.has(e.a)) s.sawAlt[key(e.m)].delete(e.a);
+        // Remember a real log (date, stars or review) that a later change wiped, so it can be brought back from the title sheet.
+        if (p0?.v && !p0.imp && (p0.d || p0.x || p0.s) && (!e.v || (p0.x && !e.x) || (p0.d && !e.d && !e.old) || (p0.m && e.m && key(p0.m) !== key(e.m)))) (s.sawPrev[e.sk] ||= new Map()).set(e.a, { ...p0 });
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
       if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
@@ -1218,6 +1220,8 @@ function openTitle(s, m, focusSuggest) {
     ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
       return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev${id === me.id ? " mine" : ""}"${id === me.id ? " data-tsedit" : ""}><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}${id === me.id ? ` <button class="link ts-edit">✎ change</button>` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
+    ${(() => { const pv = s.sawPrev[sk]?.get(me.id), cur = s.saw[sk]?.get(me.id); if (!pv || (cur?.v && (!pv.x || cur.x === pv.x) && (!pv.d || cur.d === pv.d) && (!pv.s || cur.s === pv.s))) return "";
+      return `<button class="chip ts-restore" data-tsrestore>↺ Bring back your earlier log${pv.m?.y ? ` of ${esc(pv.m.n)} (${esc(pv.m.y)})` : ""}${pv.d ? ` · ${esc(pv.d)}` : ""}${pv.s ? ` · ${starStr(pv.s, true)}` : ""}${pv.x ? ` · “${esc(pv.x.slice(0, 50))}”` : ""}</button>`; })()}
     <button class="ts-post" data-tspost>📸 Make a post</button>
     <div class="ts-foot">${imdbLink(m)} · <button class="link" data-tsmore>fix this title</button></div>
     <div class="ts-fix" hidden><button class="chip" data-tsfix>Wrong match? Pick the right one</button>${m.t === "tv" ? `<button class="chip" data-tsfilm>${isTv(m) ? "🎬 It's a film" : "📺 It's a series"}</button>` : ""}</div>
@@ -1264,6 +1268,9 @@ function openTitle(s, m, focusSuggest) {
   bg.addEventListener("click", e => { if (e.target === bg || e.target.id === "tsClose") close(); });
   bg.querySelector("[data-tsfix]")?.addEventListener("click", () => { bg.remove(); openSearch("Pick the right one", m2 => { if (key(m2) === key(m)) return; act("fix", { from: key(m), m: m2 }); M.toast(`Changed to ${m2.n}${m2.y ? ` (${m2.y})` : ""} for everyone.`); }, m.n); });
   bg.querySelector("[data-tsmore]")?.addEventListener("click", e => { e.currentTarget.hidden = true; bg.querySelector(".ts-fix").hidden = false; });
+  bg.querySelector("[data-tsrestore]")?.addEventListener("click", () => { const pv = s.sawPrev[sk]?.get(me.id); if (!pv) return; close();
+    act("saw", { sk, v: 1, ...(pv.old ? { old: 1 } : pv.d ? { d: pv.d } : {}), ...(pv.s ? { s: pv.s } : {}), ...(pv.x ? { x: pv.x } : {}), ...(pv.ss ? { ss: pv.ss } : {}), ...(pv.sr ? { sr: pv.sr } : {}), ...(pv.m ? { m: pv.m } : {}) });
+    M.toast(`Your log of ${pv.m?.n || m.n} is back.`); });
   bg.querySelector("[data-tspost]")?.addEventListener("click", () => { const x = s.saw[sk]?.get(me.id); bg.remove(); titleSheet = null; M.open(m.t, m.i, m.n, x?.v ? { rating: x.s ? x.s * 2 : null, take: x.x || "" } : {}); });
   bg.querySelector("[data-tsfilm]")?.addEventListener("click", () => { const f = isTv(m); act("film", { from: key(m), v: f ? 1 : 0 }); M.toast(`${m.n} now shows as a ${f ? "film" : "series"} for everyone.`); bg.remove(); });
   const reopen = () => setTimeout(() => { if (!bg.isConnected) return; close(); openTitle(derive(active().id), m); }, 80);
