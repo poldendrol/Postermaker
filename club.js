@@ -1357,7 +1357,7 @@ const READY = {
 function listTiles(s, items, canDrop) {
   return `<div class="wl-grid">${items.map(m => { const r = rateOf(m); return `<button class="wl-tile" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w342")}${sawIt(s, m) ? `<i class="tile-ok" aria-label="You watched it">✓</i>` : ""}${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}<span class="tile-t"><b>${esc(m.n)}</b><small>${esc(m.y || "")}${r ? rateRing(r) : ""}</small></span></button>`; }).join("")}</div>`;
 }
-function openListSheet(s, l, ready) {
+function openListSheet(s, l, ready, keepY) {
   const p = listProg(s, l), unseen = l.items.filter(m => !sawIt(s, m));
   const onWl = new Set([...s.wl.values()].filter(w => w.adders.has(me.id)).map(w => key(w.m))), toAdd = unseen.filter(m => !onWl.has(key(m)));
   const club = !!l.club, mine = !ready && !club, pub = mine && pubOf(s, l), stale = pub && (pub.name !== l.name || !sameItems(pub.items, l.items));
@@ -1372,12 +1372,13 @@ function openListSheet(s, l, ready) {
     ${mine ? `<button class="link" data-lsa="del">Delete this list</button>` : ""}
     <button data-lsa="x">Close</button></div></div>`);
   document.body.appendChild(bg);
-  const close = () => bg.remove();
+  const close = () => bg.remove(), sh = bg.querySelector(".sheet"), scrollOf = () => Math.max(sh.scrollTop, bg.scrollTop);
+  if (keepY) { sh.scrollTop = keepY; bg.scrollTop = keepY; }
   bg.addEventListener("click", e => {
     if (e.target === bg) return close();
-    const x = e.target.closest("[data-lsx]"); if (x) { e.stopPropagation(); l.items = l.items.filter(m => key(m) !== x.dataset.lsx); saveList(l); close(); render(); openListSheet(lastState, l); return; }
-    const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (!m) return; close();
-      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: seenKey(m.n), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } }); M.toast(`✓ ${m.n} marked as seen.`); openListSheet(lastState, club ? lastState.pub.find(x => x.id === l.id) || l : l, ready); }
+    const x = e.target.closest("[data-lsx]"); if (x) { e.stopPropagation(); l.items = l.items.filter(m => key(m) !== x.dataset.lsx); const y = scrollOf(); saveList(l); close(); render(); openListSheet(lastState, l, false, y); return; }
+    const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (!m) return; const y = scrollOf(); close();
+      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: seenKey(m.n), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } }); M.toast(`✓ ${m.n} marked as seen.`); openListSheet(lastState, club ? lastState.pub.find(x => x.id === l.id) || l : l, ready, y); }
       return; }
     const a = e.target.closest("[data-lsa]")?.dataset.lsa; if (!a) return;
     if (a === "x") close();
