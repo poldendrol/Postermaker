@@ -1075,6 +1075,11 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
 #clubView .wl-pick.three .pulp-head .bang, #cineView .wl-pick.three .pulp-head .bang { font-size: clamp(14px, 4vw, 22px); line-height: 1; }
 @media (min-width: 900px) { #clubView .wl-pick.three .pulp-head .bang, #cineView .wl-pick.three .pulp-head .bang { font-size: clamp(15px, 1.4vw, 21px); } }
 #clubView .wl-pick.three .pulp-head, #cineView .wl-pick.three .pulp-head { padding: 7px 7px 9px; }
+/* Club banners: same size in every column (two or three per row), room for a two-line label. */
+#clubView .wl-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+#clubView .wl-pick .pulp-head { padding: 7px 7px 9px; min-height: 66px; display: flex; flex-direction: column; align-items: flex-start; }
+#clubView .wl-pick .pulp-head .bang { font-size: clamp(14px, 4vw, 22px); line-height: 1; margin-top: auto; padding-top: 4px; }
+@media (min-width: 1100px) { #clubView .wl-pick { grid-template-columns: repeat(3, 114px); } #clubView .wl-pick .pulp-head { height: 80px; } #clubView .wl-pick .pulp-head .bang { font-size: 19px; } }
 </style>
 </head>
 <body>
