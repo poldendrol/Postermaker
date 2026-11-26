@@ -1323,15 +1323,22 @@ const READY = {
   bp: { name: () => "Every Best Picture winner", load: async () => {
     const rows = await wikidata(`SELECT DISTINCT ?tmdb (MIN(YEAR(?t)) AS ?y) WHERE { ?film p:P166 ?st. ?st ps:P166 wd:Q102427; pq:P585 ?t. ?film wdt:P4947 ?tmdb. } GROUP BY ?tmdb ORDER BY DESC(?y)`);
     return tmdbFilms(rows.map(r => +r.tmdb.value)); } },
-  dir: { name: y => `Every film by ${y}`, load: async q => {
-    const pp = (await M.tm("/search/person", { query: q })).results || [], person = pp.find(x => x.known_for_department === "Directing") || pp[0];
+  dir: { name: y => READY.dir.acting ? `Every film with ${y}` : `Every film by ${y}`, load: async q => {
+    const pp = (await M.tm("/search/person", { query: q })).results || [], person = pp[0]; // a director gets the films they directed, an actor their roles
     if (!person) return [];
-    READY.dir.who = person.name;
+    READY.dir.who = person.name; READY.dir.acting = person.known_for_department === "Acting";
     const cr = await M.tm(`/person/${person.id}/movie_credits`);
-    return (cr.crew || []).filter(x => x.job === "Director" && x.release_date && x.release_date <= iso(new Date())).sort((a, b) => a.release_date.localeCompare(b.release_date)).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
+    const src = READY.dir.acting ? (cr.cast || []).filter(x => !/uncredited|himself|herself|archive/i.test(x.character || "")) : (cr.crew || []).filter(x => x.job === "Director");
+    return src.filter(x => x.release_date && x.release_date <= iso(new Date()) && !(x.genre_ids || []).includes(99)).sort((a, b) => a.release_date.localeCompare(b.release_date)).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
   top: { name: () => "Top 100 rated films", load: async () => (await Promise.all([1, 2, 3, 4, 5].map(page => M.tm("/movie/top_rated", { page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 100) },
   // Hand-picked lists: titles + years, matched on TMDB when you open them.
   lee: { name: () => "Christopher Lee as Dracula", load: () => byTitles([["Dracula", 1958], ["Dracula: Prince of Darkness", 1966], ["Dracula Has Risen from the Grave", 1968], ["Taste the Blood of Dracula", 1970], ["Scars of Dracula", 1970], ["Count Dracula", 1970], ["Dracula A.D. 1972", 1972], ["The Satanic Rites of Dracula", 1973], ["Dracula and Son", 1976, "Dracula père et fils"]]) },
+  // Every film TMDB tags "based on video game" (with enough votes to be a real release), oldest first.
+  game: { name: () => "Video game movies", load: async () => {
+    const kw = ((await M.tm("/search/keyword", { query: "based on video game" })).results || []).find(k => k.name === "based on video game") || { id: 41645 };
+    const first = await M.tm("/discover/movie", { with_keywords: kw.id, sort_by: "primary_release_date.asc", "vote_count.gte": 50, page: 1 });
+    const pages = Math.min(first.total_pages || 1, 15), rest = pages > 1 ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) => M.tm("/discover/movie", { with_keywords: kw.id, sort_by: "primary_release_date.asc", "vote_count.gte": 50, page: i + 2 }))) : [];
+    return [first, ...rest].flatMap(d => d.results || []).filter(x => x.release_date && x.release_date <= iso(new Date())).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i); } },
   best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
 };
 function listTiles(s, items, canDrop) {
@@ -1391,8 +1398,9 @@ function renderLists(s) {
           <div class="seg">${[["win", "All winners"], ["nom", "Best Picture nominees"]].map(([k, l]) => `<button class="${k === oscMode ? "on" : ""}" data-oscm="${k}">${l}</button>`).join("")}</div><button class="primary" data-ready="osc">Show</button></div></div>
         <div class="ls-r"><b>🎬 Every Best Picture winner</b><div class="ls-rc"><button data-ready="bp">Show</button></div></div>
         <div class="ls-r"><b>⭐ Best films of a year</b><div class="ls-rc"><select id="bestY" aria-label="Year">${yrs.map(y => `<option${y === bestYear ? " selected" : ""}>${y}</option>`).join("")}</select><button data-ready="best">Show</button></div></div>
-        <div class="ls-r"><b>🎥 Every film by a director</b><div class="ls-rc"><input type="search" id="dirQ" placeholder="e.g. Christopher Nolan" autocomplete="off" enterkeyhint="search"><button data-ready="dir">Show</button></div></div>
+        <div class="ls-r"><b>🎥 Every film by a director or actor</b><div class="ls-rc"><input type="search" id="dirQ" placeholder="e.g. Christopher Nolan or Jenna Coleman" autocomplete="off" enterkeyhint="search"><button data-ready="dir">Show</button></div></div>
         <div class="ls-r"><b>🧛 Christopher Lee as Dracula</b><div class="ls-rc"><button data-ready="lee">Show</button></div></div>
+        <div class="ls-r"><b>🎮 Video game movies</b><div class="ls-rc"><button data-ready="game">Show</button></div></div>
         <div class="ls-r"><b>💯 Top 100 rated films</b><div class="ls-rc"><button data-ready="top">Show</button></div></div>
       </div></div>
     <div class="ls-sec"><h3>Import</h3>
