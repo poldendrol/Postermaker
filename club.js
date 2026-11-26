@@ -1250,7 +1250,37 @@ function wlCard(s, cands, wlMode) {
 }
 const myWlCount = s => { const picked = new Set(Object.values(s.picks).map(key)); return [...s.wl.values()].filter(w => !picked.has(key(w.m)) && w.adders.has(me.id) && !(x => !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)))(sawMap(s, w.m)?.get(me.id))).length; };
 const pulpPick = (opts, cur, attr, three) => `<div class="wl-pick${three ? " three" : ""}" role="tablist">${opts.map(([k, ch, l, dot], i) => `<button class="pulp-head${i ? " alt" : ""}${cur === k ? " on" : ""}${dot ? " dot" : ""}" ${attr}="${k}" role="tab" aria-selected="${cur === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>`;
-let rtPane = LS.get("marqueeRtPane", "pop") === "gent" ? "gent" : "pop", clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
+let rtPane = ["gent", "soon"].includes(LS.get("marqueeRtPane", "pop")) ? LS.get("marqueeRtPane", "pop") : "pop", clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
+// ---------- Coming soon: films opening in Belgian cinemas in the next six months (TMDB), by Belgian release date ----------
+let soonList = LS.get("marqueeSoon", null), soonBusy = false, soonGenFor = null;
+if (soonList && (Date.now() - soonList.at > 432e5)) soonList = null;
+async function loadSoon() {
+  if (soonBusy) return; soonBusy = true;
+  const today = iso(new Date()), end = isoAdd(today, 183);
+  try {
+    const pages = await Promise.all([1, 2, 3].map(page => M.tm("/discover/movie", { region: "BE", with_release_type: "2|3", "release_date.gte": isoAdd(today, 1), "release_date.lte": end, sort_by: "popularity.desc", include_adult: "false", page })));
+    const xs = pages.flatMap(d => d.results || []).filter(x => x.poster_path && (x.popularity || 0) >= 3).filter((x, i, a) => a.findIndex(o => o.id === x.id) === i).slice(0, 45);
+    const work = [...xs], out = [];
+    await Promise.all([1, 2, 3, 4].map(async () => { while (work.length) { const x = work.shift(); let d = "";
+      try { const j = await M.tm(`/movie/${x.id}/release_dates`); const be = (j.results || []).find(r => r.iso_3166_1 === "BE"); d = ((be?.release_dates || []).filter(r => r.type === 2 || r.type === 3).map(r => r.release_date.slice(0, 10)).sort()[0]) || ""; } catch {}
+      d ||= x.release_date || ""; if (d > today && d <= end) out.push({ m: tmdbToM(x), d, r: x.vote_count >= 5 ? +(+x.vote_average || 0).toFixed(1) : 0 }); } }));
+    soonList = { at: Date.now(), l: out.sort((a, b) => a.d.localeCompare(b.d) || a.m.n.localeCompare(b.m.n)) };
+    try { LS.set("marqueeSoon", soonList); } catch {}
+  } catch { soonList = soonList || { at: 0, l: [] }; }
+  soonBusy = false; render();
+}
+function soonHtml(s) {
+  if (!soonList) { setTimeout(loadSoon, 0); return `<p class="hint">Looking up what's coming to cinemas…</p>`; }
+  const today = iso(new Date()), l = soonList.l.filter(f => f.d > today);
+  if (!l.length) return `<p class="hint">Couldn't load upcoming releases. Check your connection.</p>`;
+  if (soonGenFor !== soonList && l.some(f => !genreCache[key(f.m)])) { soonGenFor = soonList; setTimeout(() => fillGenres(l.map(f => ({ m: f.m }))), 0); }
+  let lastMo = "";
+  return `<p class="hint">Films coming to Belgian cinemas, by release date.</p><div class="wl-grid wl-rows pop-rows">${l.map(f => { const m = f.m, mine = s.wl.get(key(m))?.adders.has(me.id), mo = f.d.slice(0, 7);
+    const head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(f.d, "mo"))}${f.d.slice(0, 4) !== today.slice(0, 4) ? " " + f.d.slice(0, 4) : ""}</h5>` : ""; lastMo = mo;
+    return `${head}<button class="wl-row pop-row" data-open="${esc(key(m))}" aria-label="${esc(m.n)}"><span class="pop-rk soon-d"><b>${+f.d.slice(8)}</b><small>${esc(fmtDay(f.d, "wd"))}</small></span>${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}</b>
+      <small class="hint">${esc([genreOf(m) !== "Other" ? genreOf(m) : "", (n => n ? `${n} want it` : "")(s.wl.get(key(m))?.adders.size || 0)].filter(Boolean).join(" · "))}</small>
+      <span class="wl-rb">${mine ? `<i class="row-ok">On your list</i>` : ""}</span></span></button>`; }).join("")}</div>`;
+}
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
 let popGenFor = null, popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
@@ -1424,7 +1454,7 @@ function forYouCard(s, part) {
   </div>`;
 }
 function findTitle(s, k) {
-  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || ghentList?.find(g => key(g.m) === k)?.m || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
+  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || ghentList?.find(g => key(g.m) === k)?.m || soonList?.l.find(f => key(f.m) === k)?.m || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
 }
 function openTitleByKey(s, k, focusSuggest) { const m = findTitle(s, k); if (m) openTitle(s, m, focusSuggest); }
 let titleSheet = null;
@@ -2204,6 +2234,7 @@ const TOUR = [
   { tab: "lists", a: '[data-lsv="old"]', t: "Keep track of what you have seen before." },
   { tab: "weekly", a: '[data-rtv="pop"]', t: "See the most popular movies at the moment." },
   { tab: "weekly", a: '[data-rtv="gent"]', t: "See what is playing in Ghent at the moment." },
+  { tab: "weekly", a: '[data-rtv="soon"]', t: "See which films are coming to the cinema, by release date." },
   { a: "#cbFind", t: "Add a movie or series to your watchlist here, or log one you just watched." },
 ];
 function maybeTour() {
@@ -2268,8 +2299,8 @@ function renderClub() {
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
-    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["gent", ghentList ? `${ghentList.length} worth seeing` : "Cinemas", "In Ghent"]], rtPane, "data-rtv")}
-      ${rtPane === "gent" ? ghentHtml(s) : popHtml(s)}</div>
+    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["gent", ghentList ? `${ghentList.length} worth seeing` : "Cinemas", "In Ghent"], ["soon", soonList ? `${soonList.l.filter(f => f.d > iso(new Date())).length} films` : "Release dates", "Coming soon"]], rtPane, "data-rtv", true)}
+      ${rtPane === "gent" ? ghentHtml(s) : rtPane === "soon" ? soonHtml(s) : popHtml(s)}</div>
     </div>
 
 
