@@ -769,6 +769,17 @@ footer { padding-left: 0; }
 .pop-row .pop-rk { flex: none; width: 22px; align-self: center; text-align: center; font: 400 20px/1 var(--display, Impact), sans-serif; color: var(--muted); }
 #acct > b:first-child, #setPush > b:first-child { display: none; }
 .set-h { margin: 14px 0 -4px 2px; font: 400 22px/1 var(--display, Impact), sans-serif; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.tour-veil { position: fixed; inset: 0; z-index: 80; background: rgba(10,8,14,.45); }
+.tour-on { position: relative; z-index: 81; outline: 3px solid #ffd400; outline-offset: 4px; border-radius: 8px; }
+#nav .tour-on { z-index: 81; }
+.tour-tip { position: fixed; z-index: 82; background: #ffd400; color: #111; border: 3px solid #111; border-radius: 14px; padding: 12px 14px 10px; box-shadow: 5px 5px 0 #111; animation: foIn .2s ease-out; }
+.tour-tip p { margin: 0 0 8px; font-weight: 700; font-size: 15px; line-height: 1.3; }
+.tour-row { display: flex; align-items: center; gap: 10px; }
+.tour-row small { margin-right: auto; font-weight: 700; opacity: .7; }
+.tour-row .link { color: #111; }
+.tour-row .primary { background: #111; border-color: #111; color: #ffd400; padding: 6px 14px; }
+.tour-arr { position: absolute; top: -10px; width: 14px; height: 14px; background: #ffd400; border-left: 3px solid #111; border-top: 3px solid #111; transform: rotate(45deg); }
+.tour-tip.up .tour-arr { top: auto; bottom: -10px; transform: rotate(225deg); }
 .find-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .find-sheet h3 { margin: 0 0 4px; }
 @media (max-width: 820px) { .club-acts span { display: none; } .club-acts #cbFind span { display: inline; } }

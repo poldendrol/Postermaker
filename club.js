@@ -2177,6 +2177,36 @@ const navTab = () => document.querySelectorAll("#nav [data-ct]").forEach(b => b.
 document.addEventListener("marquee:view", () => setTimeout(navTab, 0));
 document.addEventListener("marquee:clubtab", e => { setClubTab(e.detail); render(); });
 function setClubTab(t) { clubTab = t; setTimeout(navTab, 0); try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
+// First visit: four tips that point at the three columns (or the phone tabs) and the Log button. Shown once per device.
+const TOUR = [
+  { pc: ".ccol.c0 .col-title", ph: '#nav [data-ct="mine"]', t: "See here what you and your friends have watched, now and before." },
+  { pc: ".ccol.c1 .col-title", ph: '#nav [data-ct="lists"]', t: "Keep a personal watchlist and see what your friends want to watch." },
+  { pc: ".ccol.c2 .col-title", ph: '#nav [data-ct="weekly"]', t: "See which movies are popular at the moment and what's playing in Ghent." },
+  { pc: "#cbFind", ph: "#cbFind", t: "Add a movie or series to your watchlist here, or log one you just watched." },
+];
+function maybeTour() {
+  if (LS.get("marqueeTour1", false) || document.body.dataset.view !== "club" || !me || document.querySelector(".tour-tip")) return;
+  if (document.querySelector(".sheet-bg")) { setTimeout(maybeTour, 3000); return; }
+  let i = 0; const wide = () => matchMedia("(min-width: 1100px)").matches;
+  const veil = el(`<div class="tour-veil"></div>`), tip = el(`<div class="tour-tip" role="dialog" aria-live="polite"><p></p><div class="tour-row"><small></small><button class="link" data-tskip>Skip</button><button class="primary" data-tnext>Next</button></div><i class="tour-arr"></i></div>`);
+  document.body.append(veil, tip);
+  const end = () => { LS.set("marqueeTour1", true); veil.remove(); tip.remove(); document.querySelectorAll(".tour-on").forEach(x => x.classList.remove("tour-on")); window.removeEventListener("resize", show); };
+  const show = () => {
+    document.querySelectorAll(".tour-on").forEach(x => x.classList.remove("tour-on"));
+    const st = TOUR[i], a = document.querySelector(wide() ? st.pc : st.ph) || document.querySelector(st.pc);
+    if (!a || !a.getClientRects().length) { if (++i < TOUR.length) return show(); return end(); }
+    a.classList.add("tour-on"); a.scrollIntoView({ block: "nearest" });
+    tip.querySelector("p").textContent = st.t; tip.querySelector("small").textContent = `${i + 1} of ${TOUR.length}`; tip.querySelector("[data-tnext]").textContent = i === TOUR.length - 1 ? "Got it" : "Next";
+    const r = a.getBoundingClientRect(), tw = Math.min(300, innerWidth - 24), below = r.bottom + 170 < innerHeight;
+    tip.style.width = tw + "px"; const left = Math.max(12, Math.min(innerWidth - tw - 12, r.left + r.width / 2 - tw / 2));
+    tip.style.left = left + "px"; tip.style.top = (below ? r.bottom + 12 : r.top - 12 - tip.offsetHeight) + "px";
+    tip.classList.toggle("up", !below); tip.querySelector(".tour-arr").style.left = Math.max(14, Math.min(tw - 28, r.left + r.width / 2 - left - 7)) + "px";
+  };
+  tip.querySelector("[data-tskip]").onclick = end;
+  const next = () => { if (++i >= TOUR.length) end(); else show(); };
+  tip.querySelector("[data-tnext]").onclick = next; veil.onclick = next;
+  window.addEventListener("resize", show); show();
+}
 function renderClub() {
   const c = active(), s = derive(c.id); lastState = s;
   if (s.name !== c.name || s.day !== c.day) { const l = clubs(); const x = l.find(y => y.id === c.id); x.name = s.name || x.name; x.day = s.day; LS.set("marqueeClubs", l); }
@@ -2255,6 +2285,7 @@ function renderClub() {
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
+  if (!LS.get("marqueeTour1", false)) setTimeout(maybeTour, 900);
 }
 
 function bind(c, s, cands, movie) {
