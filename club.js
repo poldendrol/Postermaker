@@ -2236,6 +2236,7 @@ const TOUR = [
   { tab: "weekly", a: '[data-rtv="gent"]', t: "See what is playing in Ghent at the moment." },
   { tab: "weekly", a: '[data-rtv="soon"]', t: "See which films are coming to the cinema, by release date." },
   { a: "#cbFind", t: "Add a movie or series to your watchlist here, or log one you just watched." },
+  { a: '#cbSet, .nav-pc[data-view="settings"]', t: "Already have a watchlist on IMDb or Letterboxd? Upload it here in Settings, under Watching." },
 ];
 function maybeTour() {
   if (LS.get("marqueeTour3", false) || document.body.dataset.view !== "club" || !me || document.querySelector(".tour-tip")) return;
@@ -2247,8 +2248,8 @@ function maybeTour() {
   const show = () => {
     document.querySelectorAll(".tour-on").forEach(x => x.classList.remove("tour-on"));
     const st = TOUR[i]; if (st.tab && !wide() && clubTab !== st.tab) setClubTab(st.tab); // phone: switch to that tab first
-    const a = document.querySelector("#clubView " + st.a) || document.querySelector(st.a);
-    if (!a || !a.getClientRects().length) { if (++i < TOUR.length) return show(); return end(); }
+    const pick = q => [...document.querySelectorAll(q)].find(x => x.getClientRects().length), a = pick("#clubView " + st.a) || pick(st.a);
+    if (!a) { if (++i < TOUR.length) return show(); return end(); }
     a.classList.add("tour-on"); a.scrollIntoView({ block: "nearest" });
     tip.querySelector("p").textContent = st.t; tip.querySelector("small").textContent = `${i + 1} of ${TOUR.length}`; tip.querySelector("[data-tnext]").textContent = i === TOUR.length - 1 ? "Got it" : "Next";
     const r = a.getBoundingClientRect(), tw = Math.min(300, innerWidth - 24), below = r.bottom + 170 < innerHeight;
