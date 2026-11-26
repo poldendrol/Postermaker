@@ -157,7 +157,7 @@ function derive(clubId) {
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawAlt: {}, sawPrev: {}, sawIdx: {}, pins: {} };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawPrev: {}, sawIdx: {}, pins: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {}, fixes = {}, films = new Set(), idx = s.sawIdx;
   const fixK = k => { let m = null; for (let i = 0; i < 9 && fixes[k]; i++) { m = fixes[k]; k = key(m); } return m; };
@@ -1167,7 +1167,6 @@ function parseCsv(text) {
 function wlCard(s, cands, wlMode) {
   const wlQ = wlQs[wlMode] || ""; // each list has its own search box
   const nominated = new Map(cands.map(x => [key(x.m), x]));
-  const seenBy = t => [...(s.saw[seenKey(t)] || new Map()).values()].filter(x => x.v).length;
   const picked = new Set(Object.values(s.picks).map(key)); // already watched as a club: lives in History now
   const base = [...s.wl.values()].filter(w => !picked.has(key(w.m))).map(w => ({ ...w, nom: nominated.get(key(w.m)) }));
   // To watch list: what I added and haven't watched yet. Club watchlist: what the friends I pick added that I haven't watched.
@@ -1198,7 +1197,6 @@ function wlCard(s, cands, wlMode) {
   const shown = items;
   if ([...items, ...done].some(w => !(key(w.m) in rateCache))) setTimeout(() => fillGenres([...items, ...done]), 0);
   { const need = wlStream ? preStream : shown; setTimeout(() => fillProv(need), 0); } // streaming logos show on every tile automatically
-  const sawBy = (t, id) => !!s.saw[seenKey(t)]?.get(id)?.v;
   const fchip = (id, l, n, on) => `<button class="chip${on ? " on" : ""}" data-wlf="${esc(id)}">${esc(l)}${n != null ? ` <i>${n}</i>` : ""}</button>`;
   // Netflix-style poster tiles: tap opens the title sheet (Watched?, remove, suggest, where to stream live there).
   const tile = w => {
@@ -1852,7 +1850,6 @@ function bindWl(s, cands) {
     actMany(fresh.map(({ _s, _d, _w, ...m }) => ["wl", { m }]), { title: `${me.name} added ${fresh.length} film${fresh.length === 1 ? "" : "s"} to the club watchlist`, body: label });
     M.toast(`${fresh.length} film${fresh.length === 1 ? "" : "s"} added to your Personal watchlist.`);
   };
-  const fromSearch = () => openSearch("Add to your Personal watchlist", m => addAll([m], m.n));
   // One small button holds sorting and the filters (films/series, on my services).
   // Sort and filter sit right above the tiles: one tap each.
   view.querySelectorAll(".wl-filt button").forEach(b => b.onclick = () => {
@@ -1880,7 +1877,6 @@ function bindWl(s, cands) {
     bg.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if ((e.target !== bg && !a) || a === "go") return; bg.remove(); if (a === "file") fromFile(); else if (a === "saved") fromSaved(); });
   };
   wlApi = { openImport, addAll };
-  view.querySelectorAll("#cwAdd").forEach(b => b.addEventListener("click", () => openSearch("Add to your Personal watchlist", m => addAll([m], m.n))));
   // Imports: IMDb CSV (watchlist or ratings) and Letterboxd (watchlist, ratings, watched or diary CSV, or the whole export ZIP).
   const pool = async (list, fn, label) => {
     const work = list.slice(), out = []; let done = 0, missed = 0;
@@ -2253,8 +2249,6 @@ function renderClub() {
   bindCal(s, calH, "home"); bindCal(s, calC, "cine");
   bindWl(s, cands);
   setTimeout(() => scheduleDigest(s, c), 0);
-  $("mwLog")?.addEventListener("click", () => openSearch("What did you watch?", m => openReview(derive(active().id), skOf(m), m, { log: true })));
-  $("sbAdd")?.addEventListener("click", () => openSearch("What have you seen before?", m => openReview(derive(active().id), skOf(m), m, { old: true })));
   document.querySelectorAll("[data-sbs]").forEach(b => b.onclick = () => { sbSort = b.dataset.sbs; LS.set("marqueeSbSort", sbSort); renderClub(); });
   document.querySelectorAll("[data-sbt]").forEach(b => b.onclick = () => { sbType = b.dataset.sbt; renderClub(); });
   $("sbQ")?.addEventListener("input", e => { sbQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
@@ -2269,7 +2263,6 @@ function bind(c, s, cands, movie) {
   $("cbSet")?.addEventListener("click", () => M.setView("settings"));
   $("cbFind")?.addEventListener("click", openFind);
   $("cbAct")?.addEventListener("click", openActivity);
-  if ($("upNext")) setTimeout(() => fillUpNext(lastState || s), 0);
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate what to watch next" : "Nominate the first movie", m => {
@@ -2375,7 +2368,6 @@ function myWatched0(s, who) {
 function seenBefore(s) {
   const out = [], seenK = new Set();
   for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s, x: x.x, d: x.imp ? "" : x.d || (x.old ? "" : iso(new Date(x.at || 0))), ss: ssList(x.ss), at: x.at || 0 }); } // everything you've seen: logged with a date, seen before, or imported
-  for (const mp of Object.values(s.sawAlt)) { const x = mp.get(me.id); if (x?.v && !seenK.has(key(x.m))) { seenK.add(key(x.m)); out.push({ m: x.m, s: x.s, x: x.x, d: x.d || (x.old ? "" : iso(new Date(x.at || 0))), ss: [], at: x.at || 0 }); } }
   return out.sort((a, b) => a.m.n.localeCompare(b.m.n));
 }
 let sbQ = "", sbSort = LS.get("marqueeSbSort", "az"), sbType = "all";
@@ -2503,34 +2495,6 @@ function openReview(s, sk, m0, opts = {}) {
   bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) paintStars(bg, score);
-}
-// Up next: series you've logged seasons of, with the next season to watch or the date a new one starts.
-const myTvInProgress = s => Object.entries(s.saw).map(([sk, mp]) => { const x = mp.get(me.id), m = x?.v && (titleBySk(s, sk) || x.m); return m && isTv(m) && x.ss && ssList(x.ss).length ? { m, ss: ssList(x.ss) } : null; }).filter(Boolean);
-const tvCache = LS.get("marqueeTvCache", {});
-async function tvInfo(m) {
-  const c = tvCache[m.i]; if (c && now() - c.t < 864e5) return c;
-  const j = await M.tm(`/tv/${m.i}`), td = iso(new Date());
-  const aired = (j.seasons || []).filter(q => q.season_number > 0 && q.air_date && q.air_date <= td).map(q => q.season_number);
-  const nx = j.next_episode_to_air;
-  tvCache[m.i] = { t: now(), aired, status: j.status || "", next: nx ? { s: nx.season_number, e: nx.episode_number, d: nx.air_date } : null };
-  const ks = Object.keys(tvCache); if (ks.length > 150) for (const k of ks.sort((a, b) => tvCache[a].t - tvCache[b].t).slice(0, 50)) delete tvCache[k];
-  LS.set("marqueeTvCache", tvCache); return tvCache[m.i];
-}
-async function fillUpNext(s) {
-  const box = document.getElementById("upNext"); if (!box) return;
-  const rows = [];
-  for (const { m, ss } of myTvInProgress(s)) {
-    let i; try { i = await tvInfo(m); } catch { continue; }
-    const todo = i.aired.filter(n => !ss.includes(n)), fmt = d => new Date(d + "T12:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: d.slice(0, 4) === String(new Date().getFullYear()) ? undefined : "numeric" });
-    if (todo.length) rows.push({ m, o: 0, txt: `Next: <b>season ${todo[0]}</b>${todo.length > 1 ? ` · ${todo.length} seasons to go` : ""}` });
-    else if (i.next && i.next.e === 1) rows.push({ m, o: 1, d: i.next.d, txt: `Season ${i.next.s} starts <b>${esc(fmt(i.next.d))}</b>` });
-    else if (i.next) rows.push({ m, o: 2, txt: `Season ${i.next.s} is airing · next episode ${esc(fmt(i.next.d))}` });
-  }
-  const b2 = document.getElementById("upNext"); if (!b2) return;
-  if (!rows.length) { b2.remove(); return; }
-  rows.sort((a, b) => a.o - b.o || (a.d || "").localeCompare(b.d || "") || a.m.n.localeCompare(b.m.n));
-  b2.innerHTML = `<h4 class="wl-sec">📺 Up next <i>${rows.length}</i></h4><div class="wl-grid wl-rows">${rows.map(r => `<button class="wl-row" data-open="${esc(key(r.m))}">${poster(r.m.p, "w92")}<span class="body"><b>${esc(r.m.n)}</b><small class="hint">${r.txt}</small></span></button>`).join("")}</div>`;
-  b2.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openTitleByKey(lastState, b.dataset.open));
 }
 // Titles on your Personal watchlist that are also marked as seen: one of the two is wrong, so let the person pick per title.
 const seenClash = s => [...s.wl.values()].filter(w => w.adders.has(me.id) && !Object.values(s.picks).some(p => key(p) === key(w.m)) && (x => !!x?.v && (!x.m || key(x.m) === key(w.m)))(sawMap(s, w.m)?.get(me.id))).sort((a, b) => a.m.n.localeCompare(b.m.n));
