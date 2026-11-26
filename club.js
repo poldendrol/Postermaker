@@ -135,7 +135,7 @@ function derive(clubId) {
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {} };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawAlt: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {}, fixes = {}, films = new Set();
   for (const e of E) if (e.k === "unpick" && e.tr !== "m") unpickAt[e.r] = Math.max(unpickAt[e.r] || 0, e.t);
@@ -187,6 +187,9 @@ function derive(clubId) {
       case "wl": if (e.m) { if (fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; const k = key(e.m), w = s.wl.get(k) || { m: e.m, adders: new Map(), addAt: new Map(), addT: new Map(), at: e.t }; w.adders.set(e.a, e.n || "Someone"); (w.addT ||= new Map()).set(e.a, e.t); if (!bulkWl.has(e.i)) w.addAt.set(e.a, e.t); s.wl.set(k, w); } break;
       case "wldrop": if (e.m && fixes[key(e.m)]) e = { ...e, m: fixes[key(e.m)] }; if (e.m) s.wl.get(key(e.m))?.adders.delete(e.a); break;
       case "saw": if (e.sk) { const p0 = s.saw[e.sk]?.get(e.a); // "rw": watched it again; keep the earlier watch on the wall
+        // A different film with the same name (e.g. Resident Evil 2002 vs 2026) never overwrites a real log of the other one: it's kept on the side.
+        if (e.v && e.m && p0?.v && p0.m && key(p0.m) !== key(e.m) && (p0.d || p0.s || p0.x || p0.ss) && !p0.imp && !(fixes[key(p0.m)] && key(fixes[key(p0.m)]) === key(e.m))) { (s.sawAlt[key(e.m)] ||= new Map()).set(e.a, { v: 1, at: e.t, m: e.m, s: +e.s || 0, old: !!e.old, d: e.d || "" }); break; }
+        if (e.v && e.m && s.sawAlt[key(e.m)]?.has(e.a)) s.sawAlt[key(e.m)].delete(e.a);
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
       if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, wd: e.v ? (e.wd && e.d ? e.d : s.saw[e.sk].get(e.a)?.wd || "") : "", m: e.m || s.saw[e.sk].get(e.a)?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
@@ -1280,7 +1283,7 @@ let wlApi = null, lsOpen = null, oscYear = new Date().getFullYear(), oscMode = "
 const myLists = () => Object.values(LS.get("marqueeLists", {})).filter(l => l && !l.gone && Array.isArray(l.items)).sort((a, b) => (b.at || 0) - (a.at || 0));
 function saveList(l) { const all = LS.get("marqueeLists", {}); all[l.id] = { ...l, at: now() }; LS.set("marqueeLists", all); window.MarqueeAccount?.save?.(); }
 function dropList(id) { const all = LS.get("marqueeLists", {}); if (all[id]) all[id] = { id, gone: 1, at: now() }; LS.set("marqueeLists", all); }
-const sawIt = (s, m) => { const x = s.saw[seenKey(m.n)]?.get(me.id); return !!x?.v && (!x.m || key(x.m) === key(m)); };
+const sawIt = (s, m) => { const x = s.saw[seenKey(m.n)]?.get(me.id); return (!!x?.v && (!x.m || key(x.m) === key(m))) || !!s.sawAlt[key(m)]?.get(me.id)?.v; };
 const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
 // Only the club's list maker (whoever started the club, or already has lists) sees the tools; everyone else gets the lists they published.
 const listMaker = s => s.owner === me.id || myLists().length > 0;
@@ -2027,6 +2030,7 @@ function myWatched(s, who = me.id) {
 function seenBefore(s) {
   const out = [], seenK = new Set();
   for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s }); } // everything you've seen: logged with a date, seen before, or imported
+  for (const mp of Object.values(s.sawAlt)) { const x = mp.get(me.id); if (x?.v && !seenK.has(key(x.m))) { seenK.add(key(x.m)); out.push({ m: x.m, s: x.s }); } }
   return out.sort((a, b) => a.m.n.localeCompare(b.m.n));
 }
 let sbQ = "", sbSort = LS.get("marqueeSbSort", "az"), sbType = "all";
