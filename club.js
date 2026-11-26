@@ -97,7 +97,7 @@ const defaultName = () => me?.name || LS.get("marqueeMe", null)?.name || "";
 // Event: { i: id, k: kind, a: author id, n: author name, t: time, r: round, ... }
 // Kinds: meta {name, day} · join · nom {m} · drop {m} · vote {v: movie key or ""} · pick {m} · unpick
 //        say {x} · seen {s}. Nominations and votes in round r choose the movie for round r + 1.
-const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc", "sugdrop", "fix", "film", "list", "unlist"]);
+const KINDS = new Set(["meta", "join", "nom", "drop", "vote", "pick", "unpick", "say", "seen", "go", "saw", "wl", "wldrop", "sug", "in", "odate", "ospot", "acc", "sugdrop", "fix", "film", "list", "unlist", "pin"]);
 // Cinema outings: a "nom" with tr: "m" is a suggested outing (key ok = ckey). "in" { ok, v: 1|0 } joins it, "odate" { ok, sc } sets the date.
 // "sug" { m, to: [member ids] or ["*"] for everyone, d: "YYYY-MM-DD" first watch date, wk: 1 = remind weekly until seen }
 // "acc" { sg: suggestion id, v: 1|0 } = "I'll watch it in the coming week" (replaces the old weekly reminders; wk is ignored now).
@@ -129,6 +129,7 @@ function merge(clubId, list) {
     if (e.k === "list" || e.k === "unlist") { e.lid = String(e.lid || "").slice(0, 16); e.pv = String(e.pv || "").slice(0, 16); e.name = String(e.name || "").slice(0, 60); e.pt = Math.max(0, Math.min(99, +e.pt || 0)); e.np = Math.max(1, Math.min(100, +e.np || 1));
       e.items = Array.isArray(e.items) ? e.items.slice(0, 40).filter(m => m && (m.t === "movie" || m.t === "tv") && Number.isFinite(+m.i)).map(m => ({ t: m.t, i: +m.i, n: String(m.n || "").slice(0, 120), y: String(m.y || "").slice(0, 4), p: /^\/[\w.-]{1,60}$/.test(m.p) ? m.p : "" })) : []; }
     if (e.k === "sugdrop") e.sg = String(e.sg || "").slice(0, 16);
+    if (e.k === "pin") { e.lid = String(e.lid || "").slice(0, 16); e.v = e.v ? 1 : 0; }
     if (e.k === "acc") { e.sg = String(e.sg || "").slice(0, 16); e.v = e.v ? 1 : 0; }
     if (e.k === "in" || e.k === "odate") { e.ok = String(e.ok || "").slice(0, 200); e.v = e.v ? 1 : 0; }
     if (e.k === "sug") { e.to = Array.isArray(e.to) ? e.to.slice(0, 30).map(x => String(x).slice(0, 16)) : []; e.d = /^\d{4}-\d\d-\d\d$/.test(e.d) ? e.d : ""; e.wk = e.wk ? 1 : 0; }
@@ -156,7 +157,7 @@ function derive(clubId) {
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
-  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawAlt: {}, sawPrev: {}, sawIdx: {} };
+  const s = { name: club.name, day: club.day ?? 0, members: new Map(), picks: {}, cur: -1, rounds: {}, mon: {}, saw: {}, wl: new Map(), sugs: [], talk: {}, outs: new Map(), acc: {}, clists: new Map(), rw: {}, sawAlt: {}, sawPrev: {}, sawIdx: {}, pins: {} };
   const R = r => (s.rounds[r] ||= { noms: [], dropped: new Set(), votes: new Map(), seen: new Map(), says: [] });
   const unpickAt = {}, fixes = {}, films = new Set(), idx = s.sawIdx;
   const fixK = k => { let m = null; for (let i = 0; i < 9 && fixes[k]; i++) { m = fixes[k]; k = key(m); } return m; };
@@ -200,6 +201,7 @@ function derive(clubId) {
       // "list" { lid, pv, name, pt, np, items }: a list published for the club, split into parts (ntfy messages are small); "unlist" { lid } takes it back.
       case "list": if (e.lid && e.pv) { const o = s.clists.get(e.lid); if (!o || o.pv < e.pv) s.clists.set(e.lid, { lid: e.lid, pv: e.pv, name: e.name, np: e.np, at: e.t, a: e.a, by: e.n, parts: { [e.pt]: e.items } }); else if (o.pv === e.pv) o.parts[e.pt] = e.items; } break;
       case "unlist": if (e.lid) s.clists.delete(e.lid); break;
+      case "pin": if (e.lid) { const p = (s.pins[e.a] ||= new Map()); if (e.v) p.set(e.lid, e.t); else p.delete(e.lid); } break; // challenges a member shows on their wall
       case "film": if (e.from) { e.v ? films.add(e.from) : films.delete(e.from); } break;
       case "fix": if (e.from && e.m && e.from !== key(e.m)) {
         const k2 = key(e.m), w = s.wl.get(e.from); fixes[e.from] = e.m;
@@ -369,7 +371,7 @@ async function reseed(clubId, inWindow) {
   const s = derive(clubId), keepFrom = s.cur - 1;
   const all = Object.values(evs(clubId)).filter(e => !e.gone);
   const latestMeta = all.filter(e => e.k === "meta").sort((a, b) => b.t - a.t)[0];
-  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "fix" || e.k === "film" || e.k === "unlist" || (e.k === "list" && s.clists.get(e.lid)?.pv === e.pv) || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
+  const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "fix" || e.k === "film" || e.k === "unlist" || e.k === "pin" || (e.k === "list" && s.clists.get(e.lid)?.pv === e.pv) || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
   if (!missing.length) return;
   try { await send(clubId, missing, true); } catch {}
@@ -1557,13 +1559,17 @@ const sawIt = (s, m) => { const x = sawMap(s, m)?.get(me.id); return !!x?.v && (
 const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
 // Only the club's list maker (whoever started the club, or already has lists) sees the tools; everyone else gets the lists they published.
 const listMaker = s => s.owner === me.id || myLists().length > 0;
-// My wall: a thin bar for the challenge you're closest to finishing (started, not done yet).
+// My wall: the challenges people pinned (📌 in a challenge), with their own progress. With nothing pinned, your closest one shows.
 function chalBar(s) {
-  let best = null; for (const l of allLists(s)) { const p = listProg(s, l); if (!p.n || p.done || p.total < 3) continue; const r = p.n / p.total; if (!best || r > best.r) best = { l, p, r }; }
-  if (!best) return "";
-  return `<button class="chal-bar" data-chal="${esc(best.l.id)}"><span class="chal-t">🏅 <b>${esc(best.l.name)}</b> · ${best.p.total - best.p.n} to go</span><span class="chal-track"><i style="width:${Math.round(best.r * 100)}%"></i></span><small>${best.p.n}/${best.p.total}</small></button>`;
+  const lists = new Map([...s.pub, ...allLists(s)].map(l => [l.id, l])), who = typeof mwWho === "undefined" ? me.id : mwWho === "*" ? "*" : mwWho || me.id;
+  const progOf = (l, id) => { const n = l.items.filter(m => id === me.id ? sawIt(s, m) : !!sawMap(s, m).get(id)?.v).length; return { n, total: l.items.length, done: l.items.length > 0 && n === l.items.length }; };
+  const ids = who === "*" ? [me.id, ...[...s.members.keys()].filter(id => id !== me.id)] : [who];
+  const rows = ids.flatMap(id => [...(s.pins[id] || new Map()).entries()].sort((a, b) => a[1] - b[1]).map(([lid]) => lists.get(lid)).filter(l => l?.items.length).map(l => ({ l, id, p: progOf(l, id) })));
+  if (!rows.length && (who === me.id || who === "*")) { let best = null; for (const l of allLists(s)) { const p = listProg(s, l); if (!p.n || p.done || p.total < 3) continue; const r = p.n / p.total; if (!best || r > best.p.n / best.p.total) best = { l, id: me.id, p, auto: 1 }; } if (best) rows.push(best); }
+  const many = who === "*" && new Set(rows.map(r => r.id)).size > 1;
+  return rows.map(({ l, id, p, auto }) => `<button class="chal-bar${p.done ? " done" : ""}" data-chal="${esc(l.id)}"${auto ? ' title="Your closest challenge. Open a challenge and tap 📌 to choose what shows here."' : ""}><span class="chal-t">${p.done ? "🏅" : auto ? "🎯" : "📌"} ${many || id !== me.id ? `<em>${esc(id === me.id ? "You" : s.members.get(id)?.name || "")}</em> · ` : ""}<b>${esc(l.name)}</b>${p.done ? " · done!" : ` · ${p.total - p.n} to go`}</span><span class="chal-track"><i style="width:${Math.round(p.n / (p.total || 1) * 100)}%"></i></span><small>${p.n}/${p.total}</small></button>`).join("");
 }
-document.addEventListener("click", e => { const b = e.target.closest("[data-chal]"); if (!b || !lastState) return; const l = allLists(lastState).find(x => x.id === b.dataset.chal); if (l) openListSheet(lastState, l); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-chal]"); if (!b || !lastState) return; const id = b.dataset.chal, own = allLists(lastState).find(x => x.id === id && !x.club), l = own || lastState.pub.find(x => x.id === id); if (l) openListSheet(lastState, l); });
 const allLists = s => { const mine = listMaker(s) ? myLists() : []; return [...mine, ...s.pub.filter(p => !mine.some(l => l.id === p.id))]; };
 const pubOf = (s, l) => s.pub.find(p => p.id === l.id);
 const sameItems = (a, b) => a.length === b.length && a.every((m, i) => key(m) === key(b[i]));
@@ -1646,6 +1652,7 @@ function openListSheet(s, l, ready, keepY) {
     <div class="ls-prog"><i style="width:${p.total ? Math.round(p.n / p.total * 100) : 0}%"></i></div>
     <small class="hint">${p.total ? `You've seen ${p.n} of ${p.total}${p.done ? " · badge earned!" : ` · see them all for a badge`}${club && l.by ? ` · from ${esc(l.by)}` : ""}` : "Empty list. Add titles below."}</small>
     <div class="ts-btns">${toAdd.length ? `<button class="ts-btn" data-lsa="wl">＋ ${club ? `Add list to my watchlist (${toAdd.length})` : `${toAdd.length} to my watchlist`}</button>` : `<button class="ts-btn on" disabled>${unseen.length ? "✓ All on your watchlist" : "✓ All seen"}</button>`}${ready ? `<button class="ts-btn" data-lsa="save">💾 Save as my list</button>` : mine ? `<button class="ts-btn" data-lsa="add">＋ Add title</button>` : ""}</div>
+    ${(mine || club) && l.id && l.items.length ? (on => `<button class="ts-btn pin-btn${on ? " on" : ""}" data-lsa="${on ? "unpin" : "pin"}">📌 ${on ? "On my wall · tap to remove" : "Show on my wall"}</button>`)(!!s.pins?.[me.id]?.has(l.id)) : ""}
     ${mine && l.items.length ? `<div class="ls-pub">${pub ? `<span>📣 Shared with the club${stale ? " · you changed it since" : ""}</span>${stale ? `<button class="ts-btn" data-lsa="pub">Update</button>` : ""}<button class="link" data-lsa="unpub">Stop sharing</button>` : `<button class="primary" data-lsa="pub">📣 Share with the club</button>`}</div>` : ""}
     ${p.total && !p.done ? `<small class="hint">Tap a title you've already seen to tick it off.</small>` : ""}
     ${listTiles(s, l.items, mine)}
@@ -1664,6 +1671,7 @@ function openListSheet(s, l, ready, keepY) {
     const a = e.target.closest("[data-lsa]")?.dataset.lsa; if (!a) return;
     if (a === "x") close();
     if (a === "wl") { actMany(toAdd.map(m => ["wl", { m }]), { title: `${me.name} added ${toAdd.length} title${toAdd.length === 1 ? "" : "s"} to the club watchlist`, body: l.name }); M.toast(`${toAdd.length} title${toAdd.length === 1 ? "" : "s"} from ${l.name} added to your Personal watchlist.`); close(); }
+    if (a === "pin" || a === "unpin") { if (a === "pin" && mine && !pub) publishList(l); act("pin", { lid: l.id, v: a === "pin" ? 1 : 0 }); M.toast(a === "pin" ? `"${l.name}" is on your wall${mine && !pub ? " and shared with the club" : ""}.` : `"${l.name}" is off your wall.`); close(); setTimeout(() => { render(); const n = derive(active().id); openListSheet(n, club ? n.pub.find(x => x.id === l.id) || l : l, ready); }, 60); return; }
     if (a === "pub") { publishList(l); M.toast(pub ? `Updated "${l.name}" for the club.` : `Shared "${l.name}" with the club.`); close(); render(); openListSheet(lastState, l); }
     if (a === "unpub" && confirm(`Stop sharing "${l.name}"? It disappears from everyone's Lists; their ticks stay.`)) { act("unlist", { lid: l.id }); close(); render(); openListSheet(lastState, l); }
     if (a === "save") { const nl = { id: "l" + rand(8), name: l.name, items: l.items, src: l.src || "" }; saveList(nl); M.toast(`Saved "${l.name}" to your lists.`); close(); render(); }
