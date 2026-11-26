@@ -1,0 +1,19 @@
+name: Firestore rules
+on:
+  push:
+    branches: [main]
+    paths: [firestore.rules]
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Publish rules
+        env: { FIREBASE_SERVICE_ACCOUNT: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" }
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "No secret yet"; exit 0; fi
+          cd scripts && npm install --no-save --silent firebase-admin@12 && node rules.mjs

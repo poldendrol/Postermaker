@@ -240,7 +240,7 @@ async function post(body) {
   const r = await fetch(NTFY, { method: "POST", body: JSON.stringify(body) });
   if (!r.ok) throw new Error("ntfy " + r.status);
 }
-async function send(clubId, list) {
+async function send(clubId, list, ntfyOnly) {
   list = list.filter(e => !e.demo); if (!list.length) return;
   // Keep each message well under ntfy's 4 KB limit.
   const chunks = []; let cur = [];
@@ -249,7 +249,42 @@ async function send(clubId, list) {
     if (cur.length > 1 && (TAG + b64(cur)).length > 3400) { cur.pop(); chunks.push(cur); cur = [e]; }
   }
   if (cur.length) chunks.push(cur);
+  if (!ntfyOnly) fsSend(clubId, list).catch(e => console.warn("club sync", e));
   for (const c of chunks) await post({ topic: topic(clubId), message: TAG + b64(c) });
+}
+// Firebase copy of the club history (free plan, anonymous sign-in): ntfy only keeps ~12 hours, Firestore keeps everything,
+// so someone who was away for weeks still gets every event. Each device uploads its own events once, then everything new.
+const fsKey = id => "marqueeFsT_" + id;
+const clean = e => JSON.parse(JSON.stringify(e));
+async function fsDb() { if (!window.MarqueeFB) return null; try { return await window.MarqueeFB(); } catch (e) { console.warn("club sync", e); return null; } }
+async function fsSend(clubId, list) {
+  list = list.filter(e => e && e.i && !e.demo && !String(e.a || "").startsWith("demo_")); if (!list.length) return;
+  const fb = await fsDb(); if (!fb) return; const { F, db } = fb;
+  for (let i = 0; i < list.length; i += 400) { const part = list.slice(i, i + 400);
+    try { const b = F.writeBatch(db); for (const e of part) b.set(F.doc(db, "clubs", clubId, "ev", e.i), clean(e)); await b.commit(); }
+    catch (err) { console.warn("club sync batch", err); for (const e of part) await F.setDoc(F.doc(db, "clubs", clubId, "ev", e.i), clean(e)).catch(() => {}); } }
+}
+async function fsBackfill(clubId) {
+  if (LS.get("marqueeFsUp_" + clubId, false) || !me) return;
+  const mine = Object.values(evs(clubId)).filter(e => e.a === me.id);
+  try { await fsSend(clubId, mine); LS.set("marqueeFsUp_" + clubId, true); } catch (e) { console.warn("club backfill", e); }
+}
+async function fsPull(clubId) {
+  const fb = await fsDb(); if (!fb) return null;
+  const { F, db } = fb, since = Math.max(0, LS.get(fsKey(clubId), 0) - 864e5);
+  const snap = await F.getDocs(F.query(F.collection(db, "clubs", clubId, "ev"), F.where("t", ">", since)));
+  const got = snap.docs.map(d => d.data()); let top = LS.get(fsKey(clubId), 0); for (const e of got) if (e.t > top && e.t <= now() + 6e5) top = e.t;
+  LS.set(fsKey(clubId), top);
+  return merge(clubId, got);
+}
+let fsUnsub = null, fsClub = null;
+async function fsLive(clubId) {
+  if (fsClub === clubId) return; fsUnsub?.(); fsUnsub = null; fsClub = clubId; if (!clubId) return;
+  const fb = await fsDb(); if (!fb || fsClub !== clubId) return; const { F, db } = fb;
+  fsUnsub = F.onSnapshot(F.query(F.collection(db, "clubs", clubId, "ev"), F.where("t", ">", now() - 6e5)), snap => {
+    const got = snap.docChanges().map(c => c.doc.data()); if (!got.length) return;
+    const fresh = merge(clubId, got); if (fresh.length) { announce(clubId, fresh); render(); }
+  }, e => console.warn("club live", e));
 }
 function parseMsg(text) {
   if (typeof text !== "string" || !text.startsWith(TAG)) return [];
@@ -260,6 +295,9 @@ async function pull(clubId) {
   if (pulling[clubId]) return pulling[clubId];
   return (pulling[clubId] = (async () => {
     try {
+    let fresh = [], ok = false;
+    try { const got = await fsPull(clubId); if (got) { fresh.push(...got); ok = true; fsBackfill(clubId); } } catch (e) { console.warn("club sync", e); }
+    try {
       const r = await fetch(`${NTFY}/${topic(clubId)}/json?poll=1&since=all`);
       if (!r.ok) throw new Error("ntfy " + r.status);
       const inWindow = new Set(); let incoming = [];
@@ -267,13 +305,13 @@ async function pull(clubId) {
         if (!line) continue;
         try { const m = JSON.parse(line); if (m.event === "message") parseMsg(m.message).forEach(e => { if (e && e.i) inWindow.add(e.i); incoming.push(e); }); } catch {}
       }
-      const fresh = merge(clubId, incoming);
-      setOnline(true);
+      fresh.push(...merge(clubId, incoming)); ok = true;
       await reseed(clubId, inWindow);
-      announce(clubId, fresh);
-      return fresh;
-    } catch (e) { setOnline(false); return []; }
-    finally { delete pulling[clubId]; }
+    } catch (e) { /* ntfy down: Firebase alone is enough */ }
+    setOnline(ok);
+    if (fresh.length) announce(clubId, fresh);
+    return fresh;
+    } finally { delete pulling[clubId]; }
   })());
 }
 // Re-send what the topic has forgotten: the club's settings, every pick, and everything from the
@@ -285,7 +323,7 @@ async function reseed(clubId, inWindow) {
   const want = all.filter(e => e === latestMeta || e.k === "pick" || e.k === "unpick" || e.k === "wl" || e.k === "wldrop" || e.k === "saw" || e.k === "sug" || e.k === "sugdrop" || e.k === "acc" || e.k === "fix" || e.k === "film" || e.k === "unlist" || (e.k === "list" && s.clists.get(e.lid)?.pv === e.pv) || e.k === "in" || e.k === "odate" || e.k === "ospot" || (e.tr === "m" && (e.k === "nom" || e.k === "drop")) || (e.k === "say" && e.sk) || (e.k !== "meta" && e.r >= keepFrom));
   const missing = want.filter(e => !inWindow.has(e.i)).sort((a, b) => a.t - b.t);
   if (!missing.length) return;
-  try { await send(clubId, missing); } catch {}
+  try { await send(clubId, missing, true); } catch {}
 }
 
 let es = null, esClub = null;
@@ -293,6 +331,7 @@ function live() {
   const c = active();
   const want = c && me && document.visibilityState === "visible" ? c.id : null;
   if (want === esClub) return;
+  fsLive(want);
   if (es) { es.close(); es = null; }
   esClub = want;
   if (!want || !("EventSource" in window)) return;

@@ -40,6 +40,18 @@ service cloud.firestore {
       allow delete: if signedIn() && uid() == deviceId;
       allow read: if false;
     }
+    // Club events (the club's shared history). The club id is a long random secret that only members have.
+    // Events are only added or replaced (a deleted one comes back as a tombstone), never removed.
+    match /clubs/{clubId}/ev/{evId} {
+      allow read: if signedIn() && clubId.size() >= 8;
+      allow create, update: if signedIn() && clubId.size() >= 8
+        && request.resource.data.i == evId
+        && request.resource.data.k is string && request.resource.data.k.size() <= 12
+        && request.resource.data.a is string && request.resource.data.a.size() <= 40
+        && request.resource.data.t is number
+        && (!('items' in request.resource.data) || request.resource.data.items.size() <= 40);
+      allow delete: if false;
+    }
     // Queue of notifications to send (scripts/push.mjs sends and deletes them). Write-only from the app.
     match /pushes/{id} {
       allow create, update: if signedIn()

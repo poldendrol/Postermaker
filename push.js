@@ -13,6 +13,8 @@ async function init() {
   if (!auth.currentUser) await A.signInAnonymously(auth);
   return (fb = { app, auth, A, F, db: F.getFirestore(app) });
 }
+// Club sync uses the same anonymous sign-in (club.js stores club events in clubs/{clubId}/ev).
+window.MarqueeFB = cfg && cfg.apiKey ? init : null;
 const supported = !!(cfg && cfg.apiKey && vapid && "serviceWorker" in navigator && "Notification" in window);
 window.MarqueePush = {
   ready: supported,
