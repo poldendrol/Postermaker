@@ -684,7 +684,7 @@ function renderStart() {
   const inv = pendingInvite;
   view.innerHTML = `
     <h2>Movie club</h2>
-    <p>Like a book club, but for movies. Vote on a film or series to watch at home and talk about it here, and pick a film to go see together at the cinema. No accounts, nothing to install.</p>
+    <p>Like a book club, but for movies. Log what you watch, keep a watchlist, see what your friends watch and think of it, and find what's worth seeing in Ghent. No accounts, nothing to install.</p>
     ${inv ? `<div class="fr-card">
       <h3>You're invited to ${esc(inv.name)}</h3>
       <label>Your name (the club sees this) <input type="text" id="cbName" maxlength="40" value="${esc(defaultName())}" placeholder="e.g. Bram"></label>
@@ -725,7 +725,7 @@ function shareInvite(c, first) {
 
 document.addEventListener("marquee:view", e => { if (e.detail === "settings") renderSettingsExtras(); });
 function render() {
-  badge(); renderSettingsExtras();
+  badge(); renderSettingsExtras(); setTimeout(navTab, 0);
   if (showStart || !me || !clubs().length || pendingInvite && !clubs().some(c => c.id === pendingInvite.id)) {
     renderStart();
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
