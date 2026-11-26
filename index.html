@@ -746,6 +746,21 @@ footer { padding-left: 0; }
 .club-acts { display: flex; gap: 6px; flex: none; align-items: center; }
 .club-acts button { padding: 8px 10px; }
 .cb-find { padding: 8px 14px; background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+.wl-fbtn { margin-left: auto; }
+.ts-more { border-top: 1px solid var(--line); padding-top: 10px; }
+.ts-more > summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--muted); list-style: none; }
+.ts-more > summary::-webkit-details-marker { display: none; }
+.ts-more > summary::before { content: "▸ "; }
+.ts-more[open] > summary::before { content: "▾ "; }
+.ts-more[open] > summary { margin-bottom: 8px; }
+.chal-bar { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; width: 100%; text-align: left; padding: 8px 12px; margin: 2px 0 4px; border-radius: 10px; background: var(--field); border: 1px solid var(--line); font-size: 13px; }
+.chal-bar .chal-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chal-bar small { color: var(--muted); font-weight: 700; }
+.chal-track { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.chal-track i { display: block; height: 100%; background: #ffd400; border-radius: 3px; }
+/* Speed: long lists only lay out and paint the rows that are on screen. */
+.mw-i, .wl-row, .ls-row { content-visibility: auto; contain-intrinsic-size: auto 84px; }
+.sheet.swap-in { animation: foIn .18s ease-out; }
 .find-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .find-sheet h3 { margin: 0 0 4px; }
 @media (max-width: 820px) { .club-acts span { display: none; } .club-acts #cbFind span { display: inline; } }
