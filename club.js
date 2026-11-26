@@ -2048,23 +2048,28 @@ function myWatched(s, who = me.id) {
 // Seen before: everything you marked as watched without a date ("Seen it before" and list imports), A–Z.
 function seenBefore(s) {
   const out = [], seenK = new Set();
-  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s }); } // everything you've seen: logged with a date, seen before, or imported
-  for (const mp of Object.values(s.sawAlt)) { const x = mp.get(me.id); if (x?.v && !seenK.has(key(x.m))) { seenK.add(key(x.m)); out.push({ m: x.m, s: x.s }); } }
+  for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(me.id); if (!x?.v) continue; const m = x.m || titleBySk(s, sk); if (!m || seenK.has(key(m))) continue; seenK.add(key(m)); out.push({ m, s: x.s, x: x.x, d: x.imp ? "" : x.d || (x.old ? "" : iso(new Date(x.at || 0))), ss: ssList(x.ss), at: x.at || 0 }); } // everything you've seen: logged with a date, seen before, or imported
+  for (const mp of Object.values(s.sawAlt)) { const x = mp.get(me.id); if (x?.v && !seenK.has(key(x.m))) { seenK.add(key(x.m)); out.push({ m: x.m, s: x.s, x: x.x, d: x.d || (x.old ? "" : iso(new Date(x.at || 0))), ss: [], at: x.at || 0 }); } }
   return out.sort((a, b) => a.m.n.localeCompare(b.m.n));
 }
 let sbQ = "", sbSort = LS.get("marqueeSbSort", "az"), sbType = "all";
 function seenBeforeCard(s) {
   const all = seenBefore(s), nTv = all.filter(w => isTv(w.m)).length, mixed = nTv && nTv < all.length;
   const list = all.filter(w => (!sbQ || w.m.n.toLowerCase().includes(sbQ)) && (!mixed || sbType === "all" || (sbType === "tv") === isTv(w.m)))
-    .sort(sbSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n) : sbSort === "rate" ? (a, b) => rateOf(b.m) - rateOf(a.m) || a.m.n.localeCompare(b.m.n) : (a, b) => a.m.n.localeCompare(b.m.n));
-  if (all.some(w => !(key(w.m) in rateCache) || !genreCache[key(w.m)])) setTimeout(() => fillGenres(all), 0);
-  const tile = w => { const r = rateOf(w.m); return `<button class="wl-tile" data-open="${esc(key(w.m))}" aria-label="${esc(w.m.n)}">${poster(w.m.p, "w342")}${isTv(w.m) ? `<i class="tile-tv">Series</i>` : ""}<span class="tile-t"><b>${esc(w.m.n)}</b><small>${esc(w.m.y || "")}${w.s ? `<span class="tile-stars">${starStr(w.s, true)}</span>` : ""}${r ? rateRing(r) : ""}</small></span></button>`; };
-  const grid = ws => `<div class="wl-grid">${ws.map(tile).join("")}</div>`;
-  const body = sbSort === "genre" && list.length >= 8 && !sbQ ? (() => { const g = {}; for (const w of list) (g[genreOf(w.m) || "Loading…"] ||= []).push(w);
-    return Object.entries(g).sort((a, b) => (a[0] === "Loading…") - (b[0] === "Loading…") || b[1].length - a[1].length).map(([n, ws]) => `<details class="g-sec" open><summary>${esc(n)} <i>${ws.length}</i></summary>${grid(ws)}</details>`).join(""); })() : grid(list);
+    .sort(sbSort === "year" ? (a, b) => (+b.m.y || 0) - (+a.m.y || 0) || a.m.n.localeCompare(b.m.n) : sbSort === "rate" ? (a, b) => (b.s || 0) - (a.s || 0) || rateOf(b.m) - rateOf(a.m) || a.m.n.localeCompare(b.m.n)
+      : sbSort === "recent" ? (a, b) => (b.d || "").localeCompare(a.d || "") || b.at - a.at || a.m.n.localeCompare(b.m.n) : (a, b) => a.m.n.localeCompare(b.m.n));
+  if (sbSort === "genre" && all.some(w => !genreCache[key(w.m)])) setTimeout(() => fillGenres(all), 0);
+  const groupOf = w => sbSort === "year" ? String(w.m.y || "Unknown year") : sbSort === "rate" ? (w.s ? starStr(w.s, true) : "Not rated by you") : sbSort === "genre" ? genreOf(w.m) || "Loading…"
+    : sbSort === "recent" ? (w.d ? new Date(w.d + "T12:00").toLocaleDateString(undefined, { month: "long", year: "numeric" }) : "Seen before, no date") : (/^[a-z]/i.test(w.m.n) ? w.m.n[0].toUpperCase() : "#");
+  const row = w => { const dt = w.d ? new Date(w.d + "T12:00") : null;
+    return `<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d">${dt ? `<b>${dt.getDate()}</b><small>${esc(dt.toLocaleDateString(undefined, { month: "short" }))}${dt.getFullYear() !== new Date().getFullYear() ? ` ’${String(dt.getFullYear()).slice(2)}` : ""}</small>` : `<b class="mw-nod">✓</b>`}</span>${poster(w.m.p, "w92")}<div class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${isTv(w.m) ? ` <span class="tv-tag">${w.ss.length ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}</b>${w.s ? `<span class="stars">${starStr(w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`; };
+  let last = null; const groups = [];
+  for (const w of list) { const g = groupOf(w); if (g !== last) { groups.push([g, []]); last = g; } groups[groups.length - 1][1].push(w); }
+  if (sbSort === "genre") { const m = new Map(); for (const [g, ws] of groups) m.set(g, [...(m.get(g) || []), ...ws]); groups.length = 0; groups.push(...[...m].sort((a, b) => (a[0] === "Loading…") - (b[0] === "Loading…") || b[1].length - a[1].length)); }
+  const body = `<div class="mw-list sb-list">${groups.map(([g, ws]) => `<h5 class="mw-mo">${esc(g)} <i>${ws.length}</i></h5>${ws.map(row).join("")}`).join("")}</div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
   return `<div id="sbCard"><div class="wl-tools">${all.length > 12 ? `<input type="search" id="sbQ" placeholder="Search" value="${esc(sbQ)}" autocomplete="off">` : ""}<button class="primary" id="sbAdd">+ Log</button></div>
-    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★ Rating"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
+    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["recent", "Recent"], ["year", "Year"], ["genre", "Genre"], ["rate", "My ★"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
     <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen${list.length !== all.length ? ` · ${list.length} shown` : ""}` : `Nothing yet. Everything you mark as watched, or import from IMDb or Letterboxd, lands here.`}</p>
     ${body}</div>`;
 }
