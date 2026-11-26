@@ -1192,7 +1192,7 @@ function wlCard(s, cands, wlMode) {
 }
 const myWlCount = s => { const picked = new Set(Object.values(s.picks).map(key)); return [...s.wl.values()].filter(w => !picked.has(key(w.m)) && w.adders.has(me.id) && !(x => !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)))(sawMap(s, w.m)?.get(me.id))).length; };
 const pulpPick = (opts, cur, attr, three) => `<div class="wl-pick${three ? " three" : ""}" role="tablist">${opts.map(([k, ch, l, dot], i) => `<button class="pulp-head${i ? " alt" : ""}${cur === k ? " on" : ""}${dot ? " dot" : ""}" ${attr}="${k}" role="tab" aria-selected="${cur === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>`;
-let rtPane = LS.get("marqueeRtPane", "pop"), clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "old") lsPane = "mine";
+let rtPane = LS.get("marqueeRtPane", "pop"), clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "lists") lsPane = "mine"; if (rtPane === "old") rtPane = "pop";
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
 let popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
@@ -1529,7 +1529,7 @@ function openTitle(s, m, focusSuggest) {
 
 // ---------- Lists: imports, your own lists and ready-made ones (Oscars, top rated…), with a badge for every list you finish ----------
 let listsEl = null;
-function openListsTab() { lsPane = "lists"; LS.set("marqueeLsPane", lsPane); M.setView("club"); setClubTab("lists"); render(); }
+function openListsTab() { rtPane = "lists"; LS.set("marqueeRtPane", rtPane); M.setView("club"); setClubTab("weekly"); render(); }
 let wlApi = null, lsOpen = null, oscYear = new Date().getFullYear(), oscMode = "win", bestYear = new Date().getFullYear() - 1;
 const myLists = () => Object.values(LS.get("marqueeLists", {})).filter(l => l && !l.gone && Array.isArray(l.items)).sort((a, b) => (b.at || 0) - (a.at || 0));
 function saveList(l) { const all = LS.get("marqueeLists", {}); all[l.id] = { ...l, at: now() }; LS.set("marqueeLists", all); window.MarqueeAccount?.save?.(); }
@@ -2142,14 +2142,14 @@ function renderClub() {
       return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
       ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1"><h2 class="col-title">Lists</h2>
-    ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
-      const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
-      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], lsPane, "data-lsv", true)}
+    ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
+      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
-      ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
+      ${lsPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
-    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], rtPane, "data-rtv")}
-      ${rtPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : popHtml(s)}</div>
+    ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
+      return `<div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["lists", nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${nl} list${nl === 1 ? "" : "s"}`, "Lists"]], rtPane, "data-rtv")}
+      ${rtPane === "lists" ? `<div id="listsView"></div>` : popHtml(s)}</div>`; })()}
     </div>
 
 
