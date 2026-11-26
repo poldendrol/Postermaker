@@ -152,8 +152,19 @@ function sameNameRepair(all) {
   });
   return out.map(e => { if (e.t >= CUT || e.k !== "sug" || !e.m) return e; const t0 = moved.get(e.a + "|" + seenKey(e.m.n)); if (t0 == null || Math.abs(e.t - t0) > 6e5) return e; const o = newer(e.m, new Date(e.t).getFullYear()); return o ? { ...e, m: o } : e; });
 }
+// One person, one member: joining again from a new phone or browser gives a fresh id, so ids that go by the same name are folded into one (your own id wins, else the oldest).
+function oneId(E) {
+  const nm = x => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const last = new Map(), first = new Map();
+  for (const e of E) { if (e.n) last.set(e.a, nm(e.n)); if (!first.has(e.a) || e.t < first.get(e.a)) first.set(e.a, e.t); }
+  const by = new Map(); for (const [id, n] of last) if (n && n !== "someone") (by.get(n) || by.set(n, []).get(n)).push(id);
+  const to = new Map();
+  for (const ids of by.values()) if (ids.length > 1) { const c = ids.includes(me?.id) ? me.id : ids.reduce((x, y) => first.get(y) < first.get(x) ? y : x); for (const id of ids) if (id !== c) to.set(id, c); }
+  if (!to.size) return E;
+  return E.map(e => { const a = to.get(e.a), t2 = Array.isArray(e.to) && e.to.some(x => to.has(x)); return a || t2 ? { ...e, ...(a ? { a } : {}), ...(t2 ? { to: [...new Set(e.to.map(x => to.get(x) || x))] } : {}) } : e; });
+}
 function derive(clubId) {
-  const E = sameNameRepair(Object.values(evs(clubId)).filter(e => !e.gone).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1)));
+  const E = oneId(sameNameRepair(Object.values(evs(clubId)).filter(e => !e.gone).sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1))));
   // Watchlist adds from a file come in bursts (5+ within milliseconds); only a single, deliberate add can put a watched title back on your list.
   const bulkWl = new Set(); { const per = {}; for (const e of E) if (e.k === "wl") (per[e.a] ||= []).push(e); for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) bulkWl.add(xs[k].i); } }
   const club = clubs().find(c => c.id === clubId) || {};
@@ -554,7 +565,7 @@ async function openWelcome(c) {
 // Activity: what friends did lately (watched, reviews, comments, suggestions, outings, shared lists), newest first.
 const actKey = id => "marqueeActRead_" + id;
 function activity(s, clubId) {
-  const E = sameNameRepair(Object.values(evs(clubId)).filter(e => !e.gone)).filter(e => e.a !== me?.id && now() - e.t < 864e5 * 30).sort((a, b) => a.t - b.t);
+  const E = oneId(sameNameRepair(Object.values(evs(clubId)).filter(e => !e.gone))).filter(e => e.a !== me?.id && now() - e.t < 864e5 * 30).sort((a, b) => a.t - b.t);
   const burst = new Set(); { const per = {}; for (const e of E) if (e.k === "saw" && e.v) (per[e.a] ||= []).push(e);
     for (const xs of Object.values(per)) for (let i = 0, j = 0; i < xs.length; i = j) { j = i + 1; while (j < xs.length && xs[j].t - xs[j - 1].t <= 5) j++; if (j - i >= 5) for (let k = i; k < j; k++) burst.add(xs[k]); } }
   const out = [], tOf = e => e.m || (e.sk ? titleBySk(s, e.sk) : null);
@@ -2291,6 +2302,7 @@ function renderClub() {
   document.querySelectorAll("[data-mww]").forEach(b => b.onclick = () => { mwWho = b.dataset.mww; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
+  document.querySelectorAll("[data-mwysel]").forEach(x => x.onchange = () => { mwYear = +x.value; mwAll = false; renderClub(); });
   if (!LS.get("marqueeTour3", false)) setTimeout(maybeTour, 900);
 }
 
@@ -2433,7 +2445,7 @@ const fmtDay = (() => { const F = { wd: new Intl.DateTimeFormat(undefined, { wee
   return (d, k) => { const id = k + d; if (!c.has(id)) c.set(id, F[k].format(new Date(d + "T12:00"))); return c.get(id); }; })();
 let mwYear = new Date().getFullYear(), mwAll = false, mwWho = LS.get("marqueeMwWho", "*");
 function myWatchedCard(s) {
-  const ppl = [...s.members.entries()].filter(([id]) => id !== me.id && myWatched(s, id).length);
+  const ppl = [...s.members.entries()].filter(([id]) => id !== me.id); // everyone in the club gets a button, also before they log anything
   if (mwWho && mwWho !== "*" && !ppl.some(([id]) => id === mwWho)) mwWho = "";
   const wall = mwWho === "*" && ppl.length > 0; // one wall: everyone's watched titles mixed, newest first
   const who = !wall && mwWho && mwWho !== "*" ? mwWho : me.id, whoName = who !== me.id ? s.members.get(who)?.name || "" : "";
@@ -2443,6 +2455,7 @@ function myWatchedCard(s) {
   const diaryN = Object.values(s.saw).map(mp => mp.get(who)).filter(x => x?.v && x.imp && x.wd && +x.wd.slice(0, 4) === mwYear).length;
   const films = list.filter(w => !isTv(w.m)).length, series = list.length - films;
   let lastMo = "";
+  const yrPick = years.length > 1 ? `<select class="mw-yr" data-mwysel aria-label="Year">${years.map(y => `<option value="${y}"${y === mwYear ? " selected" : ""}>${y}</option>`).join("")}</select>` : String(mwYear);
   const rows = shown.map(w => {
     const mo = w.d.slice(0, 7), head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(w.d, "mo"))}</h5>` : ""; lastMo = mo;
     return `${head}<div class="mw-i" data-open="${esc(key(w.m))}"><span class="mw-d"><b>${+w.d.slice(8)}</b><small>${esc(fmtDay(w.d, "wd"))}</small></span>${poster(w.m.p, "w92")}<div class="body">${w.who ? `<span class="mw-who${w.who === me.id ? " me" : ""}" style="--h:${[...w.who].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)}">${esc(w.who === me.id ? "You" : s.members.get(w.who)?.name || "?")}</span>` : ""}<b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}${isTv(w.m) ? ` <span class="tv-tag">${w.ss ? esc(ssLabel(w.ss)) : "Series"}</span>` : ""}${w.rw ? ` <span class="rw-tag">↻ ${w.rw === 1 ? "rewatch" : `${w.rw + 1}th watch`}</span>` : ""}</b>${w.s ? `<span class="stars">${starStr(w.s)}</span>` : ""}${w.x ? `<small class="hint">“${esc(w.x)}”</small>` : ""}</div></div>`;
@@ -2452,9 +2465,8 @@ function myWatchedCard(s) {
     ${(() => { if (!whoName) return ""; const ag = agreeOf(s, me.id, mwWho); if (!ag) return `<p class="hint mw-ag">🤝 Rate 3 films you've both seen to see how much you and ${esc(whoName)} agree.</p>`;
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
-    ${years.length > 1 ? `<div class="wl-views">${years.map(y => `<button class="chip${y === mwYear ? " on" : ""}" data-mwy="${y}">${y}</button>`).join("")}</div>` : ""}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${mwYear}${wall ? " by the club" : ""}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything for ${mwYear}.` : `Nothing logged for ${mwYear} yet. Tap ＋ Log at the top to log what you watched.`}</p>
+    <p class="hint mw-sum">${list.length ? `<b>${list.length}</b> watched in ${yrPick}${wall ? " by the club" : ""}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything in ${yrPick}.` : `Nothing logged in ${yrPick} yet. Tap ＋ Log at the top to log what you watched.`}</p>
     <div class="mw-list">${rows}</div>
   </div>`;
 }
