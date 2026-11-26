@@ -1,0 +1,20 @@
+name: Weekly alerts
+on:
+  schedule:
+    - cron: "0 16 * * 5"
+  workflow_dispatch:
+concurrency: { group: weekly, cancel-in-progress: false }
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: scripts }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Streaming and new-season alerts
+        env: { FIREBASE_SERVICE_ACCOUNT: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" }
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "No secret yet"; exit 0; fi
+          cd scripts && npm install --no-save --silent firebase-admin@12 && node weekly.mjs

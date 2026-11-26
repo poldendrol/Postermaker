@@ -52,6 +52,11 @@ service cloud.firestore {
         && (!('items' in request.resource.data) || request.resource.data.items.size() <= 40);
       allow delete: if false;
     }
+    // Streaming services per member (read only by the weekly server job).
+    match /svc/{memberId} {
+      allow create, update: if signedIn() && request.resource.data.ids is list && request.resource.data.ids.size() <= 60;
+      allow read, delete: if false;
+    }
     // Queue of notifications to send (scripts/push.mjs sends and deletes them). Write-only from the app.
     match /pushes/{id} {
       allow create, update: if signedIn()

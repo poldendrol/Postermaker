@@ -286,6 +286,13 @@ async function fsLive(clubId) {
     const fresh = merge(clubId, got); if (fresh.length) { announce(clubId, fresh); render(); }
   }, e => console.warn("club live", e));
 }
+// Your streaming services (for the weekly "now on your services" push), stored under your member id.
+async function fsServices() {
+  if (!me) return; const ids = [...myServices()].sort((a, b) => a - b), sig = me.id + ":" + ids.join(",");
+  if (LS.get("marqueeSvcSent", "") === sig) return;
+  const fb = await fsDb(); if (!fb) return; const { F, db } = fb;
+  try { await F.setDoc(F.doc(db, "svc", me.id), { ids, at: Date.now() }); LS.set("marqueeSvcSent", sig); } catch (e) { console.warn("services sync", e); }
+}
 function parseMsg(text) {
   if (typeof text !== "string" || !text.startsWith(TAG)) return [];
   try { const a = unb64(text.slice(TAG.length)); return Array.isArray(a) ? a : []; } catch { return []; }
@@ -296,7 +303,7 @@ async function pull(clubId) {
   return (pulling[clubId] = (async () => {
     try {
     let fresh = [], ok = false;
-    try { const got = await fsPull(clubId); if (got) { fresh.push(...got); ok = true; fsBackfill(clubId); } } catch (e) { console.warn("club sync", e); }
+    try { const got = await fsPull(clubId); if (got) { fresh.push(...got); ok = true; fsBackfill(clubId); fsServices(); } } catch (e) { console.warn("club sync", e); }
     try {
       const r = await fetch(`${NTFY}/${topic(clubId)}/json?poll=1&since=all`);
       if (!r.ok) throw new Error("ntfy " + r.status);
@@ -1124,6 +1131,7 @@ function wlCard(s, cands, wlMode) {
   };
   return `<div id="wlCard">
     ${wlMode === "mine" ? (n => n ? `<button class="wl-clash" data-clash>⚠️ ${n} title${n === 1 ? " is" : "s are"} on your watchlist but also marked as seen. <b>Check ${n === 1 ? "it" : "them"}</b></button>` : "")(seenClash(s).length) : ""}
+    ${wlMode === "mine" && myTvInProgress(s).length ? `<div class="up-next" id="upNext"><h4 class="wl-sec">📺 Up next</h4><small class="hint">Checking your series…</small></div>` : ""}
     ${wlMode === "mine" ? `<p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>` : ""}
     ${wlMode === "club" && location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
     ${wlMode === "old" ? seenBeforeCard(s) : `
@@ -1140,7 +1148,7 @@ function wlCard(s, cands, wlMode) {
 }
 const myWlCount = s => { const picked = new Set(Object.values(s.picks).map(key)); return [...s.wl.values()].filter(w => !picked.has(key(w.m)) && w.adders.has(me.id) && !(x => !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)))(s.saw[seenKey(w.m.n)]?.get(me.id))).length; };
 const pulpPick = (opts, cur, attr, three) => `<div class="wl-pick${three ? " three" : ""}" role="tablist">${opts.map(([k, ch, l, dot], i) => `<button class="pulp-head${i ? " alt" : ""}${cur === k ? " on" : ""}${dot ? " dot" : ""}" ${attr}="${k}" role="tab" aria-selected="${cur === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>`;
-let clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "old") lsPane = "mine";
+let rtPane = LS.get("marqueeRtPane", "pop"), clubPane = LS.get("marqueeClubPane", "club"); if (clubPane === "rate") clubPane = "club"; let lsPane = LS.get("marqueeLsPane", "mine"); if (lsPane === "old") lsPane = "mine";
 // ---------- Popular: this week's most popular films (TMDB trending), with who in the club wants or saw them ----------
 let popList = null, popBusy = false, popType = "movie", popSort = "pop";
 async function loadPop() {
@@ -1225,7 +1233,7 @@ async function openServices(done) {
   const list = await loadServices();
   grid.innerHTML = list.map(p => `<button class="svc${mine.has(p.id) ? " on" : ""}" data-svc="${p.id}"><img src="${M.IMG}w92${esc(p.logo)}" alt=""><span>${esc(p.n)}</span></button>`).join("") || `<p class="hint">Couldn't load the services. Try again later.</p>`;
   grid.querySelectorAll("[data-svc]").forEach(b => b.onclick = () => { const id = +b.dataset.svc; mine.has(id) ? mine.delete(id) : mine.add(id); b.classList.toggle("on", mine.has(id)); });
-  const close = () => { LS.set("marqueeMyServices", [...mine]); bg.remove(); done?.(); };
+  const close = () => { LS.set("marqueeMyServices", [...mine]); bg.remove(); done?.(); fsServices(); };
   bg.querySelector("#svcDone").onclick = close;
   bg.addEventListener("click", e => { if (e.target === bg) close(); });
 }
@@ -1835,6 +1843,7 @@ function bindWl(s, cands) {
   view.querySelectorAll("[data-mwv]").forEach(x => x.onclick = () => { mwPane = x.dataset.mwv; render(); });
   view.querySelectorAll("[data-pops]").forEach(x => x.onclick = () => { popSort = x.dataset.pops; render(); });
   view.querySelectorAll("[data-popt]").forEach(x => x.onclick = () => { if (popType === x.dataset.popt) return; popType = x.dataset.popt; popList = null; render(); });
+  view.querySelectorAll("[data-rtv]").forEach(x => x.onclick = () => { rtPane = x.dataset.rtv; LS.set("marqueeRtPane", rtPane); render(); });
   view.querySelectorAll("[data-cpv]").forEach(x => x.onclick = () => { clubPane = x.dataset.cpv; LS.set("marqueeClubPane", clubPane); render(); });
   view.querySelectorAll("[data-lsv]").forEach(x => x.onclick = () => { lsPane = x.dataset.lsv; LS.set("marqueeLsPane", lsPane); wlAll = false; render(); });
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
@@ -2082,12 +2091,12 @@ function renderClub() {
         <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Search" title="Search (press /)">🔍<span> Search</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
-    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "Popular", false]]
+    <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "Explore", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0">    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
-      if (mwPane === "pop") mwPane = "list";
-      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv", true)}
-      ${mwPane === "fy" ? forYouCard(s) : mwPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : myWatchedCard(s)}</div>`; })()}
+      if (mwPane === "pop" || mwPane === "old") mwPane = "list";
+      return `<div class="fr-card" data-tab="mine">${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew]], mwPane, "data-mwv")}
+      ${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}</div>`; })()}
     </div><div class="ccol c1">
     ${(() => { const nb = allLists(s).filter(l => listProg(s, l).done).length, nl = allLists(s).length;
       const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
@@ -2095,8 +2104,8 @@ function renderClub() {
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2">
-    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"]], "pop", "data-cpv")}
-      ${popHtml(s)}</div>
+    <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], rtPane, "data-rtv")}
+      ${rtPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : popHtml(s)}</div>
     </div>
 
 
@@ -2145,6 +2154,7 @@ function bind(c, s, cands, movie) {
   $("cbSet")?.addEventListener("click", () => M.setView("settings"));
   $("cbFind")?.addEventListener("click", openFind);
   $("cbAct")?.addEventListener("click", openActivity);
+  if ($("upNext")) setTimeout(() => fillUpNext(lastState || s), 0);
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate what to watch next" : "Nominate the first movie", m => {
@@ -2369,6 +2379,34 @@ function openReview(s, sk, m0, opts = {}) {
   bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) paintStars(bg, score);
+}
+// Up next: series you've logged seasons of, with the next season to watch or the date a new one starts.
+const myTvInProgress = s => Object.entries(s.saw).map(([sk, mp]) => { const x = mp.get(me.id), m = x?.v && (titleBySk(s, sk) || x.m); return m && isTv(m) && x.ss && ssList(x.ss).length ? { m, ss: ssList(x.ss) } : null; }).filter(Boolean);
+const tvCache = LS.get("marqueeTvCache", {});
+async function tvInfo(m) {
+  const c = tvCache[m.i]; if (c && now() - c.t < 864e5) return c;
+  const j = await M.tm(`/tv/${m.i}`), td = iso(new Date());
+  const aired = (j.seasons || []).filter(q => q.season_number > 0 && q.air_date && q.air_date <= td).map(q => q.season_number);
+  const nx = j.next_episode_to_air;
+  tvCache[m.i] = { t: now(), aired, status: j.status || "", next: nx ? { s: nx.season_number, e: nx.episode_number, d: nx.air_date } : null };
+  const ks = Object.keys(tvCache); if (ks.length > 150) for (const k of ks.sort((a, b) => tvCache[a].t - tvCache[b].t).slice(0, 50)) delete tvCache[k];
+  LS.set("marqueeTvCache", tvCache); return tvCache[m.i];
+}
+async function fillUpNext(s) {
+  const box = document.getElementById("upNext"); if (!box) return;
+  const rows = [];
+  for (const { m, ss } of myTvInProgress(s)) {
+    let i; try { i = await tvInfo(m); } catch { continue; }
+    const todo = i.aired.filter(n => !ss.includes(n)), fmt = d => new Date(d + "T12:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: d.slice(0, 4) === String(new Date().getFullYear()) ? undefined : "numeric" });
+    if (todo.length) rows.push({ m, o: 0, txt: `Next: <b>season ${todo[0]}</b>${todo.length > 1 ? ` · ${todo.length} seasons to go` : ""}` });
+    else if (i.next && i.next.e === 1) rows.push({ m, o: 1, d: i.next.d, txt: `Season ${i.next.s} starts <b>${esc(fmt(i.next.d))}</b>` });
+    else if (i.next) rows.push({ m, o: 2, txt: `Season ${i.next.s} is airing · next episode ${esc(fmt(i.next.d))}` });
+  }
+  const b2 = document.getElementById("upNext"); if (!b2) return;
+  if (!rows.length) { b2.remove(); return; }
+  rows.sort((a, b) => a.o - b.o || (a.d || "").localeCompare(b.d || "") || a.m.n.localeCompare(b.m.n));
+  b2.innerHTML = `<h4 class="wl-sec">📺 Up next <i>${rows.length}</i></h4><div class="wl-grid wl-rows">${rows.map(r => `<button class="wl-row" data-open="${esc(key(r.m))}">${poster(r.m.p, "w92")}<span class="body"><b>${esc(r.m.n)}</b><small class="hint">${r.txt}</small></span></button>`).join("")}</div>`;
+  b2.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openTitleByKey(lastState, b.dataset.open));
 }
 // Titles on your Personal watchlist that are also marked as seen: one of the two is wrong, so let the person pick per title.
 const seenClash = s => [...s.wl.values()].filter(w => w.adders.has(me.id) && !Object.values(s.picks).some(p => key(p) === key(w.m)) && (x => !!x?.v && (!x.m || key(x.m) === key(w.m)))(s.saw[seenKey(w.m.n)]?.get(me.id))).sort((a, b) => a.m.n.localeCompare(b.m.n));
