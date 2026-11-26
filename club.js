@@ -388,6 +388,58 @@ function nightAfter(t, day) {
 const nightLabel = d => d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
 
 // ---------- search sheet ----------
+async function tmSearch(text) {
+  // An IMDb or TMDB link (or tt-id) finds that exact title; otherwise films and series are searched separately too,
+  // so a small film doesn't get pushed out by a series with the same name.
+  const tl = text.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i), il = text.match(/(tt\d{5,})/i);
+  let raw;
+  if (tl) { const j = await M.tm(`/${tl[1].toLowerCase()}/${tl[2]}`); raw = [{ ...j, media_type: tl[1].toLowerCase() }]; }
+  else if (il) { const f = await M.tm("/find/" + il[1], { external_source: "imdb_id" }); raw = [...(f.movie_results || []).map(x => ({ ...x, media_type: "movie" })), ...(f.tv_results || []).map(x => ({ ...x, media_type: "tv" }))]; }
+  else {
+    const [d, dm, dt] = await Promise.all([M.tm("/search/multi", { query: text, include_adult: "false" }), M.tm("/search/movie", { query: text, include_adult: "false" }).catch(() => ({})), M.tm("/search/tv", { query: text, include_adult: "false" }).catch(() => ({}))]);
+    const seenK = new Set(); raw = [];
+    for (const x of [...(d.results || []), ...(dm.results || []).slice(0, 4).map(x => ({ ...x, media_type: "movie" })), ...(dt.results || []).slice(0, 4).map(x => ({ ...x, media_type: "tv" }))]) { const k = x.media_type + ":" + x.id; if (!seenK.has(k)) { seenK.add(k); raw.push(x); } }
+  }
+  return raw.filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 16)
+    .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
+}
+// One search for everything: what the club knows about a title (your list, your log, friends) plus anything on TMDB.
+function openFind() {
+  const bg = el(`<div class="sheet-bg"><div class="sheet find-sheet" role="dialog" aria-label="Search">
+    <input type="search" id="findQ" placeholder="Search any film or series" autocomplete="off" enterkeyhint="search">
+    <div id="findRes"><p class="hint">Find a title to see if it's on your list, if you've seen it, and who in the club watched it.</p></div>
+    <button data-x>Close</button></div></div>`);
+  document.body.appendChild(bg);
+  const close = () => bg.remove(), q = bg.querySelector("#findQ"), res = bg.querySelector("#findRes");
+  bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-x]")) close(); });
+  let timer = 0, seq = 0, items = [];
+  const known = s => { const out = new Map(), add = m => { if (m?.n && !out.has(key(m))) out.set(key(m), m); };
+    for (const w of s.wl.values()) add(w.m); for (const sk of Object.keys(s.saw)) add(titleBySk(s, sk)); for (const g of s.sugs) add(g.m); for (const l of allLists(s)) l.items.forEach(add); return [...out.values()]; };
+  const status = (s, m) => {
+    const sk = seenKey(m.n), mx = s.saw[sk]?.get(me.id), seen = !!mx?.v && (!mx.m || key(mx.m) === key(m)), w = s.wl.get(key(m)), onMine = !!w?.adders.has(me.id);
+    const fr = [...(s.saw[sk] || new Map()).entries()].filter(([id, x]) => id !== me.id && x.v && (!x.m || key(x.m) === key(m))).map(([id, x]) => `${s.members.get(id)?.name || x.name}${x.s ? ` ${starStr(x.s, true)}` : ""}`);
+    const want = w ? [...w.adders.entries()].filter(([id]) => id !== me.id).map(([, n]) => n) : [];
+    const tags = [seen ? `<span class="ft ok">✓ Seen${mx.s ? ` ${starStr(mx.s, true)}` : ""}</span>` : "", onMine ? `<span class="ft">On your list</span>` : "", fr.length ? `<span class="ft fr">👀 ${esc(fr.join(", "))}</span>` : "", want.length ? `<span class="ft">${esc(want.join(", "))} want${want.length === 1 ? "s" : ""} it</span>` : ""].filter(Boolean).join("");
+    return { seen, onMine, tags };
+  };
+  const row = (s, m, i) => { const st = status(s, m);
+    return `<div class="find-i" data-fi="${i}">${poster(m.p, "w92")}<div class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><small class="hint">${isTv(m) ? "Series" : "Film"}</small>${st.tags ? `<div class="fts">${st.tags}</div>` : ""}</div>
+      ${!st.seen && !st.onMine ? `<button class="find-add" data-fadd="${i}">＋ List</button>` : ""}</div>`; };
+  const draw = (local, remote) => { const s = lastState; items = [...local, ...(remote || [])];
+    res.innerHTML = (local.length ? `<h4 class="wl-sec">In your club <i>${local.length}</i></h4>${local.map((m, i) => row(s, m, i)).join("")}` : "")
+      + (remote === null ? `<p class="hint">Searching…</p>` : remote.length ? `<h4 class="wl-sec">${local.length ? "More results" : "Results"}</h4>${remote.map((m, i) => row(s, m, local.length + i)).join("")}` : local.length ? "" : `<p class="hint">Nothing found.</p>`); };
+  q.addEventListener("input", () => { clearTimeout(timer); const text = q.value.trim(), my = ++seq;
+    if (text.length < 2) { res.innerHTML = `<p class="hint">Find a title to see if it's on your list, if you've seen it, and who in the club watched it.</p>`; return; }
+    const lq = text.toLowerCase(), local = known(lastState).filter(m => m.n.toLowerCase().includes(lq)).sort((a, b) => a.n.toLowerCase().indexOf(lq) - b.n.toLowerCase().indexOf(lq) || a.n.localeCompare(b.n)).slice(0, 12);
+    draw(local, null);
+    timer = setTimeout(async () => { try { const r = await tmSearch(text); if (my !== seq) return; const lk = new Set(local.map(key)); draw(local, r.filter(m => !lk.has(key(m)))); } catch { if (my === seq) draw(local, []); } }, 300); });
+  res.addEventListener("click", e => {
+    const a = e.target.closest("[data-fadd]"); if (a) { const m = items[+a.dataset.fadd]; act("wl", { m }); M.toast(`${m.n} added to your Personal watchlist.`); a.replaceWith(Object.assign(document.createElement("span"), { className: "ft", textContent: "On your list" })); return; }
+    const r = e.target.closest("[data-fi]"); if (r) { const m = items[+r.dataset.fi]; close(); openTitle(lastState, m); }
+  });
+  setTimeout(() => q.focus(), 50);
+}
+document.addEventListener("keydown", e => { if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "") && !document.querySelector(".sheet-bg") && lastState) { e.preventDefault(); openFind(); } });
 function openSearch(title, onPick, initial = "", foot = null) {
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="${esc(title)}">
     <h3>${esc(title)}</h3>
@@ -407,20 +459,9 @@ function openSearch(title, onPick, initial = "", foot = null) {
       const text = q.value.trim(), my = ++seq;
       if (text.length < 2) { res.innerHTML = `<p class="hint">Start typing a title.</p>`; return; }
       try {
-        // An IMDb or TMDB link (or tt-id) finds that exact title; otherwise films and series are searched separately too,
-        // so a small film doesn't get pushed out by a series with the same name.
-        const tl = text.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i), il = text.match(/(tt\d{5,})/i);
-        let raw;
-        if (tl) { const j = await M.tm(`/${tl[1].toLowerCase()}/${tl[2]}`); raw = [{ ...j, media_type: tl[1].toLowerCase() }]; }
-        else if (il) { const f = await M.tm("/find/" + il[1], { external_source: "imdb_id" }); raw = [...(f.movie_results || []).map(x => ({ ...x, media_type: "movie" })), ...(f.tv_results || []).map(x => ({ ...x, media_type: "tv" }))]; }
-        else {
-          const [d, dm, dt] = await Promise.all([M.tm("/search/multi", { query: text, include_adult: "false" }), M.tm("/search/movie", { query: text, include_adult: "false" }).catch(() => ({})), M.tm("/search/tv", { query: text, include_adult: "false" }).catch(() => ({}))]);
-          const seenK = new Set(); raw = [];
-          for (const x of [...(d.results || []), ...(dm.results || []).slice(0, 4).map(x => ({ ...x, media_type: "movie" })), ...(dt.results || []).slice(0, 4).map(x => ({ ...x, media_type: "tv" }))]) { const k = x.media_type + ":" + x.id; if (!seenK.has(k)) { seenK.add(k); raw.push(x); } }
-        }
+        const found = await tmSearch(text);
         if (my !== seq) return;
-        items = raw.filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 16)
-          .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
+        items = found;
         res.innerHTML = items.length ? items.map((m, i) => `<button data-i="${i}">${poster(m.p, "w92")}<span><b>${esc(m.n)}</b><br><small class="hint">${m.t === "tv" ? "📺 Series" : "🎬 Film"}${m.y ? ` · ${esc(m.y)}` : ""}</small></span></button>`).join("") : `<p class="hint">Nothing found.</p>`;
       } catch { res.innerHTML = `<p class="hint">Search isn't working right now. Check your connection.</p>`; }
     }, 300);
@@ -1908,7 +1949,7 @@ function renderClub() {
   view.innerHTML = `
     <div class="fr-card">
       <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div></div>
-        <button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite">Invite</button></div>
+        <button class="cb-find" id="cbFind" aria-label="Search" title="Search (press /)">🔍<span> Search</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite">Invite</button></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
     <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
@@ -1972,6 +2013,7 @@ function bind(c, s, cands, movie) {
   const cur = s.cur;
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => setClubTab(b.dataset.ct));
   $("cbSet")?.addEventListener("click", () => M.setView("settings"));
+  $("cbFind")?.addEventListener("click", openFind);
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate what to watch next" : "Nominate the first movie", m => {
