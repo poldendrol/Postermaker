@@ -403,6 +403,35 @@ async function tmSearch(text) {
   return raw.filter(x => x.media_type === "movie" || x.media_type === "tv").slice(0, 16)
     .map(x => ({ t: x.media_type, i: x.id, n: x.title || x.name, y: (x.release_date || x.first_air_date || "").slice(0, 4), p: x.poster_path || "" }));
 }
+// Club ratings: every title someone in the club rated, with the club average and each person's stars.
+let crSort = LS.get("marqueeCrSort", "top"), crType = "all", crQ = "", crWho = "";
+function clubRated(s) {
+  const out = [];
+  for (const [sk, mp] of Object.entries(s.saw)) {
+    const rs = [...mp.entries()].filter(([id, x]) => x.v && x.s && s.members.has(id)); if (!rs.length) continue;
+    const m = titleBySk(s, sk) || rs.find(([, x]) => x.m)?.[1].m; if (!m) continue;
+    const st = rs.map(([, x]) => x.s), avg = st.reduce((a, b) => a + b, 0) / st.length, at = Math.max(...rs.map(([, x]) => x.at || 0));
+    out.push({ sk, m, rs, avg, n: rs.length, at, split: st.length > 1 ? Math.max(...st) - Math.min(...st) : 0 });
+  }
+  return out;
+}
+function clubRatingsCard(s) {
+  const all = clubRated(s), nTv = all.filter(r => isTv(r.m)).length, mixed = nTv && nTv < all.length;
+  const ppl = [...s.members.entries()].filter(([id]) => all.some(r => r.rs.some(([a]) => a === id)));
+  const list = all.filter(r => (!crQ || r.m.n.toLowerCase().includes(crQ)) && (!mixed || crType === "all" || (crType === "tv") === isTv(r.m)) && (!crWho || r.rs.some(([a]) => a === crWho)))
+    .sort(crSort === "most" ? (a, b) => b.n - a.n || b.avg - a.avg : crSort === "recent" ? (a, b) => b.at - a.at : crSort === "split" ? (a, b) => b.split - a.split || b.n - a.n : crSort === "low" ? (a, b) => a.avg - b.avg || b.n - a.n : (a, b) => b.avg - a.avg || b.n - a.n || a.m.n.localeCompare(b.m.n));
+  const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
+  const hue = id => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  const row = r => `<div class="cr-i" data-open="${esc(key(r.m))}">${poster(r.m.p, "w92")}<div class="body"><b>${esc(r.m.n)}${r.m.y ? ` <small>${esc(r.m.y)}</small>` : ""}${isTv(r.m) ? ` <span class="tv-tag">Series</span>` : ""}</b>
+      <div class="cr-who">${r.rs.sort((a, b) => b[1].s - a[1].s).map(([id, x]) => `<span class="cr-p${id === me.id ? " me" : ""}" style="--h:${hue(id)}" title="${esc(x.x || "")}">${esc(id === me.id ? "You" : s.members.get(id)?.name || x.name)} <i>${starStr(x.s, true)}</i></span>`).join("")}</div></div>
+      <div class="cr-avg"><b>${r.avg.toFixed(1)}</b><small>${r.n === 1 ? "1 rating" : `${r.n} ratings`}</small></div></div>`;
+  return `<div id="crCard">
+    ${all.length > 8 ? `<input type="search" id="crQ" placeholder="Search" value="${esc(crQ)}" autocomplete="off">` : ""}
+    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-crs", [["top", "Top"], ["low", "Lowest"], ["most", "Most rated"], ["split", "Split"], ["recent", "Recent"]], crSort)}</div>
+      <div class="wl-frow">${mixed ? seg("data-crt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], crType) : ""}${ppl.length > 1 ? `<div class="wl-views">${[["", "Everyone"], ...ppl.map(([id, x]) => [id, id === me.id ? "Me" : x.name])].map(([id, l]) => `<button class="chip${crWho === id ? " on" : ""}" data-crw="${esc(id)}">${esc(l)}</button>`).join("")}</div>` : ""}</div></div>` : ""}
+    <p class="hint mw-sum">${all.length ? `<b>${list.length}</b> title${list.length === 1 ? "" : "s"} rated by the club${crSort === "split" ? " · biggest disagreements first" : ""}` : "Nobody has rated anything yet. Stars you give when you log a title show up here, next to everyone else's."}</p>
+    <div class="cr-list">${list.map(row).join("")}</div></div>`;
+}
 // Welcome for a friend who just joined: step 1 was their name; step 2 tick films they've seen; step 3 add a few to their watchlist.
 async function openWelcome(c) {
   LS.set("marqueeWelcomed_" + c.id, true);
@@ -1771,6 +1800,10 @@ function bindWl(s, cands) {
   view.querySelectorAll("[data-pops]").forEach(x => x.onclick = () => { popSort = x.dataset.pops; render(); });
   view.querySelectorAll("[data-popt]").forEach(x => x.onclick = () => { if (popType === x.dataset.popt) return; popType = x.dataset.popt; popList = null; render(); });
   view.querySelectorAll("[data-cpv]").forEach(x => x.onclick = () => { clubPane = x.dataset.cpv; LS.set("marqueeClubPane", clubPane); render(); });
+  view.querySelectorAll("[data-crs]").forEach(x => x.onclick = () => { crSort = x.dataset.crs; LS.set("marqueeCrSort", crSort); render(); });
+  view.querySelectorAll("[data-crt]").forEach(x => x.onclick = () => { crType = x.dataset.crt; render(); });
+  view.querySelectorAll("[data-crw]").forEach(x => x.onclick = () => { crWho = x.dataset.crw; render(); });
+  $("crQ")?.addEventListener("input", e => { crQ = e.target.value.toLowerCase(); keepInputs(renderClub); });
   view.querySelectorAll("[data-lsv]").forEach(x => x.onclick = () => { lsPane = x.dataset.lsv; LS.set("marqueeLsPane", lsPane); wlAll = false; render(); });
   view.querySelectorAll("[data-wlf]").forEach(x => x.onclick = () => { const id = x.dataset.wlf; if (id === "*") wlFriends.clear(); else wlFriends.has(id) ? wlFriends.delete(id) : wlFriends.add(id); LS.set("marqueeWlFriends", [...wlFriends]); wlAll = false; render(); });
   view.querySelectorAll("details.g-sec").forEach(d => d.addEventListener("toggle", () => { d.open ? genreShut.delete(d.dataset.g) : genreShut.add(d.dataset.g); }));
@@ -2030,8 +2063,8 @@ function renderClub() {
       ${lsPane === "lists" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2">
     ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
-      return `<div class="fr-card" data-tab="weekly">${pulpPick([["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["pop", "This week", "Popular"]], clubPane, "data-cpv")}
-      ${clubPane === "pop" ? popHtml(s) : wlCard(s, cands, "club")}</div>`; })()}
+      return `<div class="fr-card" data-tab="weekly">${pulpPick([["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["rate", `${clubRated(s).length} rated`, "Club ratings"], ["pop", "This week", "Popular"]], clubPane, "data-cpv", true)}
+      ${clubPane === "pop" ? popHtml(s) : clubPane === "rate" ? clubRatingsCard(s) : wlCard(s, cands, "club")}</div>`; })()}
     </div>
 
 
@@ -2340,7 +2373,7 @@ function undoOffer(text, undo) {
     let x = r.right + 12; if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 12);
     const y = Math.min(Math.max(8, r.top + r.height / 2 - h / 2), innerHeight - h - 8); card.style.left = x + "px"; card.style.top = y + "px"; };
   document.addEventListener("mouseover", e => {
-    const row = e.target.closest?.(".mw-i[data-open], .wl-row[data-open]"); if (row === cur) return; hide(); if (!row || !lastState) return; cur = row;
+    const row = e.target.closest?.(".mw-i[data-open], .wl-row[data-open], .cr-i[data-open]"); if (row === cur) return; hide(); if (!row || !lastState) return; cur = row;
     timer = setTimeout(() => {
       const m = findTitle(lastState, row.dataset.open); if (!m || cur !== row) return;
       card = el(`<div class="hov-card" role="tooltip">${m.p ? `<img src="${M.IMG}w342${esc(m.p)}" alt="">` : ""}<div class="hov-b"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><small class="hint hov-f">${isTv(m) ? "Series" : "Film"}</small><small class="hint">Loading…</small></div></div>`);
