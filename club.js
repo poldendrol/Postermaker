@@ -951,6 +951,7 @@ function wlCard(s, cands, wlMode) {
       .map(([g, ws]) => `<details class="g-sec" data-g="${esc(g)}"${genreShut.has(g) ? "" : " open"}><summary>${esc(g)} <i>${ws.length}</i></summary><div class="${gc}">${ws.map(tile).join("")}</div></details>`).join("");
   };
   return `<div id="wlCard">
+    ${wlMode === "mine" ? (n => n ? `<button class="wl-clash" data-clash>⚠️ ${n} title${n === 1 ? " is" : "s are"} on your watchlist but also marked as seen. <b>Check ${n === 1 ? "it" : "them"}</b></button>` : "")(seenClash(s).length) : ""}
     ${wlMode === "mine" ? `<p class="hint" id="wlStatus"${wlMsg ? "" : " hidden"}>${esc(wlMsg)}</p>` : ""}
     ${wlMode === "club" && location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
     ${wlMode === "old" ? seenBeforeCard(s) : `
@@ -1407,7 +1408,8 @@ function openListSheet(s, l, ready, keepY) {
     if (e.target === bg) return close();
     const x = e.target.closest("[data-lsx]"); if (x) { e.stopPropagation(); l.items = l.items.filter(m => key(m) !== x.dataset.lsx); const y = scrollOf(); saveList(l); close(); render(); openListSheet(lastState, l, false, y); return; }
     const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (!m) return; const y = scrollOf(); close();
-      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: seenKey(m.n), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } }); M.toast(`✓ ${m.n} marked as seen.`); openListSheet(lastState, club ? lastState.pub.find(x => x.id === l.id) || l : l, ready, y); }
+      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: seenKey(m.n), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } });
+        undoOffer(`✓ ${m.n} marked as seen.`, () => { act("saw", { sk: seenKey(m.n), v: 0 }); M.toast(`${m.n} is unmarked.`); setTimeout(() => { const n = derive(active().id), l2 = club ? n.pub.find(x => x.id === l.id) || l : l; if (document.querySelector(".ls-sheet")) { document.querySelector(".ls-sheet")?.closest(".sheet-bg")?.remove(); openListSheet(n, l2, ready, y); } }, 80); }); openListSheet(lastState, club ? lastState.pub.find(x => x.id === l.id) || l : l, ready, y); }
       return; }
     const a = e.target.closest("[data-lsa]")?.dataset.lsa; if (!a) return;
     if (a === "x") close();
@@ -2189,6 +2191,32 @@ function openReview(s, sk, m0, opts = {}) {
   bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) paintStars(bg, score);
+}
+// Titles on your Personal watchlist that are also marked as seen: one of the two is wrong, so let the person pick per title.
+const seenClash = s => [...s.wl.values()].filter(w => w.adders.has(me.id) && !Object.values(s.picks).some(p => key(p) === key(w.m)) && (x => !!x?.v && (!x.m || key(x.m) === key(w.m)))(s.saw[seenKey(w.m.n)]?.get(me.id))).sort((a, b) => a.m.n.localeCompare(b.m.n));
+function openSeenClash() {
+  const draw = () => {
+    const s = derive(active().id), list = seenClash(s);
+    if (!list.length) { bg.remove(); M.toast("All sorted. Your watchlist only has titles you haven't seen."); render(); return; }
+    bg.querySelector(".clash-list").innerHTML = list.map(w => { const x = s.saw[seenKey(w.m.n)].get(me.id), how = x.imp ? "imported" : x.old ? "marked seen before" : x.d ? `logged ${x.d}` : "marked watched";
+      return `<div class="clash-i">${poster(w.m.p, "w92")}<div class="body"><b>${esc(w.m.n)}${w.m.y ? ` <small>${esc(w.m.y)}</small>` : ""}</b><small class="hint">${esc(how)}${x.s ? ` · ${starStr(x.s, true)}` : ""}${x.x ? ` · “${esc(x.x.slice(0, 40))}”` : ""}</small>
+        <div class="clash-b"><button class="primary" data-cnot="${esc(key(w.m))}">Never seen it</button><button data-cseen="${esc(key(w.m))}">I've seen it</button></div></div></div>`; }).join("");
+    bg.querySelector(".clash-n").textContent = `${list.length} to check`;
+    bg.querySelectorAll("[data-cnot]").forEach(b => b.onclick = () => { const w = list.find(w => key(w.m) === b.dataset.cnot); act("saw", { sk: seenKey(w.m.n), v: 0 }); setTimeout(draw, 60); });
+    bg.querySelectorAll("[data-cseen]").forEach(b => b.onclick = () => { const w = list.find(w => key(w.m) === b.dataset.cseen); act("wldrop", { m: w.m }); setTimeout(draw, 60); });
+  };
+  const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Check watchlist">
+    <h3>Seen or not?</h3><small class="hint">These are on your Personal watchlist but also marked as seen. <b>Never seen it</b> removes the seen mark and keeps it on your list. <b>I've seen it</b> takes it off your list and keeps it in Seen before. <span class="clash-n"></span></small>
+    <div class="clash-list"></div><button data-x>Close</button></div></div>`);
+  document.body.appendChild(bg); bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-x]")) bg.remove(); }); draw();
+}
+document.addEventListener("click", e => { if (e.target.closest?.("[data-clash]")) openSeenClash(); });
+// After ticking a poster as seen in a list: a few seconds to undo an accidental tap.
+function undoOffer(text, undo) {
+  document.querySelectorAll(".undo-offer").forEach(x => x.remove());
+  const t = el(`<div class="post-offer undo-offer"><span>${esc(text)}</span><button class="primary">Undo</button></div>`);
+  document.body.appendChild(t); const bye = () => t.remove(); setTimeout(bye, 6000);
+  t.querySelector(".primary").onclick = () => { bye(); undo(); };
 }
 // Hover card (PC): more about a title when the mouse rests on a row in Watched or Seen before.
 (() => {
