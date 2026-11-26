@@ -350,8 +350,9 @@ function unread(clubId) {
 function markRead() { const c = active(); if (c && document.body.dataset.view === "club") LS.set(readKey(c.id), now()); badge(); }
 function badge() {
   const n = me ? clubs().reduce((a, c) => a + unread(c.id), 0) : 0;
-  const b = $("clubBadge"); if (!b) return;
-  b.hidden = !n; b.textContent = n > 9 ? "9+" : n;
+  document.querySelectorAll(".club-badge").forEach(b => { b.hidden = !n; b.textContent = n > 9 ? "9+" : n; });
+  let f = 0; try { const st = me && active() ? lastState : null; f = st ? sugForMe(st).filter(g => sugNew(st, g) || sugDueToday(g)).length : 0; } catch {}
+  document.querySelectorAll(".fy-badge").forEach(b => { b.hidden = !f; b.textContent = f > 9 ? "9+" : f; });
 }
 function announce(clubId, fresh) {
   const others = fresh.filter(e => e.a !== me?.id && now() - e.t < 36e5 * 6);
@@ -1880,7 +1881,10 @@ function historyHtml(s) {
 
 // The club page is split into tabs so nothing needs a long scroll on a phone.
 let clubTab = (() => { let t = "weekly"; try { t = sessionStorage.getItem("marqueeClubTab") || "weekly"; } catch {} return { week: "weekly", vote: "weekly", cine: "weekly", cal: "weekly", monthly: "weekly", set: "weekly" }[t] || t; })();
-function setClubTab(t) { clubTab = t; try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
+const navTab = () => document.querySelectorAll("#nav [data-ct]").forEach(b => b.toggleAttribute("aria-current", document.body.dataset.view === "club" && b.dataset.ct === clubTab));
+document.addEventListener("marquee:view", () => setTimeout(navTab, 0));
+document.addEventListener("marquee:clubtab", e => { setClubTab(e.detail); render(); });
+function setClubTab(t) { clubTab = t; setTimeout(navTab, 0); try { sessionStorage.setItem("marqueeClubTab", t); } catch {} view.dataset.tab = t; view.querySelectorAll("[data-ct]").forEach(b => b.setAttribute("aria-selected", b.dataset.ct === t)); $("cbGear")?.classList.toggle("on", t === "set"); window.scrollTo({ top: 0 }); }
 function renderClub() {
   const c = active(), s = derive(c.id); lastState = s;
   if (s.name !== c.name || s.day !== c.day) { const l = clubs(); const x = l.find(y => y.id === c.id); x.name = s.name || x.name; x.day = s.day; LS.set("marqueeClubs", l); }
@@ -1904,7 +1908,7 @@ function renderClub() {
   view.innerHTML = `
     <div class="fr-card">
       <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => avatar(m.name, movie && rd.seen.has(id))).join("")}</div></div>
-        <button id="cbInvite">Invite</button></div>
+        <button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite">Invite</button></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
     <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Lists", false], ["weekly", "The Club", false]]
@@ -1967,6 +1971,7 @@ function renderClub() {
 function bind(c, s, cands, movie) {
   const cur = s.cur;
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => setClubTab(b.dataset.ct));
+  $("cbSet")?.addEventListener("click", () => M.setView("settings"));
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
   calNominate = (initial = "") => openSearch(movie ? "Nominate what to watch next" : "Nominate the first movie", m => {
