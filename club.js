@@ -2579,6 +2579,8 @@ function myWatchedCard(s) {
   const cut = isoAdd(iso(new Date()), -31), recent = items.filter(it => it.d >= cut), older = items.filter(it => it.d < cut);
   const rowsOf = arr => { lastMo = ""; return arr.map(it => {
     const mo = it.d.slice(0, 7), head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}</h5>` : ""; lastMo = mo;
+    // Also anyone who logged it without a date (seen before, an import) but gave it stars, and always you if you've logged it at all: a rating never goes missing from the row.
+    if (wall) for (const [id, x] of sawMap(s, it.m)) if (!it.ppl.has(id) && x.v && (!x.m || key(x.m) === key(it.m)) && (x.s || id === me.id)) it.ppl.set(id, { s: x.s, x: x.x });
     const ppl = [...it.ppl.entries()], solo = !wall;
     const chips = ppl.map(([id, w]) => { const lbl = `${esc(nm(id))} ${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
       return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--h:${hue(id)}">${lbl}</span>`; }).join("");
