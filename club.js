@@ -2539,29 +2539,30 @@ const fmtDay = (() => { const F = { wd: new Intl.DateTimeFormat(undefined, { wee
 let mwYear = new Date().getFullYear(), mwAll = false, mwWho = LS.get("marqueeMwWho", "*"), mwType = "all";
 function myWatchedCard(s) {
   const ppl = [...s.members.entries()].filter(([id]) => id !== me.id); // everyone in the club gets a button, also before they log anything
-  if (mwWho && mwWho !== "*" && !ppl.some(([id]) => id === mwWho)) mwWho = "";
+  mwWho = "*"; // the wall always shows everyone
   const wall = mwWho === "*" && ppl.length > 0; // one wall: everyone's watched titles mixed, newest first
   const who = !wall && mwWho && mwWho !== "*" ? mwWho : me.id, whoName = who !== me.id ? s.members.get(who)?.name || "" : "";
   const all = wall ? [...s.members.keys()].flatMap(id => myWatched(s, id).map(w => ({ ...w, who: id }))).sort((a, b) => b.d.localeCompare(a.d) || (b.at || 0) - (a.at || 0)) : myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
-  if (!years.includes(mwYear)) mwYear = years[0];
-  const yearList = all.filter(w => +w.d.slice(0, 4) === mwYear), nTv = yearList.filter(w => isTv(w.m)).length, mixed = nTv > 0 && nTv < yearList.length;
+  mwYear = new Date().getFullYear(); // stats are for this year; the list shows everything, with older logs folded away
+  const nTv = all.filter(w => isTv(w.m)).length, mixed = nTv > 0 && nTv < all.length;
   if (!mixed) mwType = "all";
-  const list = yearList.filter(w => mwType === "all" || (mwType === "tv") === isTv(w.m));
+  const list = all.filter(w => mwType === "all" || (mwType === "tv") === isTv(w.m)), yearList = list.filter(w => +w.d.slice(0, 4) === mwYear);
   const diaryN = Object.values(s.saw).map(mp => mp.get(who)).filter(x => x?.v && x.imp && x.wd && +x.wd.slice(0, 4) === mwYear).length;
   const films = list.filter(w => !isTv(w.m)).length, series = list.length - films;
   // One row per title: everyone who watched it this year, with their own score (newest log per person).
   const items = []; { const g = new Map(); for (const w of list) { const id = w.who || who; let it = g.get(w.sk); if (!it) { g.set(w.sk, it = { ...w, ppl: new Map() }); items.push(it); } if (!it.ppl.has(id)) it.ppl.set(id, w); } }
   const avgOf = it => { const xs = [...it.ppl.values()].map(w => w.s).filter(Boolean); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0; };
   const best = {}; for (const it of items) { const mo = it.d.slice(0, 7), a = avgOf(it); if (a && (!best[mo] || a > best[mo].a)) best[mo] = { a, m: it.m }; }
-  const rated = list.filter(w => w.s), avg = rated.length ? rated.reduce((a, w) => a + w.s, 0) / rated.length : 0;
+  const rated = yearList.filter(w => w.s), avg = rated.length ? rated.reduce((a, w) => a + w.s, 0) / rated.length : 0;
   if (items.some(it => !genreCache[key(it.m)])) setTimeout(() => fillGenres(items.map(it => ({ m: it.m }))), 0);
   const gc = {}; for (const it of items) { const g = genreOf(it.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; }
-  const topG = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0], rwN = list.filter(w => w.rw).length;
+  const topG = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0], rwN = yearList.filter(w => w.rw).length;
   const hue = id => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7), nm = id => id === me.id ? "You" : s.members.get(id)?.name || "?";
   let lastMo = "";
   const yrPick = years.length > 1 ? `<select class="mw-yr" data-mwysel aria-label="Year">${years.map(y => `<option value="${y}"${y === mwYear ? " selected" : ""}>${y}</option>`).join("")}</select>` : String(mwYear);
-  const rows = items.map(it => {
-    const mo = it.d.slice(0, 7), b = best[mo], head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${b ? ` <i class="mw-best">· best: ${esc(b.m.n)} ${starStr(b.a)}</i>` : ""}</h5>` : ""; lastMo = mo;
+  const cut = isoAdd(iso(new Date()), -31), recent = items.filter(it => it.d >= cut), older = items.filter(it => it.d < cut);
+  const rowsOf = arr => { lastMo = ""; return arr.map(it => {
+    const mo = it.d.slice(0, 7), b = best[mo], head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}${b ? ` <i class="mw-best">· best: ${esc(b.m.n)} ${starStr(b.a)}</i>` : ""}</h5>` : ""; lastMo = mo;
     const ppl = [...it.ppl.entries()], solo = !wall;
     const chips = ppl.map(([id, w]) => { const lbl = `${solo ? "" : `${esc(nm(id))} `}${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
       return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--h:${hue(id)}">${lbl}</span>`; }).join("");
@@ -2569,18 +2570,19 @@ function myWatchedCard(s) {
     const rx = s.rx[it.sk], cnt = e => [...(rx?.values() || [])].filter(x => x === e).length, myRx = rx?.get(me.id), talkN = (s.talk[it.sk] || []).length;
     const bar = `<div class="mw-rx">${RX.map(e => `<button class="${myRx === e ? "on" : ""}" data-rx="${esc(it.sk)}" data-e="${e}" aria-label="React ${e}">${e}${cnt(e) ? `<i>${cnt(e)}</i>` : ""}</button>`).join("")}<button data-rxtalk="${esc(key(it.m))}" aria-label="Reply">💬${talkN ? `<i>${talkN}</i>` : ""}</button></div>`;
     return `${head}<div class="mw-i" data-open="${esc(key(it.m))}"><span class="mw-d"><b>${+it.d.slice(8)}</b><small>${esc(fmtDay(it.d, "wd"))}</small></span>${poster(it.m.p, "w92")}<div class="body"><b>${esc(it.m.n)}${it.m.y ? ` <small>${esc(it.m.y)}</small>` : ""}${isTv(it.m) ? ` <span class="tv-tag">${it.ss ? esc(ssLabel(it.ss)) : "Series"}</span>` : ""}${it.rw ? ` <span class="rw-tag">↻ ${it.rw === 1 ? "rewatch" : `${it.rw + 1}th watch`}</span>` : ""}</b>${chips ? `<div class="mw-ppl">${chips}</div>` : ""}${revs}${bar}</div></div>`;
-  }).join("");
-  const stats = list.length ? `<div class="mw-stats"><span><b>${list.length}</b>watched</span>${avg ? `<span><b>${starStr(avg)}</b>average</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>top genre</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
+  }).join(""); };
+  const stats = yearList.length ? `<div class="mw-stats"><span><b>${yearList.length}</b>watched in ${mwYear}</span>${avg ? `<span><b>${starStr(avg)}</b>average</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>top genre</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
   const typeSeg = mixed ? `<div class="seg mw-type">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === mwType ? "on" : ""}" data-mwt="${k}">${l}</button>`).join("")}</div>` : "";
   return `<div id="mwCard">
-    <div class="mw-ctl">${ppl.length ? `<select class="mw-yr mw-who-sel" data-mwwsel aria-label="Whose films">${[["*", "Everyone"], ["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => { const ag = id && id !== "*" ? agreeOf(s, me.id, id) : null; const on = id === mwWho || (id === "" && mwWho !== "*" && !whoName); return `<option value="${esc(id)}"${on ? " selected" : ""}>${esc(n)}${ag ? ` · ${ag.pct}% match` : ""}</option>`; }).join("")}</select>` : ""}${years.length > 1 ? yrPick : ""}${mixed ? `<select class="mw-yr" data-mwtsel aria-label="Films or series">${[["all", "Films & series"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<option value="${k}"${k === mwType ? " selected" : ""}>${l}</option>`).join("")}</select>` : ""}</div>
+    ${typeSeg ? `<div class="mw-ctl">${typeSeg}</div>` : ""}
     ${(() => { if (!whoName) return ""; const ag = agreeOf(s, me.id, mwWho); if (!ag) return `<p class="hint mw-ag">🤝 Rate 3 films you've both seen to see how much you and ${esc(whoName)} agree.</p>`;
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    ${list.length ? "" : `<p class="hint mw-sum">${whoName ? `${esc(whoName)} hasn't logged anything in ${mwYear}.` : `Nothing logged in ${mwYear} yet. Tap ＋ Log at the top to log what you watched.`}</p>`}
+    ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Log at the top to log what you watched.</p>`}
     ${stats}
-    <div class="mw-list">${rows}</div>
+    <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `<p class="hint">Nothing watched in the last month.</p>` : ""}</div>
+    ${older.length ? `<details class="g-sec mw-older"><summary>Older <i>${older.length}</i></summary><div class="mw-list">${rowsOf(older)}</div></details>` : ""}
   </div>`;
 }
 function openReview(s, sk, m0, opts = {}) {
