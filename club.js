@@ -1271,7 +1271,7 @@ function wlCard(s, cands, wlMode) {
       const nf = (mixed && wlType !== "all" ? 1 : 0) + (wlMode === "mine" && wlStream ? 1 : 0) + (wlNobody ? 1 : 0);
       return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["added", "Added"], ["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★"]], wlSort)}<button class="tog wl-fbtn${nf ? " on" : ""}" data-wlfo aria-expanded="${wlFiltOpen}">Filter${nf ? ` · ${nf}` : ""} ${wlFiltOpen ? "▴" : "▾"}</button></div>
         ${wlFiltOpen ? `<div class="wl-frow">${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}${wlMode === "mine" ? tog("data-st", wlStream, "📺 My services" + (wlStream && provBusy ? "…" : "")) : ""}${tog("data-nb", wlNobody, "👀 Nobody's seen")}</div>` : ""}</div>`; })() : ""}
-    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap ＋ Log to add titles, or import one in Settings." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
+    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap ＋ Add to add titles, or import one in Settings." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
   </div>`;
 }
@@ -2117,7 +2117,7 @@ function leadersHtml(s) {
   const uniq = id => new Set(W[id].map(w => w.sk)).size;
   // Your own wrap-up for the chosen year (only what you logged in Marquee, like every year stat).
   const myWrap = (() => {
-    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap ＋ Log to log what you watch, and your wrap-up fills itself.</p>`; }
+    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap ＋ Add to log what you watch, and your wrap-up fills itself.</p>`; }
     const films = Wm.filter(w => !isTv(w.m)).length, series = Wm.length - films;
     const fav = [...Wm].filter(w => w.s).sort((a, b) => b.s - a.s || b.d.localeCompare(a.d))[0];
     const gc = {}; for (const w of Wm) { const g = genreOf(w.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; } const genre = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -2185,8 +2185,11 @@ function leadersHtml(s) {
   })();
   const G = [["w", "🎬 Watching"], ["r", "⭐ Ratings & reviews"], ["s", "📣 Suggestions"], ["c", "🍿 Cinema & chat"]];
   const board = `<div class="fr-card"><h4 class="ld-sec">Standings</h4>${standings}</div>
-    <div class="ld-cols">${G.map(([g, l]) => { const rs = done.filter(x => x.c.g === g); return rs.length ? `<div class="fr-card ld-group"><h4 class="ld-sec">${l}</h4>${rs.map(x => x.html).join("")}</div>` : ""; }).join("")}</div>
-    ${open.length ? `<div class="fr-card ld-open"><h4 class="ld-sec">Still up for grabs</h4><div class="ld-free">${open.map(c => `<span title="${esc(c.d)}">${c.e} ${esc(c.t)}</span>`).join("")}</div><small class="hint">Nobody has scored in these yet in ${ldYear}. First one in takes the badge.</small></div>` : ""}`;
+    ${(() => { // the 5 busiest categories up front, everything else folded away
+      const ord = [...done].sort((a, b) => b.n - a.n || G.findIndex(([g]) => g === a.c.g) - G.findIndex(([g]) => g === b.c.g)), top5 = ord.slice(0, 5), rest = ord.slice(5);
+      if (!done.length && !open.length) return "";
+      return `<div class="fr-card ld-group"><h4 class="ld-sec">👑 Top categories</h4>${top5.map(x => x.html).join("") || `<p class="hint">Nobody has scored yet. First one in takes the badge.</p>`}
+        ${rest.length || open.length ? `<details class="g-sec ld-more"><summary>All categories <i>${rest.length + open.length}</i></summary>${G.map(([g, l]) => { const rs = rest.filter(x => x.c.g === g); return rs.length ? `<h5 class="mw-mo">${l}</h5>${rs.map(x => x.html).join("")}` : ""; }).join("")}${open.length ? `<h5 class="mw-mo">Still up for grabs</h5><div class="ld-free">${open.map(c => `<span title="${esc(c.d)}">${c.e} ${esc(c.t)}</span>`).join("")}</div>` : ""}</details>` : ""}</div>`; })()}`;
   const wrap = `<div class="fr-card"><div class="wl-views">${[["me", "Me"], ["club", esc(s.name || "The club")]].map(([k, l]) => `<button class="chip${wrapPane === k ? " on" : ""}" data-wrapv="${k}">${l}</button>`).join("")}</div>
       ${wrapPane === "me" ? myWrap : lastWrapHtml}</div>`;
   return `<div class="fr-card ld-top"><div class="ld-years">${yrs.map(y => `<button class="chip${y === ldYear ? " on" : ""}" data-ldy="${y}">${y}</button>`).join("")}</div>
@@ -2315,7 +2318,7 @@ function renderClub() {
   view.innerHTML = `
     <div class="fr-card">
       <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => `<button class="face-b" data-person="${esc(id)}" aria-label="${esc(m.name)}'s ratings">${avatar(m.name, movie && rd.seen.has(id))}</button>`).join("")}</div></div>
-        <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Log or find a title" title="Log or find any title (press /)">＋<span> Log</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
+        <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Log or find a title" title="Log or find any title (press /)">＋<span> Add</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
     <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Library", false], ["weekly", "Explore", false]]
@@ -2388,7 +2391,7 @@ function bind(c, s, cands, movie) {
   $("cbSet")?.addEventListener("click", () => M.setView("settings"));
   $("cbFind")?.addEventListener("click", openFind);
   // Phone: a big round Log button right above the bottom bar, where your thumb is.
-  if (!document.getElementById("cbFab")) { const f = el(`<button class="cb-fab" id="cbFab" aria-label="Log or find a title">＋<span>Log</span></button>`); f.onclick = () => openFind(); document.body.appendChild(f); }
+  if (!document.getElementById("cbFab")) { const f = el(`<button class="cb-fab" id="cbFab" aria-label="Log or find a title">＋<span>Add</span></button>`); f.onclick = () => openFind(); document.body.appendChild(f); }
   $("cbAct")?.addEventListener("click", openActivity);
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
@@ -2580,7 +2583,7 @@ function myWatchedCard(s) {
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Log to log what you watched.</p>`}
+    ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Add to log what you watched.</p>`}
     ${stats}
     ${typeSeg ? `<div class="mw-ctl">${typeSeg}</div>` : ""}
     <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `<p class="hint">Nothing watched in the last month.</p>` : ""}</div>
