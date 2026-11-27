@@ -1271,7 +1271,7 @@ function wlCard(s, cands, wlMode) {
       const nf = (mixed && wlType !== "all" ? 1 : 0) + (wlMode === "mine" && wlStream ? 1 : 0) + (wlNobody ? 1 : 0);
       return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["added", "Added"], ["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★"]], wlSort)}<button class="tog wl-fbtn${nf ? " on" : ""}" data-wlfo aria-expanded="${wlFiltOpen}">Filter${nf ? ` · ${nf}` : ""} ${wlFiltOpen ? "▴" : "▾"}</button></div>
         ${wlFiltOpen ? `<div class="wl-frow">${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}${wlMode === "mine" ? tog("data-st", wlStream, "📺 My services" + (wlStream && provBusy ? "…" : "")) : ""}${tog("data-nb", wlNobody, "👀 Nobody's seen")}</div>` : ""}</div>`; })() : ""}
-    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap ＋ Log at the top to add titles, or import one in Settings." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
+    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap ＋ Log to add titles, or import one in Settings." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
 `}
   </div>`;
 }
@@ -2117,7 +2117,7 @@ function leadersHtml(s) {
   const uniq = id => new Set(W[id].map(w => w.sk)).size;
   // Your own wrap-up for the chosen year (only what you logged in Marquee, like every year stat).
   const myWrap = (() => {
-    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap ＋ Log at the top to log what you watch, and your wrap-up fills itself.</p>`; }
+    const Wm = W[me.id] || []; if (!Wm.length) { myWrapData = null; return `<p class="hint">Nothing logged for ${ldYear} yet. Tap ＋ Log to log what you watch, and your wrap-up fills itself.</p>`; }
     const films = Wm.filter(w => !isTv(w.m)).length, series = Wm.length - films;
     const fav = [...Wm].filter(w => w.s).sort((a, b) => b.s - a.s || b.d.localeCompare(a.d))[0];
     const gc = {}; for (const w of Wm) { const g = genreOf(w.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; } const genre = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -2265,7 +2265,7 @@ const TOUR = [
   { tab: "weekly", a: '[data-rtv="pop"]', t: "See the most popular movies at the moment." },
   { tab: "weekly", a: '[data-rtv="gent"]', t: "See what is playing in Ghent at the moment." },
   { tab: "weekly", a: '[data-rtv="soon"]', t: "See which films are coming to the cinema, by release date." },
-  { a: "#cbFind", t: "Add a movie or series to your watchlist here, or log one you just watched." },
+  { a: "#cbFind, #cbFab", t: "Add a movie or series to your watchlist here, or log one you just watched." },
   { a: '#cbSet, .nav-pc[data-view="settings"]', t: "Already have a watchlist on IMDb or Letterboxd? Upload it here in Settings, under Watching." },
 ];
 function maybeTour() {
@@ -2387,6 +2387,8 @@ function bind(c, s, cands, movie) {
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => setClubTab(b.dataset.ct));
   $("cbSet")?.addEventListener("click", () => M.setView("settings"));
   $("cbFind")?.addEventListener("click", openFind);
+  // Phone: a big round Log button right above the bottom bar, where your thumb is.
+  if (!document.getElementById("cbFab")) { const f = el(`<button class="cb-fab" id="cbFab" aria-label="Log or find a title">＋<span>Log</span></button>`); f.onclick = () => openFind(); document.body.appendChild(f); }
   $("cbAct")?.addEventListener("click", openActivity);
   $("cbInvite").onclick = () => shareInvite({ ...c, name: s.name || c.name, day: s.day });
   $("cbFirst")?.addEventListener("click", () => openSearch("Choose the first film or series", m => act("pick", { r: 0, m }, { title: `First movie: ${m.n}`, body: `Watch it before ${nightLabel(nightAfter(now(), s.day))}.` })));
@@ -2578,7 +2580,7 @@ function myWatchedCard(s) {
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Log at the top to log what you watched.</p>`}
+    ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Log to log what you watched.</p>`}
     ${stats}
     ${typeSeg ? `<div class="mw-ctl">${typeSeg}</div>` : ""}
     <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `<p class="hint">Nothing watched in the last month.</p>` : ""}</div>
