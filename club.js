@@ -2569,7 +2569,7 @@ function myWatchedCard(s) {
   const rowsOf = arr => { lastMo = ""; return arr.map(it => {
     const mo = it.d.slice(0, 7), b = best[mo], head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}${b ? ` <i class="mw-best">· best: ${esc(b.m.n)} ${starStr(b.a)}</i>` : ""}</h5>` : ""; lastMo = mo;
     const ppl = [...it.ppl.entries()], solo = !wall;
-    const chips = ppl.map(([id, w]) => { const lbl = `${solo ? "" : `${esc(nm(id))} `}${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
+    const chips = ppl.map(([id, w]) => { const lbl = `${esc(nm(id))} ${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
       return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--h:${hue(id)}">${lbl}</span>`; }).join("");
     const revs = ppl.filter(([, w]) => w.x).map(([id, w]) => `<small class="hint mw-rev">${solo ? "" : `<b>${esc(nm(id))}</b> `}“${esc(w.x)}”</small>`).join("");
     const rx = s.rx[it.sk], cnt = e => [...(rx?.values() || [])].filter(x => x === e).length, myRx = rx?.get(me.id), talkN = (s.talk[it.sk] || []).length;
