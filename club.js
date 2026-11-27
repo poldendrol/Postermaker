@@ -57,12 +57,25 @@ const monthOf = d => d.getFullYear() * 12 + d.getMonth();
 const imdbUrl = m => /^tt\d+$/.test(m.im || "") ? `https://www.imdb.com/title/${m.im}/` : `https://www.imdb.com/find/?q=${encodeURIComponent(m.n + (m.y ? " " + m.y : ""))}&s=tt`;
 const imdbLink = m => `<a class="link imdb-l" href="${esc(imdbUrl(m))}" target="_blank" rel="noopener" title="Open on IMDb to mark it there">IMDb ↗</a>`;
 const scLabel = sc => { if (!sc || !sc.d) return sc?.c || ""; const [y, m, d] = sc.d.split("-").map(Number); return `${sc.c} · ${new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}${sc.h ? " " + sc.h : ""}`; };
-// Stars in half steps: ★★★½☆ (pass bare = true to leave out the empty ones).
-const starStr = (n, bare) => { const v = Math.round((+n || 0) * 2) / 2, f = Math.floor(v), h = v - f >= .5; return "★".repeat(f) + (h ? "½" : "") + (bare ? "" : "☆".repeat(5 - f - (h ? 1 : 0))); };
-const stars = n => n ? starStr(n) : ""
-// Star picker: tap a star for a full score, tap the same star again for half (3 → 2½ → 3).
-const halfTap = (cur, n) => cur === n ? n - .5 : n;
-const paintStars = (root, v) => root.querySelectorAll(".mstars button").forEach(o => { const n = +o.dataset.s; o.classList.toggle("on", n <= v); o.classList.toggle("half", n - .5 === v); });;
+// Scores are out of 10 in steps of 0.1 (7.2). Stored as s = score / 2 (0–5), so older star ratings keep working.
+const sc10 = n => (Math.round((+n || 0) * 20) / 10).toFixed(1);
+const starStr = n => "★ " + sc10(n);
+const stars = n => n ? starStr(n) : "";
+// Score bar: one tap where you want it (7.2 = just past the 7), drag to fine-tune, arrow keys or -/+ for 0.1 steps.
+const scoreBar = () => `<div class="mscore"><button type="button" class="ms-step" data-ms="-1" aria-label="0.1 lower">−</button><div class="ms-track" role="slider" tabindex="0" aria-label="Score out of 10" aria-valuemin="0" aria-valuemax="10"><i class="ms-fill"></i><span class="ms-ticks">${[...Array(11)].map((_, i) => `<span>${i}</span>`).join("")}</span></div><button type="button" class="ms-step" data-ms="1" aria-label="0.1 higher">+</button><b class="ms-val">–</b></div>`;
+const paintStars = (root, v) => root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track"); b.querySelector(".ms-fill").style.width = (v / 5 * 100) + "%"; b.querySelector(".ms-val").textContent = v ? sc10(v) : "–"; t.setAttribute("aria-valuenow", v ? sc10(v) : "0"); b.classList.toggle("set", !!v); });
+function wireScore(root, get, set) {
+  root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track");
+    const at = x => { const r = t.getBoundingClientRect(); return Math.max(.05, Math.min(5, Math.round(Math.max(0, Math.min(1, (x - r.left) / r.width)) * 100) / 20)); };
+    let drag = false;
+    t.onpointerdown = e => { drag = true; t.setPointerCapture?.(e.pointerId); paintStars(root, at(e.clientX)); b._v = at(e.clientX); e.preventDefault(); };
+    t.onpointermove = e => { if (!drag) return; b._v = at(e.clientX); paintStars(root, b._v); };
+    t.onpointerup = t.onpointercancel = () => { if (!drag) return; drag = false; set(b._v); };
+    const nudge = d => { const v = Math.max(.05, Math.min(5, Math.round(((get() || 0) + d * .05) * 20) / 20)); paintStars(root, v); set(v); };
+    t.onkeydown = e => { const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]; if (d) { e.preventDefault(); nudge(d); } };
+    b.querySelectorAll("[data-ms]").forEach(x => x.onclick = () => nudge(+x.dataset.ms));
+  });
+}
 
 // ---------- local data ----------
 let me = LS.get("marqueeClubMe", null);                 // { id, name }
@@ -123,7 +136,7 @@ function merge(clubId, list) {
     if (e.k === "saw") {
       if (e.rw) e.rw = 1;
       if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1; if (e.wd) e.wd = 1;
-      if (e.sr) { const o = {}; if (typeof e.sr === "object") for (const [n, v] of Object.entries(e.sr).slice(0, 60)) if (+n > 0 && +n < 100 && +v >= .5 && +v <= 5) o[+n] = Math.round(+v * 2) / 2; e.sr = o; }
+      if (e.sr) { const o = {}; if (typeof e.sr === "object") for (const [n, v] of Object.entries(e.sr).slice(0, 60)) if (+n > 0 && +n < 100 && +v >= .05 && +v <= 5) o[+n] = Math.round(+v * 20) / 20; e.sr = o; }
       if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && (d === "" || /^\d{4}-\d\d-\d\d$/.test(d))) o[+n] = d; e.ss = o; }
     }
     if (e.k === "list" || e.k === "unlist") { e.lid = String(e.lid || "").slice(0, 16); e.pv = String(e.pv || "").slice(0, 16); e.name = String(e.name || "").slice(0, 60); e.pt = Math.max(0, Math.min(99, +e.pt || 0)); e.np = Math.max(1, Math.min(100, +e.np || 1));
@@ -243,7 +256,7 @@ function derive(clubId) {
         if (e.v && p0?.v && !e.rw && !e.old && !p0.d && !p0.old && (!e.d || (e.t < 1795698000000 && e.d === iso(new Date(e.t)) && iso(new Date(p0.at0 || p0.at || 0)) !== e.d && (e.x || "") === (p0.x || "")))) { e = { ...e, d: "", at0: p0.at0 || p0.at, imp: e.imp || p0.imp }; }
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
-      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 2) / 2)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, wd: e.v ? (e.wd && e.d ? e.d : e._p0?.wd || "") : "", m: e.m || e._p0?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
+      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 20) / 20)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, wd: e.v ? (e.wd && e.d ? e.d : e._p0?.wd || "") : "", m: e.m || e._p0?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
     }
   }
   // Old events without a title (name only) join the one title with that name, when there is just one.
@@ -514,7 +527,7 @@ function openPerson(id) {
       .sort(psSort === "low" ? (a, b) => a.x.s - b.x.s || a.m.n.localeCompare(b.m.n) : psSort === "recent" ? (a, b) => (b.x.at || 0) - (a.x.at || 0) : psSort === "split" ? (a, b) => (b.my ? Math.abs(b.x.s - b.my) : -1) - (a.my ? Math.abs(a.x.s - a.my) : -1) : (a, b) => b.x.s - a.x.s || a.m.n.localeCompare(b.m.n));
     const avg = rs.length ? rs.reduce((t, r) => t + r.x.s, 0) / rs.length : 0, ag = mine ? null : agreeOf(s, me.id, id), seen = Object.values(s.saw).filter(mp => mp.get(id)?.v).length;
     const seg = (opts) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === psSort ? "on" : ""}" data-pss="${k}">${l}</button>`).join("")}</div>`;
-    bg.querySelector(".sheet").innerHTML = `<div class="ps-head">${avatar(p.name)}<div><h3>${esc(mine ? `${p.name} (you)` : p.name)}</h3><small class="hint">${seen} seen · ${rs.length} rated${avg ? ` · average ${avg.toFixed(1)} ★` : ""}</small></div></div>
+    bg.querySelector(".sheet").innerHTML = `<div class="ps-head">${avatar(p.name)}<div><h3>${esc(mine ? `${p.name} (you)` : p.name)}</h3><small class="hint">${seen} seen · ${rs.length} rated${avg ? ` · average ${sc10(avg)}` : ""}</small></div></div>
       ${ag ? `<p class="mw-ag hint">🤝 You agree <b>${ag.pct}%</b> on ${ag.n} films you both rated.</p>` : !mine ? `<p class="mw-ag hint">🤝 Rate 3 films you've both seen to see how much you agree.</p>` : ""}
       ${rs.length > 1 ? seg([["top", "Top"], ["low", "Lowest"], ["recent", "Recent"], ...(mine ? [] : [["split", "We differ"]])]) : ""}
       <div class="ps-list">${rs.map(r => `<div class="ps-i" data-psopen="${esc(key(r.m))}">${poster(r.m.p, "w92")}<div class="body"><b>${esc(r.m.n)}${r.m.y ? ` <small>${esc(r.m.y)}</small>` : ""}</b>${r.x.x ? `<small class="hint">“${esc(r.x.x)}”</small>` : ""}${r.my ? `<small class="hint">You: <span class="stars">${starStr(r.my, true)}</span></small>` : ""}</div><div class="cr-avg"><b>${r.x.s % 1 ? r.x.s.toFixed(1) : r.x.s}</b><small>${starStr(r.x.s, true)}</small></div></div>`).join("") || `<p class="hint">${esc(name)} hasn't rated anything yet.</p>`}</div>
@@ -1467,7 +1480,7 @@ function seasonsRow(bg, s, sk, m) {
     if (!seasons.length) { box.innerHTML = ""; return; }
     const draw = () => { const x = (lastState || s).saw[sk]?.get(me.id), mine = x?.v ? x : null;
       box.innerHTML = `<b class="ts-sh">Seasons</b><div class="ss-row">${seasons.map(q => { const on = !!mine?.ss && q.n in mine.ss, r = mine?.sr?.[q.n];
-        return `<button class="ss-chip${on ? " on" : ""}" data-ssn="${q.n}">S${q.n}${on ? " ✓" : ""}${r ? ` <i>★${r}</i>` : ""}</button>`; }).join("")}</div>
+        return `<button class="ss-chip${on ? " on" : ""}" data-ssn="${q.n}">S${q.n}${on ? " ✓" : ""}${r ? ` <i>${sc10(r)}</i>` : ""}</button>`; }).join("")}</div>
         <small class="hint">Tap a season to mark it watched and rate it.</small>`;
       box.querySelectorAll("[data-ssn]").forEach(b => b.onclick = () => openSeason(s, sk, m, seasons.find(q => q.n === +b.dataset.ssn), draw)); };
     draw();
@@ -1482,8 +1495,8 @@ function openSeason(s0, sk, m, q, redraw) {
     <div class="rev-btns rev-pick"${had ? " hidden" : ""}><button class="primary" data-when="now">Just watched</button><button data-when="old">Seen it before</button></div>
     <div class="rev-step2"${had ? "" : " hidden"}>
       <p class="rev-mode"><b>${old ? "Seen it before" : "Just watched"}</b> <button class="link" data-sw>change</button></p>
-      <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
-      <small class="hint">Your stars for this season (tap twice for a half star). The series keeps its own rating.</small>
+      ${scoreBar()}
+      <small class="hint">Your score for this season. Tap the bar, drag or use − / + to fine-tune. The series keeps its own score.</small>
       <label class="rev-d"${old ? " hidden" : ""}>Watched on <input type="date" id="ssD" value="${d0 || today}" max="${today}"></label>
       <button class="primary" id="ssSave">Save</button>
     </div>
@@ -1491,7 +1504,7 @@ function openSeason(s0, sk, m, q, redraw) {
     <button data-x>Close</button></div></div>`);
   document.body.appendChild(bg);
   paintStars(bg, score);
-  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
+  wireScore(bg, () => score, v => { score = v; });
   const step = o => { old = o; bg.querySelector(".rev-pick").hidden = true; bg.querySelector(".rev-step2").hidden = false; bg.querySelector(".rev-mode b").textContent = o ? "Seen it before" : "Just watched"; bg.querySelector(".rev-d").hidden = o; };
   bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => step(b.dataset.when === "old"));
   bg.querySelector("[data-sw]").onclick = () => { bg.querySelector(".rev-pick").hidden = false; bg.querySelector(".rev-step2").hidden = true; };
@@ -1530,7 +1543,7 @@ function openTitle(s, m, focusSuggest) {
       <div class="ts-rate">
         <div class="ts-score"><span class="rring big" style="--p:0;--c:#3d3747"><b>–</b></span><div><b class="ts-lbl">TMDB</b><small class="hint">Loading…</small></div></div>
         ${(() => { const club = [...(s.saw[sk] || new Map()).values()].map(x => x.v && x.s).filter(Boolean), cAvg = club.length ? club.reduce((x, y) => x + y, 0) / club.length : 0;
-          return `<div class="ts-score club">${cAvg ? `<span class="rring big" style="--p:${Math.round(cAvg * 20)};--c:var(--accent)"><b>${cAvg.toFixed(1)}</b></span>` : `<span class="rring big" style="--p:0;--c:var(--accent)"><b>–</b></span>`}<div><b class="ts-lbl">Club${cAvg ? ` <span class="ts-stars" style="--c:var(--accent)">${starStr(cAvg)}</span>` : ""}</b><small class="hint">${cAvg ? `${club.length} rating${club.length === 1 ? "" : "s"}` : "No ratings yet"}${seen.length ? ` · watched by ${esc(seen.join(", "))}` : ""}</small></div></div>`; })()}
+          return `<div class="ts-score club">${cAvg ? `<span class="rring big" style="--p:${Math.round(cAvg * 20)};--c:var(--accent)"><b>${sc10(cAvg)}</b></span>` : `<span class="rring big" style="--p:0;--c:var(--accent)"><b>–</b></span>`}<div><b class="ts-lbl">Club${cAvg ? ` <span class="ts-stars" style="--c:var(--accent)">${starStr(cAvg)}</span>` : ""}</b><small class="hint">${cAvg ? `${club.length} rating${club.length === 1 ? "" : "s"}` : "No ratings yet"}${seen.length ? ` · watched by ${esc(seen.join(", "))}` : ""}</small></div></div>`; })()}
       </div></div></div>
     <div class="ts-btns three">
       ${(() => { const x = s.saw[sk]?.get(me.id), seen = !!x?.v && (!x.m || key(x.m) === key(m)), onL = !!wl?.adders.has(me.id);
@@ -1539,7 +1552,7 @@ function openTitle(s, m, focusSuggest) {
             : `<button class="ts-btn" data-tsnow><span>🎬</span>I just watched this</button><button class="ts-btn" data-tsold><span>↺</span>I've seen this before</button>`); })()}
     </div>
     ${(() => { const x = s.saw[sk]?.get(me.id); if (!x?.v || (x.m && key(x.m) !== key(m))) return "";
-      return `<div class="ts-my"><small class="hint">Your score</small><div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div><small class="hint ts-myv">${x.s ? `${x.s}/5` : "tap to rate"}</small></div>`; })()}
+      return `<div class="ts-my"><small class="hint">Your score</small>${scoreBar()}<small class="hint ts-myv">${x.s ? `${sc10(x.s)}/10` : "tap the bar to score"}</small></div>`; })()}
     ${(() => { const pv = s.sawPrev[sk]?.get(me.id), cur = s.saw[sk]?.get(me.id); if (!pv || (cur?.v && (!pv.x || cur.x === pv.x) && (!pv.d || cur.d === pv.d) && (!pv.s || cur.s === pv.s))) return "";
       return `<button class="chip ts-restore" data-tsrestore>↺ Bring back your earlier log${pv.m?.y ? ` of ${esc(pv.m.n)} (${esc(pv.m.y)})` : ""}${pv.d ? ` · ${esc(pv.d)}` : ""}${pv.s ? ` · ${starStr(pv.s, true)}` : ""}${pv.x ? ` · “${esc(pv.x.slice(0, 50))}”` : ""}</button>`; })()}
     <div class="ts-acts">
@@ -1604,8 +1617,8 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("[data-tsfix]")?.addEventListener("click", () => { bg.remove(); openSearch("Pick the right one", m2 => { if (key(m2) === key(m)) return; act("fix", { from: key(m), m: m2 }); M.toast(`Changed to ${m2.n}${m2.y ? ` (${m2.y})` : ""} for everyone.`); }, m.n); });
   bg.querySelector("[data-tsmore]")?.addEventListener("click", e => { const f = bg.querySelector(".ts-fix"); f.hidden = !f.hidden; e.currentTarget.classList.toggle("on", !f.hidden); if (!f.hidden) f.scrollIntoView({ block: "nearest" }); });
   { let cur = s.saw[sk]?.get(me.id)?.s || 0; const box = bg.querySelector(".ts-my");
-    if (box) { paintStars(box, cur); box.querySelectorAll(".mstars button").forEach(b => b.onclick = () => {
-      const x = (lastState || s).saw[sk]?.get(me.id); if (!x?.v) return; cur = halfTap(cur, +b.dataset.s); paintStars(box, cur); box.querySelector(".ts-myv").textContent = `${cur}/5`;
+    if (box) { paintStars(box, cur); wireScore(box, () => cur, v => {
+      const x = (lastState || s).saw[sk]?.get(me.id); if (!x?.v) { paintStars(box, cur); return; } cur = v; paintStars(box, cur); box.querySelector(".ts-myv").textContent = `${sc10(cur)}/10`;
       act("saw", { sk, v: 1, ...(x.old ? { old: 1 } : x.d ? { d: x.d } : {}), s: cur, ...(x.x ? { x: x.x } : {}), ...(x.ss ? { ss: x.ss } : {}), ...(x.sr ? { sr: x.sr } : {}), ...(x.imp ? { imp: 1 } : {}), ...(x.wd ? { wd: x.wd } : {}), m: x.m || { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } });
       const r = bg.querySelector(".ts-rev.mine .stars"); if (r) r.textContent = starStr(cur); }); } }
   bg.querySelector("[data-tsrestore]")?.addEventListener("click", () => { const pv = s.sawPrev[sk]?.get(me.id); if (!pv) return; close();
@@ -2109,8 +2122,8 @@ function leadersHtml(s) {
     { e: "📅", g: "w", t: "Best month", d: "Most watched in one month", v: id => bestMonth(id)?.v || 0, note: id => bestMonth(id)?.note, u: "" },
     { e: "✍️", g: "r", t: "Critic of the year", d: "Most reviews written", v: id => reviews[id] || 0, u: "reviews" },
     { e: "⭐", g: "r", t: "Star giver", d: "Most ratings given", v: id => (rated[id] || []).length, u: "ratings" },
-    { e: "😇", g: "r", t: "Softie", d: "Highest average rating (3+ ratings)", v: id => (rated[id] || []).length >= 3 ? +avg(rated[id]).toFixed(2) : 0, fmt: v => v.toFixed(1) + " ★" },
-    { e: "😈", g: "r", t: "Harshest critic", d: "Lowest average rating (3+ ratings)", v: id => (rated[id] || []).length >= 3 ? +avg(rated[id]).toFixed(2) : 0, low: true, fmt: v => v.toFixed(1) + " ★" },
+    { e: "😇", g: "r", t: "Softie", d: "Highest average rating (3+ ratings)", v: id => (rated[id] || []).length >= 3 ? +avg(rated[id]).toFixed(2) : 0, fmt: v => sc10(v) },
+    { e: "😈", g: "r", t: "Harshest critic", d: "Lowest average rating (3+ ratings)", v: id => (rated[id] || []).length >= 3 ? +avg(rated[id]).toFixed(2) : 0, low: true, fmt: v => sc10(v) },
     { e: "🎯", g: "s", t: "Best taste", d: "Their suggestions that friends then watched", v: id => landed[id] || 0, u: "landed" },
     { e: "📣", g: "s", t: "Top recommender", d: "Suggestions sent", v: id => sugY.filter(g => g.a === id).length, u: "sent" },
     { e: "👍", g: "s", t: "Yes person", d: "Suggestions accepted", v: id => accepted[id] || 0, u: "accepted" },
@@ -2186,11 +2199,11 @@ function historyHtml(s) {
   const head = `<div class="fr-card pulp">
     <div class="pulp-head"><span class="chapter">${esc(s.name || "Movie club")}</span><h2 class="bang">Watched</h2></div>
     <div class="hstats"><div><b>${items.length}</b><small>title${items.length === 1 ? "" : "s"}</small></div><div><b>${reviews}</b><small>review${reviews === 1 ? "" : "s"}</small></div><div><b>${past.length}</b><small>outing${past.length === 1 ? "" : "s"}</small></div></div>
-    ${best ? `<small class="hint">Club favourite: <b>${esc(best.m.n)}</b> · ${best.avg.toFixed(1)} ★</small>` : ""}
+    ${best ? `<small class="hint">Club favourite: <b>${esc(best.m.n)}</b> · ${sc10(best.avg)}</small>` : ""}
   </div>`;
   const card = it => `<div class="fr-card hcard"><div class="hrow" data-open="${esc(key(it.m))}">${poster(it.m.p, "w154")}<div class="body">
       <b class="t">${esc(it.m.n)}${it.m.y ? ` <small class="hint">(${esc(it.m.y)})</small>` : ""}${isTv(it.m) ? ` <span class="tv-tag">Series</span>` : ""}</b>
-      ${it.avg ? `<span class="stars">${starStr(it.avg)}</span><small class="hint">${it.avg.toFixed(1)} from ${it.who.filter(([, x]) => x.s).length}</small>` : ""}
+      ${it.avg ? `<span class="stars">${starStr(it.avg)}</span><small class="hint">from ${it.who.filter(([, x]) => x.s).length}</small>` : ""}
       <div class="hrev">${it.who.map(([id, x]) => `<p><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s, true)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}</p>`).join("")}</div>
     </div></div></div>`;
   const yr = ldYear;
@@ -2203,11 +2216,11 @@ function historyHtml(s) {
     const outs = past.filter(o => o.sc.d >= `${yr}-01-01`).length;
     wrapData = { yr, name: s.name || "Movie club", posters: [...new Set(yItems.map(it => it.m.p).filter(Boolean))].slice(0, 10), lines: [
       ["Watched together", `${yItems.length} titles · ${outs} cinema outing${outs === 1 ? "" : "s"}`], ["Most watched", most.m.n],
-      ...(rated ? [["Best rated", `${rated.it.m.n} · ${rated.avg.toFixed(1)} ★`]] : []), ...(top ? [["Top reviewer", `${top[0] === me.id ? me.name : top[1].n} · ${top[1].c} review${top[1].c === 1 ? "" : "s"}`]] : [])] };
+      ...(rated ? [["Best rated", `${rated.it.m.n} · ${sc10(rated.avg)}`]] : []), ...(top ? [["Top reviewer", `${top[0] === me.id ? me.name : top[1].n} · ${top[1].c} review${top[1].c === 1 ? "" : "s"}`]] : [])] };
     return `<div class="wrapup"><div class="wrap-grid">
       <div><small>Watched</small><b>${yItems.length}</b></div><div><small>Outings</small><b>${outs}</b></div>
       <div><small>Most watched</small><b>${esc(most.m.n)}</b><i>${most.who.length} of you</i></div>
-      ${rated ? `<div><small>Best rated</small><b>${esc(rated.it.m.n)}</b><i>${rated.avg.toFixed(1)} ★</i></div>` : ""}
+      ${rated ? `<div><small>Best rated</small><b>${esc(rated.it.m.n)}</b><i>${sc10(rated.avg)}</i></div>` : ""}
       ${top ? `<div><small>Top reviewer</small><b>${esc(top[0] === me.id ? "You" : top[1].n)}</b><i>${top[1].c} review${top[1].c === 1 ? "" : "s"}</i></div>` : ""}
     </div><button class="primary" data-wrapshare="club">Share as an Instagram post</button></div>`;
   })() : `<p class="hint">Nothing watched by the club in ${yr} yet.</p>`;
@@ -2475,7 +2488,7 @@ function seenBeforeCard(s) {
   const body = `<div class="mw-list sb-list">${groups.map(([g, ws]) => `<h5 class="mw-mo">${esc(g)} <i>${ws.length}</i></h5>${ws.map(row).join("")}`).join("")}</div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
   return `<div id="sbCard"><div class="wl-tools">${all.length > 12 ? `<input type="search" id="sbQ" placeholder="Search" value="${esc(sbQ)}" autocomplete="off">` : ""}</div>
-    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["recent", "Recent"], ["year", "Year"], ["genre", "Genre"], ["rate", "My ★"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
+    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["recent", "Recent"], ["year", "Year"], ["genre", "Genre"], ["rate", "My score"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
     <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen${list.length !== all.length ? ` · ${list.length} shown` : ""}` : `Nothing yet. Everything you mark as watched, or import from IMDb or Letterboxd, lands here.`}</p>
     ${body}</div>`;
 }
@@ -2510,6 +2523,7 @@ function myWatchedCard(s) {
   </div>`;
 }
 function openReview(s, sk, m0, opts = {}) {
+  if (lastState) s = lastState; // the freshest state, so a score you just changed on the title sheet shows here
   const m = m0 || titleBySk(s, sk) || null, name = m?.n || "it", today = iso(new Date());
   const prev = s.saw[sk]?.get(me.id)?.v ? s.saw[sk].get(me.id) : null, tvish = !!m && isTv(m);
   let score = prev?.s || 0; const picked = new Set(ssList(prev?.ss));
@@ -2518,8 +2532,8 @@ function openReview(s, sk, m0, opts = {}) {
     <div class="rev-btns rev-pick"><button class="primary" data-when="now">Just watched</button><button data-when="old">Seen it before</button></div>
     <p class="rev-mode" hidden><b></b> <button class="link" id="revMode">change</button></p>
     <div class="rev-step2" hidden>
-    <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" aria-label="${n} stars">★</button>`).join("")}</div>
-    <small class="hint rev-tip">Tap a star twice for a half star.</small>
+    ${scoreBar()}
+    <small class="hint rev-tip">Tap the bar where you want it (7.2 is just past the 7). Drag or use − / + to fine-tune.</small>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${tvish ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
     <label class="rev-d">Watched on <input type="date" id="revD" value="${opts.log ? today : prev?.d || today}" max="${today}"></label>
@@ -2545,7 +2559,7 @@ function openReview(s, sk, m0, opts = {}) {
     old = o; bg.querySelector(".rev-pick").hidden = true; bg.querySelector(".rev-step2").hidden = false;
     const md = bg.querySelector(".rev-mode"); md.hidden = false; md.querySelector("b").textContent = old ? "Seen it before" : "Just watched";
     bg.querySelector(".rev-d").hidden = old; const rwl = bg.querySelector(".rev-rw"); if (rwl) rwl.hidden = old || !(again || prev?.old); bg.querySelector(".rev-tip").hidden = !!score;
-    setTimeout(() => bg.querySelector(".mstars button")?.focus(), 50);
+    
   };
   bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => step(b.dataset.when === "old"));
   bg.querySelector("#revMode").onclick = () => { bg.querySelector(".rev-pick").hidden = false; bg.querySelector(".rev-step2").hidden = true; bg.querySelector(".rev-mode").hidden = true; };
@@ -2579,7 +2593,7 @@ function openReview(s, sk, m0, opts = {}) {
       t.querySelector(".primary").onclick = () => { bye(); titleSheet?.remove(); M.open(m.t, m.i, m.n, { rating: sc ? sc * 2 : null, take: x }); };
     }
   };
-  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
+  wireScore(bg, () => score, v => { score = v; });
   bg.querySelector("#revX").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) save(true); });
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   if (score) paintStars(bg, score);
@@ -2650,14 +2664,14 @@ function openSeen(s, movie) {
   let score = s.round(s.cur).seen.get(me.id)?.s || 0;
   const bg = el(`<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Rate it">
     <h3>How was ${esc(movie.n)}?</h3>
-    <div class="mstars">${[1, 2, 3, 4, 5].map(n => `<button data-s="${n}" class="${n <= score ? "on" : n - .5 === score ? "half" : ""}" aria-label="${n} stars">★</button>`).join("")}</div>
+    ${scoreBar()}
     <input type="text" id="seenSay" maxlength="600" placeholder="First thoughts for the group (optional)">
     <button class="primary" id="seenGo">Done</button><button id="seenCancel">Cancel</button></div></div>`);
   document.body.appendChild(bg);
   const close = () => bg.remove();
   bg.addEventListener("click", e => { if (e.target === bg) close(); });
   bg.querySelector("#seenCancel").onclick = close;
-  bg.querySelectorAll(".mstars button").forEach(b => b.onclick = () => { score = halfTap(score, +b.dataset.s); paintStars(bg, score); });
+  wireScore(bg, () => score, v => { score = v; });
   bg.querySelector("#seenGo").onclick = async () => {
     const x = bg.querySelector("#seenSay").value.trim(); close();
     await act("seen", { s: score });
