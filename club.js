@@ -2370,6 +2370,8 @@ function renderClub() {
   document.getElementById("mwDiary")?.addEventListener("click", () => { mwDiary = !mwDiary; LS.set("marqueeMwDiary", mwDiary); renderClub(); });
   document.querySelectorAll("[data-mwy]").forEach(b => b.onclick = () => { mwYear = +b.dataset.mwy; mwAll = false; renderClub(); });
   document.querySelectorAll("[data-nudge]").forEach(b => b.onclick = () => { if (b.dataset.nudge === "later") { LS.set("marqueeNudgeOff", Date.now() + 7 * 864e5); renderClub(); return; } M.setView("settings"); setTimeout(() => { const f = document.getElementById("acctEmail") || document.getElementById("acct"); f?.scrollIntoView({ block: "center" }); f?.focus(); }, 150); });
+  document.querySelectorAll("[data-mwwsel]").forEach(x => x.onchange = () => { mwWho = x.value; LS.set("marqueeMwWho", mwWho === "*" ? "*" : ""); mwAll = false; renderClub(); });
+  document.querySelectorAll("[data-mwtsel]").forEach(x => x.onchange = () => { mwType = x.value; renderClub(); });
   document.querySelectorAll("[data-mwt]").forEach(b => b.onclick = () => { mwType = b.dataset.mwt; renderClub(); });
   document.querySelectorAll("[data-rx]").forEach(b => b.onclick = e => { e.stopPropagation(); const sk = b.dataset.rx, m = titleBySk(lastState, sk); if (m) react(lastState, sk, m, b.dataset.e); });
   document.querySelectorAll("[data-rxtalk]").forEach(b => b.onclick = e => { e.stopPropagation(); openTitleByKey(lastState, b.dataset.rxtalk); setTimeout(() => { const t = document.querySelector("#tsSay"); t?.scrollIntoView({ block: "center" }); t?.focus(); }, 300); });
@@ -2571,12 +2573,12 @@ function myWatchedCard(s) {
   const stats = list.length ? `<div class="mw-stats"><span><b>${list.length}</b>watched</span>${avg ? `<span><b>${starStr(avg)}</b>average</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>top genre</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
   const typeSeg = mixed ? `<div class="seg mw-type">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === mwType ? "on" : ""}" data-mwt="${k}">${l}</button>`).join("")}</div>` : "";
   return `<div id="mwCard">
-    ${ppl.length || !whoName ? `<div class="wl-head">${ppl.length ? `<div class="wl-views">${[["*", "Everyone"], ["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => { const ag = id && id !== "*" ? agreeOf(s, me.id, id) : null; return `<button class="chip${id === mwWho || (id === "" && mwWho === "*" && !wall) ? " on" : ""}" data-mww="${esc(id)}"${ag ? ` title="You agree ${ag.pct}% on ${ag.n} films"` : ""}>${esc(n)}${ag ? ` <i class="ag">${ag.pct}%</i>` : ""}</button>`; }).join("")}</div>` : "<span></span>"}${whoName ? "" : ``}</div>` : ""}
+    <div class="mw-ctl">${ppl.length ? `<select class="mw-yr mw-who-sel" data-mwwsel aria-label="Whose films">${[["*", "Everyone"], ["", "Me"], ...ppl.map(([id, m]) => [id, m.name])].map(([id, n]) => { const ag = id && id !== "*" ? agreeOf(s, me.id, id) : null; const on = id === mwWho || (id === "" && mwWho !== "*" && !whoName); return `<option value="${esc(id)}"${on ? " selected" : ""}>${esc(n)}${ag ? ` · ${ag.pct}% match` : ""}</option>`; }).join("")}</select>` : ""}${years.length > 1 ? yrPick : ""}${mixed ? `<select class="mw-yr" data-mwtsel aria-label="Films or series">${[["all", "Films & series"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<option value="${k}"${k === mwType ? " selected" : ""}>${l}</option>`).join("")}</select>` : ""}</div>
     ${(() => { if (!whoName) return ""; const ag = agreeOf(s, me.id, mwWho); if (!ag) return `<p class="hint mw-ag">🤝 Rate 3 films you've both seen to see how much you and ${esc(whoName)} agree.</p>`;
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    <div class="mw-sumrow"><p class="hint mw-sum">${list.length ? `${wall ? "The club" : whoName ? esc(whoName) : "You"} in ${yrPick}` : whoName ? `${esc(whoName)} hasn't logged anything in ${yrPick}.` : `Nothing logged in ${yrPick} yet. Tap ＋ Log at the top to log what you watched.`}</p>${typeSeg}</div>
+    ${list.length ? "" : `<p class="hint mw-sum">${whoName ? `${esc(whoName)} hasn't logged anything in ${mwYear}.` : `Nothing logged in ${mwYear} yet. Tap ＋ Log at the top to log what you watched.`}</p>`}
     ${stats}
     <div class="mw-list">${rows}</div>
   </div>`;
