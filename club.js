@@ -1212,7 +1212,7 @@ function wlCard(s, cands, wlMode) {
   // Watched means this exact title: a 2002 film you rated doesn't hide a 2026 series with the same name.
   const iSaw = w => { const x = sawMap(s, w.m)?.get(me.id); return !!x?.v && (!x.m || key(x.m) === key(w.m)) && !((w.addAt?.get(me.id) || 0) > (x.at || 0)); };
   const friends = [...s.members.entries()].filter(([id]) => id !== me.id).map(([id, m]) => ({ id, name: m.name, n: base.filter(w => w.adders.has(id) && !iSaw(w)).length })).filter(p => p.n);
-  for (const id of [...wlFriends]) if (!friends.some(f => f.id === id)) wlFriends.delete(id);
+  wlFriends.clear(); // the club watchlist always shows every friend's adds
   const sel = wlFriends.size ? [...wlFriends] : friends.map(f => f.id);
   const mineAll = base.filter(w => w.adders.has(me.id) && !iSaw(w)), mineN = mineAll.length;
   // Everything you logged as watched in Marquee also shows on your Personal watchlist, with a ✓, in a Watched section at the bottom (imports stay out).
@@ -1264,7 +1264,7 @@ function wlCard(s, cands, wlMode) {
     ${wlMode === "club" && location.hash === "#demo" && !hasDemo(active().id) ? `<button class="fy-demo" data-demo="1">Add test friends</button>` : ""}
     ${wlMode === "old" ? seenBeforeCard(s) : `
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
-    <div class="wl-tools">${wlMode === "club" && friends.length ? `<div class="wl-views wl-fr">${fchip("*", "All friends", null, !wlFriends.size)}${friends.map(f => fchip(f.id, f.name, f.n, wlFriends.has(f.id))).join("")}</div>` : ""}
+    <div class="wl-tools">
       ${items.length > 12 || wlQ ? `<input type="search" id="wlQ_${wlMode}" class="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : ``}</div>
     ${preStream.length > 1 ? (() => { const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
       const tog = (attr, on, l) => `<button class="tog${on ? " on" : ""}" ${attr}="${on ? 0 : 1}" aria-pressed="${on}">${l}</button>`;
