@@ -270,7 +270,7 @@ function derive(clubId) {
         if (e.v && p0?.v && !e.rw && !e.old && !p0.d && !p0.old && (!e.d || (e.t < 1795698000000 && e.d === iso(new Date(e.t)) && iso(new Date(p0.at0 || p0.at || 0)) !== e.d && (e.x || "") === (p0.x || "")))) { e = { ...e, d: "", at0: p0.at0 || p0.at, imp: e.imp || p0.imp }; }
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
-      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 10) / 10)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, wd: e.v ? (e.wd && e.d ? e.d : e._p0?.wd || "") : "", m: e.m || e._p0?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
+      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 10) / 10)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, lt: e.v && e._p0?.v && !e.rw && (e.d || "") === (e._p0.d || "") && !!e.old === !!e._p0.old ? e._p0.lt || e._p0.at : e.t, wd: e.v ? (e.wd && e.d ? e.d : e._p0?.wd || "") : "", m: e.m || e._p0?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
     }
   }
   // Old events without a title (name only) join the one title with that name, when there is just one.
@@ -2507,11 +2507,11 @@ function myWatched0(s, who) {
   const out = [];
   for (const [sk, mp] of Object.entries(s.saw)) { const x = mp.get(who); if (!x?.v) continue; const m = titleBySk(s, sk) || x.m; if (!m) continue;
     const ss = ssList(x.ss);
-    if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) { const rs = ns.map(n => x.sr?.[n]).filter(Boolean); out.push({ sk, m, d, s: rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length * 2) / 2 : x.s, x: x.x, ss: ns }); } continue; }
+    if (ss.length) { const byDay = {}; for (const n of ss) if (x.ss[n]) (byDay[x.ss[n]] ||= []).push(n); for (const [d, ns] of Object.entries(byDay)) { const rs = ns.map(n => x.sr?.[n]).filter(Boolean); out.push({ sk, m, d, s: rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length * 2) / 2 : x.s, x: x.x, ss: ns, at: x.at || 0 }); } continue; }
     const rw = s.rw[sk]?.get(who);
     if (rw) rw.past.forEach((p, i) => out.push({ sk, m, d: p.d, s: p.s, x: p.x, rw: i }));
-    const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x, rw: rw?.n || 0 }); }
-  return out.sort((a, b) => b.d.localeCompare(a.d));
+    const d = watchedOn(x); if (d) out.push({ sk, m, d, s: x.s, x: x.x, rw: rw?.n || 0, at: x.lt || x.at0 || x.at || 0 }); }
+  return out.sort((a, b) => b.d.localeCompare(a.d) || (b.at || 0) - (a.at || 0)); // same day: the last one logged on top
 }
 // Seen before: everything you marked as watched without a date ("Seen it before" and list imports), A–Z.
 function seenBefore(s) {
