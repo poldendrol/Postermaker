@@ -545,14 +545,13 @@ function openPerson(id) {
       ${ag ? `<p class="mw-ag hint">🤝 You agree <b>${ag.pct}%</b> on ${ag.n} films you both rated.</p>` : !mine ? `<p class="mw-ag hint">🤝 Rate 3 films you've both seen to see how much you agree.</p>` : ""}
       ${rs.length > 1 ? seg([["top", "Top"], ["low", "Lowest"], ["recent", "Recent"], ...(mine ? [] : [["split", "We differ"]])]) : ""}
       <div class="ps-list">${rs.map(r => `<div class="ps-i" data-psopen="${esc(key(r.m))}">${poster(r.m.p, "w92")}<div class="body"><b>${esc(r.m.n)}${r.m.y ? ` <small>${esc(r.m.y)}</small>` : ""}</b>${r.x.x ? `<small class="hint">“${esc(r.x.x)}”</small>` : ""}${r.my ? `<small class="hint">You: <span class="stars">${starStr(r.my, true)}</span></small>` : ""}</div><div class="cr-avg"><b>${r.x.s % 1 ? r.x.s.toFixed(1) : r.x.s}</b><small>${starStr(r.x.s, true)}</small></div></div>`).join("") || `<p class="hint">${esc(name)} hasn't rated anything yet.</p>`}</div>
-      ${!mine ? `<button class="link" data-pswall>See ${esc(p.name)}'s watched wall</button>` : ""}<button data-x>Close</button>`;
+      <button data-x>Close</button>`;
   };
   const bg = el(`<div class="sheet-bg"><div class="sheet ps-sheet" role="dialog" aria-label="Ratings"></div></div>`);
   document.body.appendChild(bg); draw();
   bg.addEventListener("click", e => {
     if (e.target === bg || e.target.closest("[data-x]")) return bg.remove();
     const so = e.target.closest("[data-pss]"); if (so) { psSort = so.dataset.pss; draw(); return; }
-    if (e.target.closest("[data-pswall]")) { bg.remove(); mwWho = id; LS.set("marqueeMwWho", id); mwPane = "list"; M.setView("club"); setClubTab("mine"); render(); return; }
     const o = e.target.closest("[data-psopen]"); if (o) { const m = findTitle(lastState, o.dataset.psopen); if (m) { bg.remove(); openTitle(lastState, m); } }
   });
 }
@@ -2556,8 +2555,6 @@ function myWatchedCard(s) {
   const films = list.filter(w => !isTv(w.m)).length, series = list.length - films;
   // One row per title: everyone who watched it this year, with their own score (newest log per person).
   const items = []; { const g = new Map(); for (const w of list) { const id = w.who || who; let it = g.get(w.sk); if (!it) { g.set(w.sk, it = { ...w, ppl: new Map() }); items.push(it); } if (!it.ppl.has(id)) it.ppl.set(id, w); } }
-  const avgOf = it => { const xs = [...it.ppl.values()].map(w => w.s).filter(Boolean); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0; };
-  const best = {}; for (const it of items) { const mo = it.d.slice(0, 7), a = avgOf(it); if (a && (!best[mo] || a > best[mo].a)) best[mo] = { a, m: it.m }; }
   const rated = yearList.filter(w => w.s), avg = rated.length ? rated.reduce((a, w) => a + w.s, 0) / rated.length : 0;
   if (items.some(it => !genreCache[key(it.m)])) setTimeout(() => fillGenres(items.map(it => ({ m: it.m }))), 0);
   const gc = {}, gSeen = new Set(); for (const w of yearList) { if (gSeen.has(w.sk)) continue; gSeen.add(w.sk); const g = genreOf(w.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; } // this year's titles, for whoever is shown (Everyone or Me)
@@ -2567,7 +2564,7 @@ function myWatchedCard(s) {
   const yrPick = years.length > 1 ? `<select class="mw-yr" data-mwysel aria-label="Year">${years.map(y => `<option value="${y}"${y === mwYear ? " selected" : ""}>${y}</option>`).join("")}</select>` : String(mwYear);
   const cut = isoAdd(iso(new Date()), -31), recent = items.filter(it => it.d >= cut), older = items.filter(it => it.d < cut);
   const rowsOf = arr => { lastMo = ""; return arr.map(it => {
-    const mo = it.d.slice(0, 7), b = best[mo], head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}</h5>` : ""; lastMo = mo;
+    const mo = it.d.slice(0, 7), head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}</h5>` : ""; lastMo = mo;
     const ppl = [...it.ppl.entries()], solo = !wall;
     const chips = ppl.map(([id, w]) => { const lbl = `${esc(nm(id))} ${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
       return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--h:${hue(id)}">${lbl}</span>`; }).join("");
