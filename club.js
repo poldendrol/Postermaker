@@ -2804,7 +2804,6 @@ $("nav").addEventListener("click", e => { if (e.target.closest("[data-view=club]
     const open = !!document.querySelector("body > .sheet-bg");
     if (open && !locked) { y = window.scrollY; locked = true; Object.assign(document.body.style, { position: "fixed", top: `-${y}px`, left: "0", right: "0" }); }
     else if (!open && locked) { locked = false; Object.assign(document.body.style, { position: "", top: "", left: "", right: "" }); window.scrollTo(0, y); }
-    if (open) document.querySelectorAll("body > .sheet-bg .sheet").forEach(sh => { if (!sh.dataset.top) { sh.dataset.top = 1; sh.scrollTop = 0; } });
   };
   new MutationObserver(sync).observe(document.body, { childList: true });
 })();
