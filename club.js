@@ -1265,7 +1265,7 @@ function wlCard(s, cands, wlMode) {
     ${wlMode === "old" ? seenBeforeCard(s) : `
     ${wlMode === "club" && !friends.length ? `<p class="hint">Your friends' watchlists show up here once they add films. Invite them with the Invite button above.</p>` : ""}
     <div class="wl-tools">
-      ${items.length > 12 || wlQ ? `<input type="search" id="wlQ_${wlMode}" class="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : ``}</div>
+      ${items.length || wlQ ? `<input type="search" id="wlQ_${wlMode}" class="wlQ" placeholder="Search" value="${esc(wlQ)}" autocomplete="off">` : ""}${wlMode === "club" && friends.length ? "" : ``}</div>
     ${preStream.length > 1 ? (() => { const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
       const tog = (attr, on, l) => `<button class="tog${on ? " on" : ""}" ${attr}="${on ? 0 : 1}" aria-pressed="${on}">${l}</button>`;
       const nf = (mixed && wlType !== "all" ? 1 : 0) + (wlMode === "mine" && wlStream ? 1 : 0) + (wlNobody ? 1 : 0);
