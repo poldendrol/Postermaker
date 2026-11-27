@@ -2577,7 +2577,6 @@ function myWatchedCard(s) {
     const bar = `<div class="mw-rx">${RX.map(e => `<button class="${myRx === e ? "on" : ""}" data-rx="${esc(it.sk)}" data-e="${e}" aria-label="React ${e}">${e}${cnt(e) ? `<i>${cnt(e)}</i>` : ""}</button>`).join("")}<button data-rxtalk="${esc(key(it.m))}" aria-label="Reply">💬${talkN ? `<i>${talkN}</i>` : ""}</button></div>`;
     return `${head}<div class="mw-i" data-open="${esc(key(it.m))}"><span class="mw-d"><b>${+it.d.slice(8)}</b><small>${esc(fmtDay(it.d, "wd"))}</small></span>${poster(it.m.p, "w92")}<div class="body"><b>${esc(it.m.n)}${it.m.y ? ` <small>${esc(it.m.y)}</small>` : ""}${isTv(it.m) ? ` <span class="tv-tag">${it.ss ? esc(ssLabel(it.ss)) : "Series"}</span>` : ""}${it.rw ? ` <span class="rw-tag">↻ ${it.rw === 1 ? "rewatch" : `${it.rw + 1}th watch`}</span>` : ""}</b>${chips ? `<div class="mw-ppl">${chips}</div>` : ""}${revs}${bar}</div></div>`;
   }).join(""); };
-  const stats = yearList.length ? `<div class="mw-stats"><span><b>${yearList.length}</b>${wall ? "club" : "you"} · ${mwYear}</span>${avg ? `<span><b>${starStr(avg)}</b>${wall ? "club average" : "your average"}</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>${wall ? "club top genre" : "your top genre"}</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
   const typeSeg = mixed ? `<div class="seg mw-type">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === mwType ? "on" : ""}" data-mwt="${k}">${l}</button>`).join("")}</div>` : "";
   return `<div id="mwCard">
     ${(() => { if (!whoName) return ""; const ag = agreeOf(s, me.id, mwWho); if (!ag) return `<p class="hint mw-ag">🤝 Rate 3 films you've both seen to see how much you and ${esc(whoName)} agree.</p>`;
@@ -2585,7 +2584,6 @@ function myWatchedCard(s) {
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
     ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Add to log what you watched.</p>`}
-    ${stats}
     ${typeSeg ? `<div class="mw-ctl">${typeSeg}</div>` : ""}
     <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `<p class="hint">Nothing watched in the last month.</p>` : ""}</div>
     ${older.length ? `<details class="g-sec mw-older"><summary>Older <i>${older.length}</i></summary><div class="mw-list">${rowsOf(older)}</div></details>` : ""}
