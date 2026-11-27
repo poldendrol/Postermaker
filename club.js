@@ -2567,7 +2567,7 @@ function myWatchedCard(s) {
   const yrPick = years.length > 1 ? `<select class="mw-yr" data-mwysel aria-label="Year">${years.map(y => `<option value="${y}"${y === mwYear ? " selected" : ""}>${y}</option>`).join("")}</select>` : String(mwYear);
   const cut = isoAdd(iso(new Date()), -31), recent = items.filter(it => it.d >= cut), older = items.filter(it => it.d < cut);
   const rowsOf = arr => { lastMo = ""; return arr.map(it => {
-    const mo = it.d.slice(0, 7), b = best[mo], head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}${b ? ` <i class="mw-best">· best: ${esc(b.m.n)} ${starStr(b.a)}</i>` : ""}</h5>` : ""; lastMo = mo;
+    const mo = it.d.slice(0, 7), b = best[mo], head = mo !== lastMo ? `<h5 class="mw-mo">${esc(fmtDay(it.d, "mo"))}${+mo.slice(0, 4) !== mwYear ? " " + mo.slice(0, 4) : ""}</h5>` : ""; lastMo = mo;
     const ppl = [...it.ppl.entries()], solo = !wall;
     const chips = ppl.map(([id, w]) => { const lbl = `${esc(nm(id))} ${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
       return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--h:${hue(id)}">${lbl}</span>`; }).join("");
