@@ -768,7 +768,7 @@ function render() {
     renderStart();
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
     $("hsGo").onclick = () => M.setView("club");
-    if (listsEl) listsEl.innerHTML = `<div class="fr-card"><h3>Challenges</h3><p class="hint">Start or join a movie club first. Then you can import lists, make your own and add ready-made ones like the Oscar winners.</p></div>`;
+    if (listsEl) listsEl.innerHTML = `<div class="fr-card"><h3>Checklists</h3><p class="hint">Start or join a movie club first. Then you can import lists, make your own and add ready-made ones like the Oscar winners.</p></div>`;
     if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching, reviews and outings get ranked here.</p></div>`;
     if (mwView) mwView.innerHTML = `<div class="fr-card"><h3>My watched list</h3><p class="hint">Start or join a movie club first, then everything you watch is logged here with its date.</p></div>`;
     return;
@@ -1652,7 +1652,7 @@ function openTitle(s, m, focusSuggest) {
 
 // ---------- Lists: imports, your own lists and ready-made ones (Oscars, top rated…), with a badge for every list you finish ----------
 let listsEl = null;
-function openListsTab() { mwPane = "ch"; M.setView("club"); setClubTab("mine"); render(); }
+function openListsTab() { lsPane = "ch"; M.setView("club"); setClubTab("lists"); render(); }
 let wlApi = null, lsOpen = null, oscYear = new Date().getFullYear(), oscMode = "win", bestYear = new Date().getFullYear() - 1;
 const myLists = () => Object.values(LS.get("marqueeLists", {})).filter(l => l && !l.gone && Array.isArray(l.items)).sort((a, b) => (b.at || 0) - (a.at || 0));
 function saveList(l) { const all = LS.get("marqueeLists", {}); all[l.id] = { ...l, at: now() }; LS.set("marqueeLists", all); window.MarqueeAccount?.save?.(); }
@@ -2258,10 +2258,10 @@ function setClubTab(t) { clubTab = t; setTimeout(navTab, 0); try { sessionStorag
 const TOUR = [
   { tab: "mine", a: '[data-mwv="list"]', t: "See here what you and your friends have watched." },
   { tab: "mine", a: '[data-mwv="fy"]', t: "See here what your friends suggest to watch." },
-  { tab: "mine", a: '[data-mwv="ch"]', t: "Complete lists of movies." },
+  { tab: "mine", a: '[data-mwv="old"]', t: "Keep track of what you have seen before." },
   { tab: "lists", a: '[data-lsv="mine"]', t: "Keep track of what you want to watch." },
   { tab: "lists", a: '[data-lsv="club"]', t: "Keep track of what your friends want to watch." },
-  { tab: "lists", a: '[data-lsv="old"]', t: "Keep track of what you have seen before." },
+  { tab: "lists", a: '[data-lsv="ch"]', t: "Complete lists of movies." },
   { tab: "weekly", a: '[data-rtv="pop"]', t: "See the most popular movies at the moment." },
   { tab: "weekly", a: '[data-rtv="gent"]', t: "See what is playing in Ghent at the moment." },
   { tab: "weekly", a: '[data-rtv="soon"]', t: "See which films are coming to the cinema, by release date." },
@@ -2321,14 +2321,14 @@ function renderClub() {
     <div class="club-tabs" role="tablist">${[["mine", "My wall", sugForMe(s).some(g => sugNew(s, g) || sugDueToday(g))], ["lists", "Library", false], ["weekly", "Explore", false]]
       .map(([k, l, dot]) => `<button role="tab" data-ct="${k}" aria-selected="${clubTab === k}"${dot ? ' class="dot"' : ""}>${l}</button>`).join("")}</div>
     <div class="ccol c0"><h2 class="col-title">My wall</h2>    ${(() => { const nNew = sugForMe(s).filter(g => !accAt(s, g, me.id)).length, nW = myWatched(s, me.id).filter(w => +w.d.slice(0, 4) === new Date().getFullYear()).length;
-      if (mwPane === "pop" || mwPane === "old") mwPane = "list";
-      return `<div class="fr-card" data-tab="mine">${loginNudge()}${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Challenges"]], mwPane, "data-mwv", true)}
-      ${mwPane === "ch" ? `<div id="listsView"></div>` : `${chalBar(s)}${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}`}</div>`; })()}
+      if (mwPane === "pop" || mwPane === "ch") mwPane = "list"; if (lsPane === "old") lsPane = "mine";
+      return `<div class="fr-card" data-tab="mine">${loginNudge()}${pulpPick([["list", `${nW} in ${new Date().getFullYear()}`, "Watched"], ["fy", nNew ? `${nNew} new` : "Suggestions", "For you", nNew], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], mwPane, "data-mwv", true)}
+      ${mwPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : `${chalBar(s)}${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}`}</div>`; })()}
     </div><div class="ccol c1"><h2 class="col-title">Library</h2>
     ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
-      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["old", (n => `${n} title${n === 1 ? "" : "s"}`)(seenBefore(s).length), "Seen before"]], lsPane, "data-lsv", true)}
+      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Checklists"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
-      ${lsPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : wlCard(s, cands, lsPane)}</div>`; })()}
+      ${lsPane === "ch" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
     <div class="fr-card" data-tab="weekly">${pulpPick([["pop", "This week", "Popular"], ["gent", ghentList ? `${ghentList.length} worth seeing` : "Cinemas", "In Ghent"], ["soon", soonList ? `${soonList.l.filter(f => f.d > iso(new Date())).length} films` : "Release dates", "Coming soon"]], rtPane, "data-rtv", true)}
       ${rtPane === "gent" ? ghentHtml(s) : rtPane === "soon" ? soonHtml(s) : popHtml(s)}</div>
