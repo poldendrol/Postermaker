@@ -1580,7 +1580,7 @@ function openTitle(s, m, focusSuggest) {
     <div class="ts-info"><small class="hint">Loading info…</small></div>
     <div class="ts-prov"><small class="hint">Where to stream…</small></div>
     ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
-      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev${id === me.id ? " mine" : ""}"${id === me.id ? " data-tsedit" : ""}><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}${id === me.id ? ` <button class="link ts-edit">✎ change</button>` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
+      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev${id === me.id ? " mine" : ""}"${id === me.id ? " data-tsedit" : ""}><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}${id === me.id ? ` <button class="link ts-edit">✎ change</button>` : ` <button class="link ts-reply" data-tsreply="${esc(x.name)}">↩ reply</button>`}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     ${forMe.map(g => `<div class="sug-due">Recommended by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? " · ✓ on your watchlist" : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">＋ Add to my watchlist</button>`}</div>`).join("")}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
@@ -1621,6 +1621,7 @@ function openTitle(s, m, focusSuggest) {
   });
   const say = () => { const i = bg.querySelector("#tsSay"), x = i.value.trim(); if (!x) return; i.value = ""; act("say", { sk, x }, { title: `${me.name} on ${m.n}`, body: x.slice(0, 200) }).then(() => { const n = derive(active().id); close(); openTitle(n, m); }); };
   bg.querySelector("#tsSend").onclick = say;
+  bg.querySelectorAll("[data-tsreply]").forEach(b => b.onclick = e => { e.stopPropagation(); const i = bg.querySelector("#tsSay"), tag = `@${b.dataset.tsreply} `; if (!i.value.startsWith(tag)) i.value = tag + i.value; i.focus(); i.scrollIntoView({ block: "center", behavior: "smooth" }); try { i.setSelectionRange(i.value.length, i.value.length); } catch {} });
   bg.querySelector("#tsSay").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) say(); });
   const close = () => { bg.remove(); if (titleSheet === bg) titleSheet = null; };
   if (isTv(m)) seasonsRow(bg, s, sk, m);
