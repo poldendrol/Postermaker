@@ -2326,7 +2326,7 @@ function renderClub() {
       ${mwPane === "old" ? `<div id="wlCardOld">${seenBeforeCard(s)}</div>` : `${chalBar(s)}${mwPane === "fy" ? forYouCard(s) : myWatchedCard(s)}`}</div>`; })()}
     </div><div class="ccol c1"><h2 class="col-title">Library</h2>
     ${(() => { const nf = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id) && !sawIt(s, w.m) && !Object.values(s.picks).some(p => key(p) === key(w.m))).length;
-      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Club list"], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Checklists"]], lsPane, "data-lsv", true)}
+      return `<div class="fr-card" data-tab="lists">${pulpPick([["mine", `${myWlCount(s)} to watch`, "Personal watchlist"], ["club", `${nf} title${nf === 1 ? "" : "s"}`, "Clublist"], ["ch", (nb => nb ? `🏅 ${nb} badge${nb === 1 ? "" : "s"}` : `${allLists(s).length} lists`)(allLists(s).filter(l => listProg(s, l).done).length), "Checklists"]], lsPane, "data-lsv", true)}
       <input type="file" id="wlFile" accept=".csv,.zip,text/csv,application/zip" hidden>
       ${lsPane === "ch" ? `<div id="listsView"></div>` : wlCard(s, cands, lsPane)}</div>`; })()}
     </div><div class="ccol c2"><h2 class="col-title">Explore</h2>
