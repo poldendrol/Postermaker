@@ -1572,9 +1572,9 @@ function openTitle(s, m, focusSuggest) {
       ${others.length ? `<button class="ts-act" id="tsSugOpen"><span>📣</span>Suggest</button>` : ""}
       <button class="ts-act" data-tspost><span>📸</span>Post</button>
       <a class="ts-act" href="${esc(imdbUrl(m))}" target="_blank" rel="noopener"><span>🔗</span>IMDb</a>
-      <button class="ts-act" data-tsmore><span>✎</span>Fix title</button>
+      <button class="ts-act" data-tsmore><span>⋯</span>More</button>
     </div>
-    <div class="ts-fix" hidden><button class="chip" data-tsfix>Wrong match? Pick the right one</button>${m.t === "tv" ? `<button class="chip" data-tsfilm>${isTv(m) ? "🎬 It's a film" : "📺 It's a series"}</button>` : ""}</div>
+    <div class="ts-fix" hidden>${isTv(m) ? `<div class="ts-seasons"><small class="hint">Loading seasons…</small></div>` : ""}<div class="ts-fixrow"><button class="chip" data-tsfix>✎ Wrong match? Pick the right one</button>${m.t === "tv" ? `<button class="chip" data-tsfilm>${isTv(m) ? "🎬 It's a film" : "📺 It's a series"}</button>` : ""}</div></div>
     ${others.length ? `<div class="ts-sug" hidden><div class="wl-views ts-to"><button class="chip" data-to="*">Everyone</button>${others.map(([id, x]) => `<button class="chip" data-to="${esc(id)}">${esc(x.name)}</button>`).join("")}</div>
       <button class="primary" id="tsGo" disabled>Pick who to suggest it to</button></div>` : ""}
     ${wl && [...wl.adders.keys()].some(a => a !== me.id) ? `<small class="hint">On ${esc([...wl.adders.entries()].filter(([a]) => a !== me.id).map(([, n]) => n).join(", "))}'s list</small>` : ""}
@@ -1583,7 +1583,6 @@ function openTitle(s, m, focusSuggest) {
     ${(() => { const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)); const n = rs.length + talk.length;
       return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(([id, x]) => `<p class="ts-rev${id === me.id ? " mine" : ""}"${id === me.id ? " data-tsedit" : ""}><b>${esc(id === me.id ? "You" : x.name)}</b>${x.s ? ` <span class="stars">${starStr(x.s)}</span>` : ""}${x.x ? ` ${esc(x.x)}` : ""}${id === me.id ? ` <button class="link ts-edit">✎ change</button>` : ""}</p>`).join("")}${talk.map(e => `<p><b>${esc(e.a === me.id ? "You" : e.n)}</b> ${esc(e.x)}</p>`).join("") || (rs.length ? "" : `<small class="hint">No reviews or thoughts yet.</small>`)}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Share what you thought…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
-    ${isTv(m) ? `<div class="ts-seasons"><small class="hint">Loading seasons…</small></div>` : ""}
     ${forMe.map(g => `<div class="sug-due">Suggested by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? ` · 👍 you'll watch it by ${esc(byLabel(accBy(s, g, me.id)))}` : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">Accept</button>`}</div>`).join("")}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
     <button id="tsClose">Close</button></div></div>`);
