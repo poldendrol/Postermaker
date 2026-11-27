@@ -2576,7 +2576,7 @@ function myWatchedCard(s) {
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    <div class="mw-sumrow"><p class="hint mw-sum">${list.length ? `${wall ? "The club" : whoName ? esc(whoName) : "You"} in ${yrPick}${films && series ? ` · ${films} film${films === 1 ? "" : "s"}, ${series} series` : ""}` : whoName ? `${esc(whoName)} hasn't logged anything in ${yrPick}.` : `Nothing logged in ${yrPick} yet. Tap ＋ Log at the top to log what you watched.`}</p>${typeSeg}</div>
+    <div class="mw-sumrow"><p class="hint mw-sum">${list.length ? `${wall ? "The club" : whoName ? esc(whoName) : "You"} in ${yrPick}` : whoName ? `${esc(whoName)} hasn't logged anything in ${yrPick}.` : `Nothing logged in ${yrPick} yet. Tap ＋ Log at the top to log what you watched.`}</p>${typeSeg}</div>
     ${stats}
     <div class="mw-list">${rows}</div>
   </div>`;
