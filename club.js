@@ -2541,7 +2541,7 @@ const fmtDay = (() => { const F = { wd: new Intl.DateTimeFormat(undefined, { wee
 let mwYear = new Date().getFullYear(), mwAll = false, mwWho = "*", mwType = "all"; // the wall opens on Everyone
 function myWatchedCard(s) {
   const ppl = [...s.members.entries()].filter(([id]) => id !== me.id); // everyone in the club gets a button, also before they log anything
-  if (mwWho !== "") mwWho = "*"; // Everyone (default) or just Me
+  mwWho = "*"; // the wall always shows everyone
   const wall = mwWho === "*" && ppl.length > 0; // one wall: everyone's watched titles mixed, newest first
   const who = !wall && mwWho && mwWho !== "*" ? mwWho : me.id, whoName = who !== me.id ? s.members.get(who)?.name || "" : "";
   const all = wall ? [...s.members.keys()].flatMap(id => myWatched(s, id).map(w => ({ ...w, who: id }))).sort((a, b) => b.d.localeCompare(a.d) || (b.at || 0) - (a.at || 0)) : myWatched(s, who), years = [...new Set([new Date().getFullYear(), ...all.map(w => +w.d.slice(0, 4))])].sort((a, b) => b - a);
@@ -2574,13 +2574,13 @@ function myWatchedCard(s) {
   const stats = yearList.length ? `<div class="mw-stats"><span><b>${yearList.length}</b>${wall ? "club" : "you"} · ${mwYear}</span>${avg ? `<span><b>${starStr(avg)}</b>${wall ? "club average" : "your average"}</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>${wall ? "club top genre" : "your top genre"}</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
   const typeSeg = mixed ? `<div class="seg mw-type">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === mwType ? "on" : ""}" data-mwt="${k}">${l}</button>`).join("")}</div>` : "";
   return `<div id="mwCard">
-    ${ppl.length || typeSeg ? `<div class="mw-ctl">${ppl.length ? `<div class="seg">${[["*", "Everyone"], ["", "You"]].map(([k, l]) => `<button class="${k === mwWho ? "on" : ""}" data-mwe="${k}">${l}</button>`).join("")}</div>` : ""}${typeSeg}</div>` : ""}
     ${(() => { if (!whoName) return ""; const ag = agreeOf(s, me.id, mwWho); if (!ag) return `<p class="hint mw-ag">🤝 Rate 3 films you've both seen to see how much you and ${esc(whoName)} agree.</p>`;
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
     ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Log at the top to log what you watched.</p>`}
     ${stats}
+    ${typeSeg ? `<div class="mw-ctl">${typeSeg}</div>` : ""}
     <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `<p class="hint">Nothing watched in the last month.</p>` : ""}</div>
     ${older.length ? `<details class="g-sec mw-older"><summary>Older <i>${older.length}</i></summary><div class="mw-list">${rowsOf(older)}</div></details>` : ""}
   </div>`;
