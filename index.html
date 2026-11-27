@@ -995,8 +995,28 @@ button.mw-p.me { border: none; background: #111; color: #ffd400; min-height: 0; 
 .ts-row label { flex: 1 1 140px; }
 .ts-chk { display: flex !important; flex-direction: row !important; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 10px; }
 .ts-chk input { width: auto; }
-.ts-talk { display: flex; flex-direction: column; gap: 6px; }
+.ts-talk { display: flex; flex-direction: column; gap: 10px; }
 .ts-talk p { margin: 0; font-size: 14px; }
+.tk-av { flex: none; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: #111; background: var(--c); }
+.tk-rev { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.tk-rev.mine { border-color: color-mix(in srgb, #ffd400 45%, var(--line)); }
+.tk-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tk-top[data-tsedit] { cursor: pointer; }
+.tk-top b { font-size: 15px; }
+.tk-st { color: #f5b400; font-weight: 800; font-size: 14px; }
+.tk-top small { color: var(--muted); font-size: 12px; }
+.tk-top .link { margin-left: auto; font-size: 13px; white-space: nowrap; }
+.tk-x { padding-left: 34px; line-height: 1.4; }
+.tk-reps { display: flex; flex-direction: column; gap: 6px; margin-left: 34px; padding-left: 10px; border-left: 2px solid var(--line); }
+.tk-chat { display: flex; flex-direction: column; gap: 8px; }
+.tk-msg { display: flex; gap: 8px; align-items: flex-start; }
+.tk-chat .tk-msg.me { flex-direction: row-reverse; }
+.tk-b { background: color-mix(in srgb, var(--fg) 6%, transparent); border-radius: 14px; padding: 6px 10px; max-width: 82%; }
+.tk-msg.me .tk-b { background: color-mix(in srgb, #ffd400 16%, transparent); }
+.tk-h { display: flex; gap: 6px; align-items: baseline; font-size: 12px; }
+.tk-h small { color: var(--muted); }
+.tk-b p { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.tk-at { color: var(--accent, #e2231a); }
 .say { display: flex; gap: 8px; }
 .say input { flex: 1; min-width: 0; }
 .wl-open { position: relative; }
