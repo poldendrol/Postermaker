@@ -61,17 +61,27 @@ const scLabel = sc => { if (!sc || !sc.d) return sc?.c || ""; const [y, m, d] = 
 const sc10 = n => (Math.round((+n || 0) * 10) / 10).toFixed(1);
 const starStr = n => "★ " + sc10(n);
 const stars = n => n ? starStr(n) : "";
-// Star bar: one tap where you want it (4.1 = just past the 4th star), drag to fine-tune, arrow keys or -/+ for 0.1 steps.
-const scoreBar = () => `<div class="mscore"><button type="button" class="ms-step" data-ms="-1" aria-label="0.1 lower">−</button><div class="ms-track" role="slider" tabindex="0" aria-label="Stars out of 5" aria-valuemin="0" aria-valuemax="5"><span class="ms-stars">★★★★★</span><span class="ms-fill"><span class="ms-stars">★★★★★</span></span></div><button type="button" class="ms-step" data-ms="1" aria-label="0.1 higher">+</button><b class="ms-val">–</b></div>`;
-const paintStars = (root, v) => root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track"); b.querySelector(".ms-fill").style.width = (v / 5 * 100) + "%"; b.querySelector(".ms-val").textContent = v ? sc10(v) : "–"; t.setAttribute("aria-valuenow", v ? sc10(v) : "0"); b.classList.toggle("set", !!v); });
+// Star bar: tap where you want it, then slide your finger to fine-tune slowly (about one finger-width per 0.1, with a small buzz per step).
+// With a mouse the stars follow the pointer before you click. Arrow keys or − / + move 0.1.
+const SC_WORD = ["Bad", "Bad", "Meh", "Good", "Great", "Masterpiece"];
+const scWord = v => v ? SC_WORD[Math.round(v)] : "Tap the stars";
+const scoreBar = () => `<div class="mscore"><div class="ms-row"><div class="ms-track" role="slider" tabindex="0" aria-label="Stars out of 5" aria-valuemin="0" aria-valuemax="5"><span class="ms-stars">★★★★★</span><span class="ms-fill"><span class="ms-stars">★★★★★</span></span></div><div class="ms-out"><b class="ms-val">–</b><small class="ms-word">Tap the stars</small></div></div><div class="ms-fine"><button type="button" class="ms-step" data-ms="-1" aria-label="0.1 lower">− 0.1</button><small class="hint">slide to fine-tune</small><button type="button" class="ms-step" data-ms="1" aria-label="0.1 higher">+ 0.1</button></div></div>`;
+const paintStars = (root, v) => root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track"); b.querySelector(".ms-fill").style.width = (v / 5 * 100) + "%"; b.querySelector(".ms-val").textContent = v ? sc10(v) : "–"; b.querySelector(".ms-word").textContent = scWord(v); t.setAttribute("aria-valuenow", v ? sc10(v) : "0"); b.classList.toggle("set", !!v); });
 function wireScore(root, get, set) {
   root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track");
-    const at = x => { const r = t.getBoundingClientRect(); return Math.max(.1, Math.min(5, Math.round(Math.max(0, Math.min(1, (x - r.left) / r.width)) * 50) / 10)); };
-    let drag = false;
-    t.onpointerdown = e => { drag = true; t.setPointerCapture?.(e.pointerId); paintStars(root, at(e.clientX)); b._v = at(e.clientX); e.preventDefault(); };
-    t.onpointermove = e => { if (!drag) return; b._v = at(e.clientX); paintStars(root, b._v); };
-    t.onpointerup = t.onpointercancel = () => { if (!drag) return; drag = false; set(b._v); };
-    const nudge = d => { const v = Math.max(.1, Math.min(5, Math.round(((get() || 0) + d * .1) * 10) / 10)); paintStars(root, v); set(v); };
+    const clamp = v => Math.max(.1, Math.min(5, Math.round(v * 10) / 10));
+    const at = x => { const r = t.getBoundingClientRect(); return clamp(Math.max(0, Math.min(1, (x - r.left) / r.width)) * 5); };
+    let drag = null;
+    const show = v => { if (v !== b._v) { b._v = v; paintStars(root, v); if (drag?.touch) navigator.vibrate?.(6); } };
+    t.onpointerdown = e => { e.preventDefault(); try { t.setPointerCapture?.(e.pointerId); } catch {} drag = { x0: e.clientX, v0: at(e.clientX), touch: e.pointerType !== "mouse" }; b._v = null; show(drag.v0); };
+    t.onpointermove = e => {
+      if (!drag) { if (e.pointerType === "mouse") show(at(e.clientX)); return; } // hover preview
+      if (!drag.touch) return show(at(e.clientX));
+      const dx = e.clientX - drag.x0; show(Math.abs(dx) < 8 ? drag.v0 : clamp(drag.v0 + Math.trunc(dx / 22) * .1)); // slow, precise sliding
+    };
+    t.onpointerup = t.onpointercancel = () => { if (!drag) return; drag = null; set(b._v); };
+    t.onpointerleave = e => { if (!drag && e.pointerType === "mouse") { b._v = null; paintStars(root, get() || 0); } };
+    const nudge = d => { const v = clamp((get() || 0) + d * .1); b._v = v; paintStars(root, v); set(v); };
     t.onkeydown = e => { const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]; if (d) { e.preventDefault(); nudge(d); } };
     b.querySelectorAll("[data-ms]").forEach(x => x.onclick = () => nudge(+x.dataset.ms));
   });
@@ -1496,7 +1506,7 @@ function openSeason(s0, sk, m, q, redraw) {
     <div class="rev-step2"${had ? "" : " hidden"}>
       <p class="rev-mode"><b>${old ? "Seen it before" : "Just watched"}</b> <button class="link" data-sw>change</button></p>
       ${scoreBar()}
-      <small class="hint">Your stars for this season. Tap the stars, drag or use − / + to fine-tune. The series keeps its own score.</small>
+      <small class="hint">Your stars for this season. The series keeps its own score.</small>
       <label class="rev-d"${old ? " hidden" : ""}>Watched on <input type="date" id="ssD" value="${d0 || today}" max="${today}"></label>
       <button class="primary" id="ssSave">Save</button>
     </div>
@@ -2533,7 +2543,7 @@ function openReview(s, sk, m0, opts = {}) {
     <p class="rev-mode" hidden><b></b> <button class="link" id="revMode">change</button></p>
     <div class="rev-step2" hidden>
     ${scoreBar()}
-    <small class="hint rev-tip">Tap the stars where you want it (4.1 is just past the 4th star). Drag or use − / + to fine-tune.</small>
+    
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${tvish ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
     <label class="rev-d">Watched on <input type="date" id="revD" value="${opts.log ? today : prev?.d || today}" max="${today}"></label>
@@ -2558,7 +2568,7 @@ function openReview(s, sk, m0, opts = {}) {
   const step = o => {
     old = o; bg.querySelector(".rev-pick").hidden = true; bg.querySelector(".rev-step2").hidden = false;
     const md = bg.querySelector(".rev-mode"); md.hidden = false; md.querySelector("b").textContent = old ? "Seen it before" : "Just watched";
-    bg.querySelector(".rev-d").hidden = old; const rwl = bg.querySelector(".rev-rw"); if (rwl) rwl.hidden = old || !(again || prev?.old); bg.querySelector(".rev-tip").hidden = !!score;
+    bg.querySelector(".rev-d").hidden = old; const rwl = bg.querySelector(".rev-rw"); if (rwl) rwl.hidden = old || !(again || prev?.old);
     
   };
   bg.querySelectorAll("[data-when]").forEach(b => b.onclick = () => step(b.dataset.when === "old"));
