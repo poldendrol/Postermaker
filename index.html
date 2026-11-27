@@ -499,13 +499,11 @@ footer { padding-left: 0; }
 .pickf { display: flex; flex-direction: column; gap: 4px; }
 .pickf label { flex-direction: row; align-items: center; gap: 10px; padding: 8px 0; color: var(--fg); font-size: 14px; font-weight: 500; }
 .pickf input { width: 20px; height: 20px; accent-color: var(--accent); }
-.mscore { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; user-select: none; -webkit-user-select: none; }
-.ms-track { position: relative; flex: 1; min-width: 120px; height: 40px; border-radius: 10px; background: var(--field); border: 1px solid var(--line); overflow: hidden; cursor: pointer; touch-action: none; }
-.ms-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #f5c518, var(--accent)); opacity: .9; }
-.ms-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 0 3px; pointer-events: none; }
-.ms-ticks span:first-child, .ms-ticks span:last-child { visibility: hidden; }
-.ms-ticks span { width: 0; display: flex; justify-content: center; font: 700 10px/1 system-ui, sans-serif; color: var(--muted); }
-.ms-ticks span::before { content: ""; position: absolute; top: 0; height: 9px; width: 1px; background: var(--line); }
+.mscore { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 2px; user-select: none; -webkit-user-select: none; }
+.ms-track { position: relative; flex: 0 1 auto; display: flex; align-items: center; height: 44px; cursor: pointer; touch-action: none; line-height: 1; }
+.ms-stars { display: block; font-size: 40px; letter-spacing: 0; white-space: nowrap; color: var(--line); }
+.ms-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; overflow: hidden; display: flex; align-items: center; pointer-events: none; }
+.ms-fill .ms-stars { color: #f5c518; }
 .ms-step { flex: none; width: 34px; height: 40px; padding: 0; border-radius: 10px; font-size: 18px; font-weight: 800; }
 .ms-val { flex: none; min-width: 48px; text-align: center; font: 400 26px/1 Anton, Impact, sans-serif; color: var(--muted); }
 .mscore.set .ms-val { color: var(--fg); }

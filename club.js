@@ -57,21 +57,21 @@ const monthOf = d => d.getFullYear() * 12 + d.getMonth();
 const imdbUrl = m => /^tt\d+$/.test(m.im || "") ? `https://www.imdb.com/title/${m.im}/` : `https://www.imdb.com/find/?q=${encodeURIComponent(m.n + (m.y ? " " + m.y : ""))}&s=tt`;
 const imdbLink = m => `<a class="link imdb-l" href="${esc(imdbUrl(m))}" target="_blank" rel="noopener" title="Open on IMDb to mark it there">IMDb ↗</a>`;
 const scLabel = sc => { if (!sc || !sc.d) return sc?.c || ""; const [y, m, d] = sc.d.split("-").map(Number); return `${sc.c} · ${new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}${sc.h ? " " + sc.h : ""}`; };
-// Scores are out of 10 in steps of 0.1 (7.2). Stored as s = score / 2 (0–5), so older star ratings keep working.
-const sc10 = n => (Math.round((+n || 0) * 20) / 10).toFixed(1);
+// Scores are 0–5 stars in steps of 0.1 (4.1). Older half-star ratings keep working as they are.
+const sc10 = n => (Math.round((+n || 0) * 10) / 10).toFixed(1);
 const starStr = n => "★ " + sc10(n);
 const stars = n => n ? starStr(n) : "";
-// Score bar: one tap where you want it (7.2 = just past the 7), drag to fine-tune, arrow keys or -/+ for 0.1 steps.
-const scoreBar = () => `<div class="mscore"><button type="button" class="ms-step" data-ms="-1" aria-label="0.1 lower">−</button><div class="ms-track" role="slider" tabindex="0" aria-label="Score out of 10" aria-valuemin="0" aria-valuemax="10"><i class="ms-fill"></i><span class="ms-ticks">${[...Array(11)].map((_, i) => `<span>${i}</span>`).join("")}</span></div><button type="button" class="ms-step" data-ms="1" aria-label="0.1 higher">+</button><b class="ms-val">–</b></div>`;
+// Star bar: one tap where you want it (4.1 = just past the 4th star), drag to fine-tune, arrow keys or -/+ for 0.1 steps.
+const scoreBar = () => `<div class="mscore"><button type="button" class="ms-step" data-ms="-1" aria-label="0.1 lower">−</button><div class="ms-track" role="slider" tabindex="0" aria-label="Stars out of 5" aria-valuemin="0" aria-valuemax="5"><span class="ms-stars">★★★★★</span><span class="ms-fill"><span class="ms-stars">★★★★★</span></span></div><button type="button" class="ms-step" data-ms="1" aria-label="0.1 higher">+</button><b class="ms-val">–</b></div>`;
 const paintStars = (root, v) => root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track"); b.querySelector(".ms-fill").style.width = (v / 5 * 100) + "%"; b.querySelector(".ms-val").textContent = v ? sc10(v) : "–"; t.setAttribute("aria-valuenow", v ? sc10(v) : "0"); b.classList.toggle("set", !!v); });
 function wireScore(root, get, set) {
   root.querySelectorAll(".mscore").forEach(b => { const t = b.querySelector(".ms-track");
-    const at = x => { const r = t.getBoundingClientRect(); return Math.max(.05, Math.min(5, Math.round(Math.max(0, Math.min(1, (x - r.left) / r.width)) * 100) / 20)); };
+    const at = x => { const r = t.getBoundingClientRect(); return Math.max(.1, Math.min(5, Math.round(Math.max(0, Math.min(1, (x - r.left) / r.width)) * 50) / 10)); };
     let drag = false;
     t.onpointerdown = e => { drag = true; t.setPointerCapture?.(e.pointerId); paintStars(root, at(e.clientX)); b._v = at(e.clientX); e.preventDefault(); };
     t.onpointermove = e => { if (!drag) return; b._v = at(e.clientX); paintStars(root, b._v); };
     t.onpointerup = t.onpointercancel = () => { if (!drag) return; drag = false; set(b._v); };
-    const nudge = d => { const v = Math.max(.05, Math.min(5, Math.round(((get() || 0) + d * .05) * 20) / 20)); paintStars(root, v); set(v); };
+    const nudge = d => { const v = Math.max(.1, Math.min(5, Math.round(((get() || 0) + d * .1) * 10) / 10)); paintStars(root, v); set(v); };
     t.onkeydown = e => { const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]; if (d) { e.preventDefault(); nudge(d); } };
     b.querySelectorAll("[data-ms]").forEach(x => x.onclick = () => nudge(+x.dataset.ms));
   });
@@ -136,7 +136,7 @@ function merge(clubId, list) {
     if (e.k === "saw") {
       if (e.rw) e.rw = 1;
       if (e.d && !/^\d{4}-\d\d-\d\d$/.test(e.d)) delete e.d; if (e.imp) e.imp = 1; if (e.old) e.old = 1; if (e.wd) e.wd = 1;
-      if (e.sr) { const o = {}; if (typeof e.sr === "object") for (const [n, v] of Object.entries(e.sr).slice(0, 60)) if (+n > 0 && +n < 100 && +v >= .05 && +v <= 5) o[+n] = Math.round(+v * 20) / 20; e.sr = o; }
+      if (e.sr) { const o = {}; if (typeof e.sr === "object") for (const [n, v] of Object.entries(e.sr).slice(0, 60)) if (+n > 0 && +n < 100 && +v >= .1 && +v <= 5) o[+n] = Math.round(+v * 10) / 10; e.sr = o; }
       if (e.ss) { const o = {}; if (typeof e.ss === "object") for (const [n, d] of Object.entries(e.ss).slice(0, 60)) if (+n > 0 && +n < 100 && (d === "" || /^\d{4}-\d\d-\d\d$/.test(d))) o[+n] = d; e.ss = o; }
     }
     if (e.k === "list" || e.k === "unlist") { e.lid = String(e.lid || "").slice(0, 16); e.pv = String(e.pv || "").slice(0, 16); e.name = String(e.name || "").slice(0, 60); e.pt = Math.max(0, Math.min(99, +e.pt || 0)); e.np = Math.max(1, Math.min(100, +e.np || 1));
@@ -256,7 +256,7 @@ function derive(clubId) {
         if (e.v && p0?.v && !e.rw && !e.old && !p0.d && !p0.old && (!e.d || (e.t < 1795698000000 && e.d === iso(new Date(e.t)) && iso(new Date(p0.at0 || p0.at || 0)) !== e.d && (e.x || "") === (p0.x || "")))) { e = { ...e, d: "", at0: p0.at0 || p0.at, imp: e.imp || p0.imp }; }
         if (!e.v) s.rw[e.sk]?.delete(e.a);
         else if (e.rw && p0?.v) { const r = (s.rw[e.sk] ||= new Map()), o = r.get(e.a) || { n: 0, past: [] }; o.n++; const d0 = p0.old || p0.imp ? "" : p0.d || iso(new Date(p0.at || 0)); if (d0) o.past.push({ d: d0, s: p0.s, x: p0.x }); r.set(e.a, o); } }
-      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 20) / 20)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, wd: e.v ? (e.wd && e.d ? e.d : e._p0?.wd || "") : "", m: e.m || e._p0?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
+      if (e.sk) (s.saw[e.sk] ||= new Map()).set(e.a, { v: !!e.v, name: e.n, at: e.t, s: e.v ? Math.max(0, Math.min(5, Math.round((+e.s || 0) * 10) / 10)) : 0, x: e.v ? e.x || "" : "", d: e.v ? e.d || "" : "", imp: !!e.imp, old: !!e.old, at0: e.at0 || 0, wd: e.v ? (e.wd && e.d ? e.d : e._p0?.wd || "") : "", m: e.m || e._p0?.m || null, ss: e.v ? e.ss || null : null, sr: e.v ? e.sr || null : null }); break;
     }
   }
   // Old events without a title (name only) join the one title with that name, when there is just one.
@@ -1496,7 +1496,7 @@ function openSeason(s0, sk, m, q, redraw) {
     <div class="rev-step2"${had ? "" : " hidden"}>
       <p class="rev-mode"><b>${old ? "Seen it before" : "Just watched"}</b> <button class="link" data-sw>change</button></p>
       ${scoreBar()}
-      <small class="hint">Your score for this season. Tap the bar, drag or use − / + to fine-tune. The series keeps its own score.</small>
+      <small class="hint">Your stars for this season. Tap the stars, drag or use − / + to fine-tune. The series keeps its own score.</small>
       <label class="rev-d"${old ? " hidden" : ""}>Watched on <input type="date" id="ssD" value="${d0 || today}" max="${today}"></label>
       <button class="primary" id="ssSave">Save</button>
     </div>
@@ -1552,7 +1552,7 @@ function openTitle(s, m, focusSuggest) {
             : `<button class="ts-btn" data-tsnow><span>🎬</span>I just watched this</button><button class="ts-btn" data-tsold><span>↺</span>I've seen this before</button>`); })()}
     </div>
     ${(() => { const x = s.saw[sk]?.get(me.id); if (!x?.v || (x.m && key(x.m) !== key(m))) return "";
-      return `<div class="ts-my"><small class="hint">Your score</small>${scoreBar()}<small class="hint ts-myv">${x.s ? `${sc10(x.s)}/10` : "tap the bar to score"}</small></div>`; })()}
+      return `<div class="ts-my"><small class="hint">Your score</small>${scoreBar()}<small class="hint ts-myv">${x.s ? `${sc10(x.s)}/5` : "tap the stars to score"}</small></div>`; })()}
     ${(() => { const pv = s.sawPrev[sk]?.get(me.id), cur = s.saw[sk]?.get(me.id); if (!pv || (cur?.v && (!pv.x || cur.x === pv.x) && (!pv.d || cur.d === pv.d) && (!pv.s || cur.s === pv.s))) return "";
       return `<button class="chip ts-restore" data-tsrestore>↺ Bring back your earlier log${pv.m?.y ? ` of ${esc(pv.m.n)} (${esc(pv.m.y)})` : ""}${pv.d ? ` · ${esc(pv.d)}` : ""}${pv.s ? ` · ${starStr(pv.s, true)}` : ""}${pv.x ? ` · “${esc(pv.x.slice(0, 50))}”` : ""}</button>`; })()}
     <div class="ts-acts">
@@ -1618,7 +1618,7 @@ function openTitle(s, m, focusSuggest) {
   bg.querySelector("[data-tsmore]")?.addEventListener("click", e => { const f = bg.querySelector(".ts-fix"); f.hidden = !f.hidden; e.currentTarget.classList.toggle("on", !f.hidden); if (!f.hidden) f.scrollIntoView({ block: "nearest" }); });
   { let cur = s.saw[sk]?.get(me.id)?.s || 0; const box = bg.querySelector(".ts-my");
     if (box) { paintStars(box, cur); wireScore(box, () => cur, v => {
-      const x = (lastState || s).saw[sk]?.get(me.id); if (!x?.v) { paintStars(box, cur); return; } cur = v; paintStars(box, cur); box.querySelector(".ts-myv").textContent = `${sc10(cur)}/10`;
+      const x = (lastState || s).saw[sk]?.get(me.id); if (!x?.v) { paintStars(box, cur); return; } cur = v; paintStars(box, cur); box.querySelector(".ts-myv").textContent = `${sc10(cur)}/5`;
       act("saw", { sk, v: 1, ...(x.old ? { old: 1 } : x.d ? { d: x.d } : {}), s: cur, ...(x.x ? { x: x.x } : {}), ...(x.ss ? { ss: x.ss } : {}), ...(x.sr ? { sr: x.sr } : {}), ...(x.imp ? { imp: 1 } : {}), ...(x.wd ? { wd: x.wd } : {}), m: x.m || { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } });
       const r = bg.querySelector(".ts-rev.mine .stars"); if (r) r.textContent = starStr(cur); }); } }
   bg.querySelector("[data-tsrestore]")?.addEventListener("click", () => { const pv = s.sawPrev[sk]?.get(me.id); if (!pv) return; close();
@@ -2488,7 +2488,7 @@ function seenBeforeCard(s) {
   const body = `<div class="mw-list sb-list">${groups.map(([g, ws]) => `<h5 class="mw-mo">${esc(g)} <i>${ws.length}</i></h5>${ws.map(row).join("")}`).join("")}</div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button class="${k === cur ? "on" : ""}" ${attr}="${k}">${l}</button>`).join("")}</div>`;
   return `<div id="sbCard"><div class="wl-tools">${all.length > 12 ? `<input type="search" id="sbQ" placeholder="Search" value="${esc(sbQ)}" autocomplete="off">` : ""}</div>
-    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["recent", "Recent"], ["year", "Year"], ["genre", "Genre"], ["rate", "My score"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
+    ${all.length > 1 ? `<div class="wl-filt"><div class="wl-frow">${seg("data-sbs", [["az", "A–Z"], ["recent", "Recent"], ["year", "Year"], ["genre", "Genre"], ["rate", "My ★"]], sbSort)}${mixed ? seg("data-sbt", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], sbType) : ""}</div></div>` : ""}
     <p class="hint mw-sum">${all.length ? `<b>${all.length}</b> title${all.length === 1 ? "" : "s"} you've seen${list.length !== all.length ? ` · ${list.length} shown` : ""}` : `Nothing yet. Everything you mark as watched, or import from IMDb or Letterboxd, lands here.`}</p>
     ${body}</div>`;
 }
@@ -2533,7 +2533,7 @@ function openReview(s, sk, m0, opts = {}) {
     <p class="rev-mode" hidden><b></b> <button class="link" id="revMode">change</button></p>
     <div class="rev-step2" hidden>
     ${scoreBar()}
-    <small class="hint rev-tip">Tap the bar where you want it (7.2 is just past the 7). Drag or use − / + to fine-tune.</small>
+    <small class="hint rev-tip">Tap the stars where you want it (4.1 is just past the 4th star). Drag or use − / + to fine-tune.</small>
     <input type="text" id="revX" maxlength="300" placeholder="Quick review (optional)" enterkeyhint="done" value="${esc(prev?.x || "")}">
     ${tvish ? `<div class="rev-ss"><small class="hint">Seasons you've watched</small><div class="ss-grid"><small class="hint">Loading seasons…</small></div></div>` : ""}
     <label class="rev-d">Watched on <input type="date" id="revD" value="${opts.log ? today : prev?.d || today}" max="${today}"></label>
