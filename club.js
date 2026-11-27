@@ -1663,6 +1663,7 @@ const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; 
 const listMaker = s => s.owner === me.id || myLists().length > 0;
 // The race: everyone's progress on a list as one board, you included (in yellow), most seen first, the leader crowned.
 const FR_COL = ["#4aa8ff", "#3bb273", "#c77dff", "#ff8a3d", "#2ec4b6", "#ff5fa2"];
+const frCol = (s, id) => { const ids = [...s.members.keys()].sort().filter(x => x !== me.id); return FR_COL[ids.indexOf(id) % FR_COL.length]; }; // the same colour a friend has on the race board
 function friendBars(s, l, withMe = true) {
   const tot = l.items.length || 1, ids = [...s.members.keys()].sort();
   const rows = ids.map(id => ({ id, n: l.items.filter(m => !!sawMap(s, m).get(id)?.v).length, col: FR_COL[ids.filter(x => x !== me.id).indexOf(id) % FR_COL.length] }))
@@ -1759,7 +1760,7 @@ const READY = {
   best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
 };
 function listTiles(s, items, canDrop) {
-  return `<div class="wl-grid wl-rows">${items.map(m => { const r = rateOf(m), ok = sawIt(s, m); return `<button class="wl-row ls-r${ok ? " seen" : ""}" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${r ? rateRing(r) : ""}${ok ? `<i class="row-ok tile-ok">✓ seen</i>` : `<i class="row-tick">tap if seen</i>`}</span></span>${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}</button>`; }).join("")}</div>`;
+  return `<div class="wl-grid wl-rows">${items.map(m => { const r = rateOf(m), ok = sawIt(s, m), fr = [...sawMap(s, m).entries()].filter(([id, x]) => id !== me.id && x.v && (!x.m || key(x.m) === key(m))).map(([id, x]) => [id, s.members.get(id)?.name || x.name]).filter(([, n]) => n); return `<button class="wl-row ls-r${ok ? " seen" : ""}" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${r ? rateRing(r) : ""}${ok ? `<i class="row-ok tile-ok">✓ seen</i>` : `<i class="row-tick">tap if seen</i>`}</span>${fr.length ? `<span class="ls-fr">${fr.map(([id, n]) => `<i style="--c:${frCol(s, id)}">${esc(n)}</i>`).join("")}</span>` : ""}</span>${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}</button>`; }).join("")}</div>`;
 }
 function openListSheet(s, l, ready, keepY) {
   const p = listProg(s, l), unseen = l.items.filter(m => !sawIt(s, m));
