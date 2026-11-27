@@ -2560,7 +2560,7 @@ function myWatchedCard(s) {
   const best = {}; for (const it of items) { const mo = it.d.slice(0, 7), a = avgOf(it); if (a && (!best[mo] || a > best[mo].a)) best[mo] = { a, m: it.m }; }
   const rated = yearList.filter(w => w.s), avg = rated.length ? rated.reduce((a, w) => a + w.s, 0) / rated.length : 0;
   if (items.some(it => !genreCache[key(it.m)])) setTimeout(() => fillGenres(items.map(it => ({ m: it.m }))), 0);
-  const gc = {}; for (const it of items) { const g = genreOf(it.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; }
+  const gc = {}, gSeen = new Set(); for (const w of yearList) { if (gSeen.has(w.sk)) continue; gSeen.add(w.sk); const g = genreOf(w.m); if (g && g !== "Other") gc[g] = (gc[g] || 0) + 1; } // this year's titles, for whoever is shown (Everyone or Me)
   const topG = Object.entries(gc).sort((a, b) => b[1] - a[1])[0]?.[0], rwN = yearList.filter(w => w.rw).length;
   const hue = id => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7), nm = id => id === me.id ? "You" : s.members.get(id)?.name || "?";
   let lastMo = "";
@@ -2576,10 +2576,10 @@ function myWatchedCard(s) {
     const bar = `<div class="mw-rx">${RX.map(e => `<button class="${myRx === e ? "on" : ""}" data-rx="${esc(it.sk)}" data-e="${e}" aria-label="React ${e}">${e}${cnt(e) ? `<i>${cnt(e)}</i>` : ""}</button>`).join("")}<button data-rxtalk="${esc(key(it.m))}" aria-label="Reply">💬${talkN ? `<i>${talkN}</i>` : ""}</button></div>`;
     return `${head}<div class="mw-i" data-open="${esc(key(it.m))}"><span class="mw-d"><b>${+it.d.slice(8)}</b><small>${esc(fmtDay(it.d, "wd"))}</small></span>${poster(it.m.p, "w92")}<div class="body"><b>${esc(it.m.n)}${it.m.y ? ` <small>${esc(it.m.y)}</small>` : ""}${isTv(it.m) ? ` <span class="tv-tag">${it.ss ? esc(ssLabel(it.ss)) : "Series"}</span>` : ""}${it.rw ? ` <span class="rw-tag">↻ ${it.rw === 1 ? "rewatch" : `${it.rw + 1}th watch`}</span>` : ""}</b>${chips ? `<div class="mw-ppl">${chips}</div>` : ""}${revs}${bar}</div></div>`;
   }).join(""); };
-  const stats = yearList.length ? `<div class="mw-stats"><span><b>${yearList.length}</b>watched in ${mwYear}</span>${avg ? `<span><b>${starStr(avg)}</b>average</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>top genre</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
+  const stats = yearList.length ? `<div class="mw-stats"><span><b>${yearList.length}</b>${wall ? "club" : "you"} · ${mwYear}</span>${avg ? `<span><b>${starStr(avg)}</b>${wall ? "club average" : "your average"}</span>` : ""}${topG ? `<span><b>${esc(topG)}</b>${wall ? "club top genre" : "your top genre"}</span>` : ""}${rwN ? `<span><b>${rwN}</b>rewatch${rwN === 1 ? "" : "es"}</span>` : ""}</div>` : "";
   const typeSeg = mixed ? `<div class="seg mw-type">${[["all", "All"], ["movie", "Films"], ["tv", "Series"]].map(([k, l]) => `<button class="${k === mwType ? "on" : ""}" data-mwt="${k}">${l}</button>`).join("")}</div>` : "";
   return `<div id="mwCard">
-    ${ppl.length || typeSeg ? `<div class="mw-ctl">${ppl.length ? `<div class="seg">${[["*", "Everyone"], ["", "Me"]].map(([k, l]) => `<button class="${k === mwWho ? "on" : ""}" data-mwe="${k}">${l}</button>`).join("")}</div>` : ""}${typeSeg}</div>` : ""}
+    ${ppl.length || typeSeg ? `<div class="mw-ctl">${ppl.length ? `<div class="seg">${[["*", "Everyone"], ["", "You"]].map(([k, l]) => `<button class="${k === mwWho ? "on" : ""}" data-mwe="${k}">${l}</button>`).join("")}</div>` : ""}${typeSeg}</div>` : ""}
     ${(() => { if (!whoName) return ""; const ag = agreeOf(s, me.id, mwWho); if (!ag) return `<p class="hint mw-ag">🤝 Rate 3 films you've both seen to see how much you and ${esc(whoName)} agree.</p>`;
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
