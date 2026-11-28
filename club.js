@@ -1016,39 +1016,49 @@ function calHtml(s, ev, mode) {
     <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Outing</span><span><i class="k cnt">3</i>${calAll ? "Screenings in Ghent" : "New at Kinepolis"}</span><button class="chip${calAll ? " on" : ""}" id="calAll">All Ghent screenings</button>`}</div></div>
     <div class="cal-info">${info}${home ? "" : cineHtml(selIso)}</div>`;
 }
-// Cinema: one week at a time, tap a day, see every film playing in Ghent that day with its poster, score and times.
-let cineSel = "", cineWk = 0;
+// Cinema: one week at a time. Tap a day: your picks first, then every film as a poster card with its times per cinema.
+let cineSel = "", cineWk = 0, cineWhen = LS.get("marqueeCineWhen", "all"); // all | day (before 18:00) | eve (18:00 and later)
 function cineDayHtml(s) {
   const today = iso(new Date()), nowHm = new Date().toTimeString().slice(0, 5);
   if (!cineSel || cineSel < today) cineSel = today;
   if (cine && !ghentList && !ghentBusy) setTimeout(loadGhent, 0);
-  const start = isoAdd(today, cineWk * 7), days = Array.from({ length: 7 }, (_, i) => isoAdd(start, i));
-  const filmsOn = d => { const by = new Map(); for (const x of cineByDay[d] || []) { const k = seenKey(x.t), f = by.get(k) || by.set(k, { t: x.t, u: x.u, cs: new Map() }).get(k); const c = f.cs.get(x.c) || f.cs.set(x.c, { u: x.u, h: [] }).get(x.c); if (x.h && !c.h.includes(x.h)) c.h.push(x.h); } return [...by.values()]; };
-  const nOn = d => filmsOn(d).length + kpOpening(d).length;
-  const dd = d => new Date(d + "T12:00");
-  const strip = `<div class="cn-week"><button class="cn-arrow" data-cwk="-1" aria-label="Previous week"${cineWk <= 0 ? " disabled" : ""}>‹</button>${days.map(d => { const n = nOn(d);
-    return `<button class="cn-day${d === cineSel ? " on" : ""}${d === today ? " today" : ""}" data-cday="${d}"><small>${d === today ? "Today" : dd(d).toLocaleDateString(undefined, { weekday: "short" })}</small><b>${dd(d).getDate()}</b>${n ? `<i>${n}</i>` : "<i class='z'></i>"}</button>`; }).join("")}<button class="cn-arrow" data-cwk="1" aria-label="Next week">›</button></div>`;
+  const start = isoAdd(today, cineWk * 7), days = Array.from({ length: 7 }, (_, i) => isoAdd(start, i)), dd = d => new Date(d + "T12:00");
+  const okH = h => cineWhen === "all" || !h || (cineWhen === "eve" ? h >= "18:00" : h < "18:00");
+  // One card per film: screenings of the same film under different titles ("Soudain (All of a Sudden)") are merged by their match.
+  const filmsOn = d => { const by = new Map();
+    for (const x of cineByDay[d] || []) { if (!okH(x.h)) continue; const g = ghentCache[x.t] || null, k = g?.m ? key(g.m) : seenKey(x.t), f = by.get(k) || by.set(k, { t: x.t, u: x.u, g, cs: new Map() }).get(k);
+      const c = f.cs.get(x.c) || f.cs.set(x.c, { u: x.u, h: [] }).get(x.c); if (x.h && !c.h.includes(x.h)) c.h.push(x.h); }
+    if (cineWhen !== "eve") for (const f of kpOpening(d)) { const k = key(f.m); if (!by.has(k)) by.set(k, { t: f.m.n, u: KP_URL, g: { m: f.m, r: rateOf(f.m) }, kp: 1, cs: new Map([["Kinepolis Gent", { u: KP_URL, h: [] }]]) }); }
+    return [...by.values()]; };
+  const strip = `<div class="cn-week"><button class="cn-arrow" data-cwk="-1" aria-label="Previous week"${cineWk <= 0 ? " disabled" : ""}>‹</button>${days.map(d => { const n = filmsOn(d).length;
+    return `<button class="cn-day${d === cineSel ? " on" : ""}${d === today ? " today" : ""}" data-cday="${d}"><small>${d === today ? "Today" : dd(d).toLocaleDateString(undefined, { weekday: "short" })}</small><b>${dd(d).getDate()}</b>${n ? `<i title="${n} film${n === 1 ? "" : "s"}">${n}</i>` : "<i class='z'>–</i>"}</button>`; }).join("")}<button class="cn-arrow" data-cwk="1" aria-label="Next week">›</button></div>`;
   const off = cineOff(), have = new Set((cine?.screenings || []).map(chipOf)); if (kp.length) have.add("Kinepolis Gent");
-  const chips = have.size > 1 ? `<div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>` : "";
+  const filters = `<div class="cn-filters"><div class="seg">${[["all", "All day"], ["day", "☀️ Day"], ["eve", "🌙 Evening"]].map(([k, l]) => `<button class="${cineWhen === k ? "on" : ""}" data-cwhen="${k}">${l}</button>`).join("")}</div>
+    ${have.size > 1 ? `<details class="cn-cins"><summary>Cinemas${off.size ? ` <i>${[...have].filter(c => !off.has(c)).length} of ${have.size}</i>` : ""}</summary><div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${off.has(c) ? "" : "✓ "}${esc(c)}</button>`).join("")}</div></details>` : ""}</div>`;
   const onWl = m => !!m && !!s.wl.get(key(m))?.adders.has(me.id), want = m => m ? [...(s.wl.get(key(m))?.adders.entries() || [])].filter(([id]) => id !== me.id).map(([, n]) => n) : [];
-  const tags = m => { if (!m) return ""; const fr = want(m); return [sawIt(s, m) ? `<i class="row-ok">✓ seen</i>` : onWl(m) ? `<i class="row-ok">On your list</i>` : "", fr.length ? `<i class="cn-want">👀 ${esc(fr.join(", "))}</i>` : ""].join(""); };
-  const films = filmsOn(cineSel).map(f => ({ ...f, g: ghentCache[f.t] || null })).sort((a, b) => (onWl(b.g?.m) - onWl(a.g?.m)) || ((b.g?.r || 0) - (a.g?.r || 0)) || a.t.localeCompare(b.t));
-  const row = f => { const m = f.g?.m;
-    const times = [...f.cs.entries()].map(([c, x]) => `<span class="cn-cin"><b>${esc(c)}</b>${(x.h.length ? x.h.sort() : [""]).map(h => `<a class="cn-t${cineSel === today && h && h < nowHm ? " past" : ""}" href="${esc(x.u || f.u)}" target="_blank" rel="noopener">${esc(h || "times ↗")}</a>`).join("")}</span>`).join("");
-    return `<div class="cn-row"${m ? ` data-open="${esc(key(m))}"` : ""}>${poster(m?.p, "w154")}<div class="body"><b>${esc(m?.n || f.t)}${m?.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${f.g?.r ? rateRing(f.g.r) : ""}${tags(m)}</span><div class="cn-times">${times}</div></div></div>`; };
-  const kpRow = (f, opens) => `<div class="cn-row" data-open="${esc(key(f.m))}">${poster(f.m.p, "w154")}<div class="body"><b>${esc(f.m.n)}${opens ? ` <span class="tv-tag">New</span>` : ""}</b><span class="wl-rb">${rateOf(f.m) ? rateRing(rateOf(f.m)) : ""}${tags(f.m)}</span><div class="cn-times"><span class="cn-cin"><b>Kinepolis Gent</b><a class="cn-t" href="${esc(KP_URL)}" target="_blank" rel="noopener">times ↗</a></span></div></div></div>`;
-  const opens = kpOpening(cineSel), running = kpRunning(cineSel);
+  const films = filmsOn(cineSel).map(f => { const m = f.g?.m, seen = !!m && sawIt(s, m), fr = want(m); return { ...f, m, seen, mine: onWl(m), fr, pick: !seen && (onWl(m) || fr.length > 0) }; })
+    .sort((a, b) => (b.mine - a.mine) || (b.fr.length - a.fr.length) || ((b.g?.r || 0) - (a.g?.r || 0)) || a.t.localeCompare(b.t));
+  const card = f => { const m = f.m, r = f.g?.r || 0;
+    const times = [...f.cs.entries()].map(([c, x]) => `<div class="cn-cl"><small>${esc(c)}</small><span>${x.h.length ? x.h.sort().map(h => `<a class="cn-t${cineSel === today && h < nowHm ? " past" : ""}" href="${esc(x.u || f.u)}" target="_blank" rel="noopener">${esc(h)}</a>`).join("") : `<a class="cn-t" href="${esc(x.u || f.u)}" target="_blank" rel="noopener">${f.kp ? "Opens · times ↗" : "Times ↗"}</a>`}</span></div>`).join("");
+    const badge = f.seen ? `<em class="cn-b ok">✓ Seen</em>` : f.mine ? `<em class="cn-b list">On your list</em>` : "";
+    return `<div class="cn-card${f.seen ? " seen" : ""}"${m ? ` data-open="${esc(key(m))}"` : ""}><div class="cn-pic">${poster(m?.p, "w342")}${r ? `<span class="cn-sc" style="--c:${rateCol(r)}">★ ${r.toFixed(1)}</span>` : ""}${badge}</div>
+      <b class="cn-n">${esc(m?.n || f.t)}</b>${f.fr.length ? `<small class="cn-fr">👀 ${esc(f.fr.join(", "))} want${f.fr.length === 1 ? "s" : ""} it</small>` : ""}<div class="cn-times">${times}</div></div>`; };
+  const picks = films.filter(f => f.pick), rest = films.filter(f => !f.pick);
   const body = !cine && !kp.length ? `<p class="hint">Loading what's on in Ghent…</p>`
-    : films.length || opens.length ? `${films.map(row).join("")}${opens.map(f => kpRow(f, true)).join("")}`
-    : empty("🎬", "Dark screens.", "No screenings listed for this day. Try another day.");
-  return `<div class="cn-top"><div class="cn-head"><h3>What's on in Ghent</h3><small class="hint">${esc(dd(cineSel).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))}</small></div>${strip}</div>${chips}<div class="cn-list">${body}</div>
-    ${running.length ? `<details class="g-sec cn-kp"><summary>Also showing at Kinepolis <i>${running.length}</i></summary><div class="cn-list">${running.map(f => kpRow(f, false)).join("")}</div></details>` : ""}
+    : !films.length ? empty("🎬", "Dark screens.", cineWhen === "all" ? "No screenings listed for this day. Try another day." : "Nothing at that time of day. Try All day.")
+    : `${picks.length ? `<h4 class="wl-sec">⭐ For you <i>${picks.length}</i></h4><div class="cn-grid">${picks.map(card).join("")}</div>` : ""}<h4 class="wl-sec">${picks.length ? "Also playing" : "Playing"} <i>${rest.length}</i></h4><div class="cn-grid">${rest.map(card).join("")}</div>`;
+  const running = kpRunning(cineSel);
+  return `<div class="cn-top"><div class="cn-head"><h3>What's on in Ghent</h3><small class="hint">${esc(dd(cineSel).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))} · tap a film for details, a time for tickets</small></div>${strip}</div>${filters}
+    <div class="cn-body">${body}</div>
+    ${running.length ? `<details class="g-sec cn-kp"><summary>Also showing at Kinepolis <i>${running.length}</i></summary><div class="cn-grid">${running.map(f => card({ t: f.m.n, m: f.m, g: { m: f.m, r: rateOf(f.m) }, kp: 1, fr: want(f.m), seen: sawIt(s, f.m), mine: onWl(f.m), cs: new Map([["Kinepolis Gent", { u: KP_URL, h: [] }]]) })).join("")}</div></details>` : ""}
     <small class="hint cn-src">Times from the cinemas' own sites and UiT in Vlaanderen, updated every morning. Kinepolis films from TMDB; <a class="link" href="${esc(KP_URL)}" target="_blank" rel="noopener">times on kinepolis.be ↗</a></small>`;
 }
 function bindCineDay(s) {
   const box = $("cbCal"); if (!box) return;
   box._redraw = () => { box.innerHTML = cineDayHtml(lastState || s); bindCineDay(lastState || s); box.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { if (!e.target.closest("a")) openTitleByKey(lastState || s, b.dataset.open); }); };
   box.querySelectorAll("[data-cday]").forEach(b => b.onclick = () => { cineSel = b.dataset.cday; box._redraw(); });
+  box.querySelectorAll("[data-cwhen]").forEach(b => b.onclick = () => { cineWhen = b.dataset.cwhen; LS.set("marqueeCineWhen", cineWhen); box._redraw(); });
+  const cins = box.querySelector(".cn-cins"); if (cins) { cins.open = !!bindCineDay.cinsOpen; cins.ontoggle = () => { bindCineDay.cinsOpen = cins.open; }; }
   box.querySelectorAll("[data-cwk]").forEach(b => b.onclick = () => { cineWk = Math.max(0, cineWk + +b.dataset.cwk); cineSel = isoAdd(iso(new Date()), cineWk * 7); box._redraw(); });
   box.querySelectorAll("[data-cine]").forEach(b => b.onclick = () => { const off = cineOff(), c = b.dataset.cine; off.has(c) ? off.delete(c) : off.add(c); LS.set("marqueeCinemasOff", [...off]); indexCine(); box._redraw(); });
 }

@@ -593,8 +593,7 @@ footer { padding-left: 0; }
   #cbCal { display: block; }
   #cbCal .cn-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
   #cbCal .cn-week { flex: 0 1 620px; margin: 0; }
-  #cbCal .cine-chips { margin: 12px 0 4px; }
-  #cbCal .cn-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); column-gap: 24px; }
+  #cbCal .cn-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 16px; }
   #cbCal .cal-main { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 16px; }
   #cbCal .cal-info { margin-top: 0; }
   #clubView { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 18px; align-items: start; background: none; border: 0; padding: 0; }
@@ -1262,6 +1261,36 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
 .cn-t.past { opacity: .35; text-decoration: line-through; }
 .cn-kp { margin-top: 10px; }
 .cn-src { display: block; margin-top: 12px; }
+
+
+.cn-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 6px; }
+.cn-filters .seg button { font-size: 13px; padding-left: 10px; padding-right: 10px; }
+.cn-cins summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted); list-style: none; padding: 6px 10px; border: 1px solid var(--line); border-radius: 99px; }
+.cn-cins summary::-webkit-details-marker { display: none; }
+.cn-cins summary::after { content: " ▾"; } .cn-cins[open] summary::after { content: " ▴"; }
+.cn-cins summary i { font-style: normal; color: var(--accent); }
+.cn-cins .cine-chips { margin-top: 8px; }
+.cn-cins .chip:not(.on) { opacity: .55; text-decoration: line-through; }
+.cn-body .wl-sec { margin: 14px 0 8px; }
+.cn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 10px; }
+.cn-grid .cn-n { font-size: 13px; }
+.cn-grid .cn-t { font-size: 12px; padding: 2px 6px; }
+.cn-grid .cn-sc { font-size: 11px; top: 5px; left: 5px; padding: 2px 6px; }
+.cn-card { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cn-card[data-open] { cursor: pointer; }
+.cn-card.seen .cn-pic img { filter: grayscale(.6) brightness(.8); }
+.cn-pic { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: var(--field); box-shadow: 0 6px 18px rgba(0,0,0,.28); transition: transform .15s; }
+.cn-card[data-open]:hover .cn-pic { transform: translateY(-3px); }
+.cn-pic img, .cn-pic .ph { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cn-sc { position: absolute; top: 8px; left: 8px; font-size: 12px; font-weight: 900; padding: 3px 8px; border-radius: 99px; background: rgba(0,0,0,.72); color: var(--c); backdrop-filter: blur(4px); }
+.cn-b { position: absolute; left: 0; right: 0; bottom: 0; font-style: normal; font-size: 12px; font-weight: 800; text-align: center; padding: 5px; color: #111; }
+.cn-b.ok { background: #3bb273; color: #fff; } .cn-b.list { background: #ffd400; }
+.cn-n { font-size: 14px; line-height: 1.25; overflow-wrap: anywhere; }
+.cn-fr { font-size: 12px; color: var(--muted); }
+.cn-card .cn-times { display: flex; flex-direction: column; gap: 5px; }
+.cn-cl small { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin-bottom: 2px; }
+.cn-cl span { display: flex; flex-wrap: wrap; gap: 4px; }
+.cn-card .cn-t { font-size: 13px; padding: 3px 8px; }
 </style>
 </head>
 <body>
