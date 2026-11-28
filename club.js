@@ -22,8 +22,10 @@ const unb64 = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+"
 const now = () => Date.now();
 const when = ms => { const m = (now() - ms) / 6e4; return m < 1 ? "just now" : m < 60 ? Math.round(m) + "m ago" : m < 1440 ? Math.round(m / 60) + "h ago" : Math.round(m / 1440) + "d ago"; };
 const poster = (p, size = "w154") => p ? `<img src="${M.IMG}${size}${esc(p)}" alt="" loading="lazy">` : `<i class="ph"></i>`;
-const avatar = (name, on) => `<span class="avatar${on ? " on" : ""}" title="${esc(name)}">${esc((name || "?")[0].toUpperCase())}</span>`;
+const avatar = (name, on, col) => `<span class="avatar${on ? " on" : ""}${col ? " tint" : ""}" title="${esc(name)}"${col ? ` style="--c:${col}"` : ""}>${esc((name || "?")[0].toUpperCase())}</span>`;
 const key = m => m ? m.t + ":" + m.i : "";
+// A friendlier empty state: a big emoji, a pulp one-liner and what to do next.
+const empty = (e, t, sub = "") => `<div class="empty-st"><span>${e}</span><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div>`;
 // "film" { from: key, v: 1|0 } marks a title the movie database only lists as a series as a film (for everyone).
 let asFilm = new Set();
 const isTv = m => !!m && m.t === "tv" && !asFilm.has(key(m));
@@ -79,9 +81,10 @@ function wireScore(root, get, set) {
       if (!drag.touch) return show(at(e.clientX));
       const dx = e.clientX - drag.x0; show(Math.abs(dx) < 8 ? drag.v0 : clamp(drag.v0 + Math.trunc(dx / 22) * .1)); // slow, precise sliding
     };
-    t.onpointerup = t.onpointercancel = () => { if (!drag) return; drag = null; set(b._v); };
+    const pop = () => { const o = b.querySelector(".ms-out"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); }; // a little bounce when a score lands
+    t.onpointerup = t.onpointercancel = () => { if (!drag) return; drag = null; set(b._v); pop(); };
     t.onpointerleave = e => { if (!drag && e.pointerType === "mouse") { b._v = null; paintStars(root, get() || 0); } };
-    const nudge = d => { const v = clamp((get() || 0) + d * .1); b._v = v; paintStars(root, v); set(v); };
+    const nudge = d => { const v = clamp((get() || 0) + d * .1); b._v = v; paintStars(root, v); set(v); pop(); };
     t.onkeydown = e => { const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]; if (d) { e.preventDefault(); nudge(d); } };
     b.querySelectorAll("[data-ms]").forEach(x => x.onclick = () => nudge(+x.dataset.ms));
   });
@@ -615,7 +618,7 @@ function openActivity() {
   const rows = list.map((a, i) => { const d = iso(new Date(a.t)), head = d !== day ? `<h4 class="wl-sec">${esc(d === iso(new Date()) ? "Today" : d === isoAdd(iso(new Date()), -1) ? "Yesterday" : new Date(a.t).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))}</h4>` : ""; day = d;
     return `${head}<div class="act-i${a.t > since ? " new" : ""}" data-ai="${i}">${a.m ? poster(a.m.p, "w92") : `<span class="act-ic">${a.ic}</span>`}<div class="body"><span><b>${esc(a.who)}</b> ${a.txt}</span>${a.x ? `<small class="hint">“${esc(a.x)}”</small>` : ""}<small class="hint">${a.ic} ${esc(new Date(a.t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }))}</small></div></div>`; }).join("");
   const bg = el(`<div class="sheet-bg"><div class="sheet act-sheet" role="dialog" aria-label="What's new"><h3>What's new</h3>
-    ${rows || `<p class="hint">Nothing for you yet. Recommendations to you, reactions to your logs, replies on films you watched, shared lists and cinema plans show up here.</p>`}<button data-x>Close</button></div></div>`);
+    ${rows || `${empty("🔔", "All quiet on the couch.", "Recommendations, reactions to your logs, replies and cinema plans show up here.")}`}<button data-x>Close</button></div></div>`);
   document.body.appendChild(bg);
   bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-x]")) return bg.remove(); const r = e.target.closest("[data-ai]"); if (!r) return; const a = list[+r.dataset.ai];
     if (a.m) { bg.remove(); openTitle(lastState, a.m); } else if (a.list) { bg.remove(); openListsTab(); } });
@@ -1270,7 +1273,7 @@ function wlCard(s, cands, wlMode) {
       const nf = (mixed && wlType !== "all" ? 1 : 0) + (wlMode === "mine" && wlStream ? 1 : 0) + (wlNobody ? 1 : 0);
       return `<div class="wl-filt"><div class="wl-frow">${seg("data-so", [["added", "Added"], ["az", "A–Z"], ["genre", "Genre"], ["year", "Year"], ["rate", "★"]], wlSort)}<button class="tog wl-fbtn${nf ? " on" : ""}" data-wlfo aria-expanded="${wlFiltOpen}">Filter${nf ? ` · ${nf}` : ""} ${wlFiltOpen ? "▴" : "▾"}</button></div>
         ${wlFiltOpen ? `<div class="wl-frow">${mixed ? seg("data-ty", [["all", "All"], ["movie", "Films"], ["tv", "Series"]], wlType) : ""}${wlMode === "mine" ? tog("data-st", wlStream, "📺 My services" + (wlStream && provBusy ? "…" : "")) : ""}${tog("data-nb", wlNobody, "👀 Nobody's seen")}</div>` : ""}</div>`; })() : ""}
-    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `<p class="hint">${!base.length ? "Empty for now. Tap ＋ Add to add titles, or import one in Settings." : wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}
+    ${tiles(shown)}${done.length ? `<details class="g-sec wl-done" data-g="__watched"${genreShut.has("__watched") ? "" : " open"}><summary>✓ Watched <i>${done.length}</i></summary><div class="wl-grid">${done.map(tile).join("")}</div></details>` : ""}${items.length || done.length ? "" : `${!base.length ? empty("🍿", "Nothing to watch? Impossible.", "Tap ＋ Add to put titles here, or import a list in Settings.") : `<p class="hint">${wlMode === "mine" ? "Nothing left to watch on your list. Tap + Add to add more." : "Nothing here that you haven't watched yet."}</p>`}`}
 `}
   </div>`;
 }
@@ -1362,7 +1365,7 @@ async function titleInfo(m) {
       : j.runtime ? `${Math.floor(j.runtime / 60)}h ${String(j.runtime % 60).padStart(2, "0")}m` : "";
     const yt = (j.videos?.results || []).filter(v => v.site === "YouTube"), tr = yt.find(v => v.type === "Trailer" && v.official) || yt.find(v => v.type === "Trailer") || yt[0];
     return (infoCache[k] = { genres: (j.genres || []).map(g => g.name).slice(0, 3).join(", "), len, rate: j.vote_count && j.vote_average ? j.vote_average.toFixed(1) : "", votes: j.vote_count || 0,
-      by, cast: (j.credits?.cast || []).slice(0, 4).map(x => x.name).join(", "), plot: j.overview || "", trailer: tr?.key || "" });
+      by, cast: (j.credits?.cast || []).slice(0, 4).map(x => x.name).join(", "), plot: j.overview || "", trailer: tr?.key || "", bd: /^\/[\w.-]{1,60}$/.test(j.backdrop_path || "") ? j.backdrop_path : "" });
   } catch { return null; }
 }
 // ---------- where to stream (Belgium) ----------
@@ -1459,8 +1462,8 @@ function forYouCard(s, part) {
   const row = (g, out) => {
     const rec = sugTo(s, g), done = out ? rec.length && rec.every(id => !sugOpen(s, g, id)) : !sugOpen(s, g, me.id);
     const by = accBy(s, g, me.id), late = by && by < today, d = g.d || today, talkN = talkOf(s, g.m).length;
-    const ppl = out ? rec.map(id => { const open = sugOpen(s, g, id), acc = accAt(s, g, id), x = sawMap(s, g.m)?.get(id); return `<span class="mw-p" style="--h:${hue(id)}"${x?.x ? ` title="${esc(x.x)}"` : ""}>${esc(s.members.get(id)?.name || "?")}${!open ? ` ✓${x?.s ? " " + starStr(x.s) : ""}` : acc ? " 👍" : ""}</span>`; }).join("")
-      : `<span class="mw-p" style="--h:${hue(g.a)}">From ${esc(g.by)}</span>`;
+    const ppl = out ? rec.map(id => { const open = sugOpen(s, g, id), acc = accAt(s, g, id), x = sawMap(s, g.m)?.get(id); return `<span class="mw-p" style="--c:${frCol(s, id)}"${x?.x ? ` title="${esc(x.x)}"` : ""}>${esc(s.members.get(id)?.name || "?")}${!open ? ` ✓${x?.s ? " " + starStr(x.s) : ""}` : acc ? " 👍" : ""}</span>`; }).join("")
+      : `<span class="mw-p" style="--c:${frCol(s, g.a)}">From ${esc(g.by)}</span>`;
     const status = [out ? (done ? "Everyone watched it" : g.to.includes("*") ? "To everyone" : "") : done ? "You watched it" : by ? "✓ On your watchlist" : "New", talkN ? `💬 ${talkN}` : "", `<button class="link" data-sugdrop="${esc((g.ids || [g.id]).join(","))}">remove</button>`].filter(Boolean).join(" · ");
     return `<div class="mw-i sug-row${done ? " done" : ""}" data-open="${esc(key(g.m))}"><span class="mw-d"><b>${+d.slice(8)}</b><small>${esc(new Date(d + "T12:00").toLocaleDateString(undefined, { month: "short" }))}</small></span>${poster(g.m.p, "w92")}<div class="body"><b>${esc(g.m.n)}${g.m.y ? ` <small>${esc(g.m.y)}</small>` : ""}${isTv(g.m) ? ` <span class="tv-tag">Series</span>` : ""}</b><div class="mw-ppl">${ppl}</div><small class="hint">${status}</small></div>${out ? "" : !done && !by ? `<button class="acc-btn" data-acc="${esc(g.id)}">＋ Watchlist</button>` : ""}</div>`;
   };
@@ -1473,7 +1476,7 @@ function forYouCard(s, part) {
   return `<div id="fyCard">
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your recommendations got watched</b>${nr.map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
     <h4 class="wl-sec">Recommended to you <i>${fresh.length || ""}</i></h4>
-    <div class="mw-list">${fresh.map(g => row(g, false)).join("") || `<p class="hint">Nothing new. When a friend recommends something, it shows up here.</p>`}</div>
+    <div class="mw-list">${fresh.map(g => row(g, false)).join("") || `${empty("📣", "No tips yet.", "When a friend recommends something, it lands right here.")}`}</div>
     ${due.length ? `<h4 class="wl-sec">On your watchlist <i>${due.length}</i></h4><div class="mw-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You recommended <i>${sent.length}</i></h4><div class="mw-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
@@ -1548,6 +1551,7 @@ function openTitle(s, m, focusSuggest) {
   const wl = s.wl.get(key(m));
   const next = iso(nightAfter(now(), s.day));
   const bg = el(`<div class="sheet-bg"><div class="sheet title-sheet" role="dialog" aria-label="${esc(m.n)}">
+    <div class="ts-hero"></div>
     <div class="ts-head">${poster(m.p, "w154")}<div class="ts-hd">
       <h3>${esc(m.n)}</h3>
       <small class="ts-meta">${isTv(m) ? "Series" : "Film"}${m.y ? ` · ${esc(m.y)}` : ""}<span class="ts-facts"></span></small>
@@ -1593,13 +1597,14 @@ function openTitle(s, m, focusSuggest) {
       const rev = ([id, x]) => { const mine = id === me.id, reps = replyTo.get(id) || [];
         return `<div class="tk-rev${mine ? " mine" : ""}"><div class="tk-top"${mine ? " data-tsedit" : ""}><span class="tk-av" style="--c:${col(id)}">${esc(((id === me.id ? me.name : nm(id, x.name)) || "?")[0].toUpperCase())}</span><b>${esc(nm(id, x.name))}</b>${x.s ? `<span class="tk-st">${starStr(x.s)}</span>` : ""}<small>${when(x.at)}</small>${mine ? `<button class="link ts-edit">✎ change</button>` : `<button class="link ts-reply" data-tsreply="${esc(nm(id, x.name))}">↩ Reply</button>`}</div>${x.x ? `<p class="tk-x">“${esc(x.x)}”</p>` : ""}${reps.length ? `<div class="tk-reps">${reps.map(msg).join("")}</div>` : ""}</div>`; };
       const n = rs.length + talk.length;
-      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(rev).join("")}${loose.length ? `<div class="tk-chat">${loose.map(msg).join("")}</div>` : ""}${n ? "" : `<small class="hint">No reviews or comments yet. Be the first.</small>`}</div>`; })()}
+      return `<h4 class="wl-sec">Reviews &amp; talk <i>${n || ""}</i></h4><div class="ts-talk">${rs.map(rev).join("")}${loose.length ? `<div class="tk-chat">${loose.map(msg).join("")}</div>` : ""}${n ? "" : empty("💬", "No reviews yet.", "Be the first to say what you thought.")}</div>`; })()}
     <div class="say"><input type="text" id="tsSay" maxlength="600" placeholder="Add a comment…" enterkeyhint="send"><button class="primary" id="tsSend">Send</button></div>
     ${forMe.map(g => `<div class="sug-due">Recommended by ${esc(g.by)}${!sugOpen(s, g, me.id) ? " · you watched it" : accAt(s, g, me.id) ? " · ✓ on your watchlist" : ` <button class="primary acc-btn" data-acc="${esc(g.id)}">＋ Add to my watchlist</button>`}</div>`).join("")}
     ${sugs.length ? `<small class="hint">${sugs.map(g => `${g.a === me.id ? "You" : esc(g.by)} → ${esc(whoLabel(s, g))}${g.a === me.id ? ` <button class="link" data-sugdrop="${esc(g.id)}">remove</button>` : ""}`).join(" · ")}</small>` : ""}
     <button id="tsClose">Close</button></div></div>`);
   document.body.appendChild(bg); titleSheet = bg;
   titleInfo(m).then(i => {
+    const hero = bg.querySelector(".ts-hero"); if (hero && i?.bd) { const im = new Image(); im.onload = () => { hero.style.backgroundImage = `url("${M.IMG}w780${i.bd}")`; bg.querySelector(".sheet")?.classList.add("has-hero"); }; im.src = `${M.IMG}w780${i.bd}`; }
     const box = bg.querySelector(".ts-info"); if (!box) return;
     if (!i) { box.innerHTML = ""; return; }
     const fmtN = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
@@ -1772,8 +1777,10 @@ const READY = {
   genre: { name: g => `Best ${GENRES.find(x => x[0] === +g)?.[1].toLowerCase() || ""} films`, load: async g => (await Promise.all([1, 2, 3, 4, 5].map(page => M.tm("/discover/movie", { with_genres: g, sort_by: "vote_average.desc", "vote_count.gte": 1500, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).filter((m, i, a) => a.findIndex(o => o.i === m.i) === i).slice(0, 100) },
   best: { name: y => `Best films of ${y}`, load: async y => (await Promise.all([1, 2].map(page => M.tm("/discover/movie", { primary_release_year: y, sort_by: "vote_average.desc", "vote_count.gte": 300, page })))).flatMap(d => d.results || []).map(x => tmdbToM(x)).slice(0, 30) },
 };
+let justTicked = "";
 function listTiles(s, items, canDrop) {
-  return `<div class="wl-grid wl-rows">${items.map(m => { const r = rateOf(m), ok = sawIt(s, m), fr = [...sawMap(s, m).entries()].filter(([id, x]) => id !== me.id && x.v && (!x.m || key(x.m) === key(m))).map(([id, x]) => [id, s.members.get(id)?.name || x.name]).filter(([, n]) => n); return `<button class="wl-row ls-r${ok ? " seen" : ""}" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${r ? rateRing(r) : ""}${ok ? `<i class="row-ok tile-ok">✓ seen</i>` : `<i class="row-tick">tap if seen</i>`}</span>${fr.length ? `<span class="ls-fr">${fr.map(([id, n]) => `<i style="--c:${frCol(s, id)}">${esc(n)}</i>`).join("")}</span>` : ""}</span>${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}</button>`; }).join("")}</div>`;
+  const jt = justTicked; justTicked = "";
+  return `<div class="wl-grid wl-rows">${items.map(m => { const r = rateOf(m), ok = sawIt(s, m), fr = [...sawMap(s, m).entries()].filter(([id, x]) => id !== me.id && x.v && (!x.m || key(x.m) === key(m))).map(([id, x]) => [id, s.members.get(id)?.name || x.name]).filter(([, n]) => n); return `<button class="wl-row ls-r${ok ? " seen" : ""}${ok && key(m) === jt ? " stamp" : ""}" data-lsopen="${esc(key(m))}" aria-label="${esc(m.n)}">${poster(m.p, "w92")}<span class="body"><b>${esc(m.n)}${m.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${r ? rateRing(r) : ""}${ok ? `<i class="row-ok tile-ok">✓ seen</i>` : `<i class="row-tick">tap if seen</i>`}</span>${fr.length ? `<span class="ls-fr">${fr.map(([id, n]) => `<i style="--c:${frCol(s, id)}">${esc(n)}</i>`).join("")}</span>` : ""}</span>${canDrop ? `<i class="ls-x" data-lsx="${esc(key(m))}" aria-label="Remove">✕</i>` : ""}</button>`; }).join("")}</div>`;
 }
 function openListSheet(s, l, ready, keepY) {
   const p = listProg(s, l), unseen = l.items.filter(m => !sawIt(s, m));
@@ -1797,7 +1804,7 @@ function openListSheet(s, l, ready, keepY) {
     if (e.target === bg) return close();
     const x = e.target.closest("[data-lsx]"); if (x) { e.stopPropagation(); l.items = l.items.filter(m => key(m) !== x.dataset.lsx); const y = scrollOf(); saveList(l); close(); render(); openListSheet(lastState, l, false, y); return; }
     const t = e.target.closest("[data-lsopen]"); if (t) { const m = l.items.find(m => key(m) === t.dataset.lsopen); if (!m) return; const y = scrollOf(); close();
-      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: skOf(m), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } });
+      if (sawIt(s, m)) openTitle(s, m); else { act("saw", { sk: skOf(m), v: 1, old: 1, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } }); justTicked = key(m);
         undoOffer(`✓ ${m.n} marked as seen.`, () => { act("saw", { sk: skOf(m), v: 0, m: { t: m.t, i: m.i, n: m.n, y: m.y, p: m.p } }); M.toast(`${m.n} is unmarked.`); setTimeout(() => { const n = derive(active().id), l2 = club ? n.pub.find(x => x.id === l.id) || l : l; if (document.querySelector(".ls-sheet")) { document.querySelector(".ls-sheet")?.closest(".sheet-bg")?.remove(); openListSheet(n, l2, ready, y); } }, 80); }); openListSheet(lastState, club ? lastState.pub.find(x => x.id === l.id) || l : l, ready, y); }
       return; }
     const a = e.target.closest("[data-lsa]")?.dataset.lsa; if (!a) return;
@@ -1830,7 +1837,7 @@ function renderLists(s) {
   const yrs = Array.from({ length: new Date().getFullYear() - 1928 }, (_, i) => new Date().getFullYear() - i);
   listsEl.innerHTML = `    <div class="ls-cols">
     <div class="ls-sec"><h3>My lists</h3>
-      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}${pubOf(s, l) ? " shared" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? ` · <span class="ls-sh">● Shared with the club</span>` : ""}</small>${friendBars(s, l)}</span></button>`; }).join("")}</div>` : `<p class="hint">No lists yet. Make one, or save a ready-made one below.</p>`}
+      ${ls.length ? `<div class="ls-list">${ls.map(l => { const p = listProg(s, l); return `<button class="ls-row${p.done ? " done" : ""}${pubOf(s, l) ? " shared" : ""}" data-lsid="${esc(l.id)}">${l.items[0] ? poster(l.items[0].p, "w92") : `<i class="ph"></i>`}<span><b>${p.done ? "🏅 " : ""}${esc(l.name)}</b><small>${p.n} of ${p.total} seen${pubOf(s, l) ? ` · <span class="ls-sh">● Shared with the club</span>` : ""}</small>${friendBars(s, l)}</span></button>`; }).join("")}</div>` : `${empty("📋", "No checklists yet.", "Make one, or grab a ready-made one below.")}`}
       <button class="primary" id="lsNew">＋ New list</button>
       <p class="hint">Open a list and tap 📣 Share to put it in everyone's Lists.</p></div>
     <div class="ls-sec gen"><h3>Make a list</h3>
@@ -2190,8 +2197,12 @@ function leadersHtml(s) {
       return { id, b: wins[id] || [], cur, ms, next, logged, n: W[id]?.length || 0 }; })
       .filter(r => r.b.length || r.cur || r.ms || r.n).sort((a, b) => b.b.length - a.b.length || b.n - a.n || b.cur - a.cur);
     if (!rows.length) return `<p class="hint">Nobody has logged anything for ${ldYear} yet. Tap Watched? on a title to get on the board.</p>`;
-    let rank = 0, prev = -1;
-    return `<ol class="ld-stand">${rows.map((r, i) => { if (r.b.length !== prev) { rank = i + 1; prev = r.b.length; }
+    let rank = 0, prev = -1; const rk = rows.map((r, i) => { if (r.b.length !== prev) { rank = i + 1; prev = r.b.length; } return rank; }); rank = 0; prev = -1;
+    // The top 3 on a podium (2nd · 1st · 3rd), everyone else in the list below.
+    const pod = rows.length > 1 ? rows.slice(0, 3) : [], col = id => id === me.id ? "#ffd400" : frCol(s, id);
+    const podium = pod.length ? `<div class="ld-pod">${[1, 0, 2].filter(i => pod[i]).map(i => { const r = pod[i], k = rk[i];
+      return `<div class="pd p${k}${r.id === me.id ? " me" : ""}"><span class="pd-av" style="--c:${col(r.id)}">${esc((r.id === me.id ? me.name : nm(r.id))[0] || "?").toUpperCase()}${k === 1 ? `<i>👑</i>` : ""}</span><b>${esc(nm(r.id))}</b><small>${r.n} watched${r.cur ? ` · 🔥${r.cur}` : ""}</small><div class="pd-step"><span>${["🥇", "🥈", "🥉"][k - 1] || k}</span><b>${r.b.length}</b><small>badge${r.b.length === 1 ? "" : "s"}</small></div></div>`; }).join("")}</div>` : "";
+    return podium + `<ol class="ld-stand">${rows.map((r, i) => { if (r.b.length !== prev) { rank = i + 1; prev = r.b.length; } if (i < pod.length) return "";
       return `<li class="r${rank}${r.id === me.id ? " me" : ""}"><span class="ld-r">${["🥇", "🥈", "🥉"][rank - 1] || rank}</span>
         <span class="ld-n"><b>${esc(nm(r.id))}</b><small>${r.n} watched in ${ldYear}${r.cur ? ` · 🔥 ${r.cur} week${r.cur === 1 ? "" : "s"} in a row` : ""}${r.ms ? ` · 🎯 ${r.ms}+` : ""}${r.next ? ` · ${r.next - r.logged} to ${r.next}` : ""}</small>${r.b.length ? `<small class="ld-bd">${r.b.join(" ")}</small>` : ""}</span>
         <span class="ld-v"><b>${r.b.length}</b><small>badge${r.b.length === 1 ? "" : "s"}</small></span></li>`; }).join("")}</ol>
@@ -2331,7 +2342,7 @@ function renderClub() {
 
   view.innerHTML = `
     <div class="fr-card">
-      <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => `<button class="face-b" data-person="${esc(id)}" aria-label="${esc(m.name)}'s ratings">${avatar(m.name, movie && rd.seen.has(id))}</button>`).join("")}</div></div>
+      <div class="fr-row club-top"><div class="club-id"><h2 class="club-logo" aria-label="${esc(s.name || c.name)}"><span class="cl-badge" aria-hidden="true"><svg viewBox="0 0 48 48" width="38" height="38"><path d="M9 22a5 5 0 0 1 5-5h20a5 5 0 0 1 5 5v3H9z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M5 25a4 4 0 0 1 8 0v4h22v-4a4 4 0 0 1 8 0v11H5z" fill="#ffd400" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><path d="M9 36v4M39 36v4" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M24 17v12" stroke="#111" stroke-width="2"/></svg></span><span class="cl-t">${esc(s.name || c.name)}</span></h2><div class="faces" title="${esc(members.map(([, m]) => m.name).join(", "))}">${members.map(([id, m]) => `<button class="face-b" data-person="${esc(id)}" aria-label="${esc(m.name)}'s ratings">${avatar(m.name, movie && rd.seen.has(id), id === me.id ? "#ffd400" : frCol(s, id))}</button>`).join("")}</div></div>
         <div class="club-acts"><button class="cb-act has-badge" id="cbAct" aria-label="What's new" title="What's new">🔔${(n => n ? `<b class="nbadge">${n > 9 ? "9+" : n}</b>` : "")(actNew(s))}</button><button class="cb-find" id="cbFind" aria-label="Log or find a title" title="Log or find any title (press /)">＋<span> Add</span></button><button class="cb-set" id="cbSet" aria-label="Settings" title="Settings">⚙︎</button><button id="cbInvite" title="Invite friends">👥<span> Invite</span></button></div></div>
       <p class="hint" id="clubOffline"${online ? " hidden" : ""}>Can't reach the club right now. What you do is saved here and sent when you're back online.</p>
     </div>
@@ -2586,7 +2597,7 @@ function myWatchedCard(s) {
     if (wall) for (const [id, x] of sawMap(s, it.m)) if (!it.ppl.has(id) && x.v && (!x.m || key(x.m) === key(it.m)) && (x.s || id === me.id)) it.ppl.set(id, { s: x.s, x: x.x });
     const ppl = [...it.ppl.entries()], solo = !wall;
     const chips = ppl.map(([id, w]) => { const lbl = `${esc(nm(id))} ${w.s ? starStr(w.s) : id === me.id ? "rate" : ""}`; if (!lbl.trim()) return "";
-      return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--h:${hue(id)}">${lbl}</span>`; }).join("");
+      return id === me.id ? `<button class="mw-p me" data-mwrate="${esc(it.sk)}" title="Change your score">${lbl} <small>✎</small></button>` : `<span class="mw-p" style="--c:${frCol(s, id)}">${lbl}</span>`; }).join("");
     const revs = ppl.filter(([, w]) => w.x).map(([id, w]) => `<small class="hint mw-rev">${solo ? "" : `<b>${esc(nm(id))}</b> `}“${esc(w.x)}”</small>`).join("");
     const rx = s.rx[it.sk], cnt = e => [...(rx?.values() || [])].filter(x => x === e).length, myRx = rx?.get(me.id), talkN = (s.talk[it.sk] || []).length;
     const bar = `<div class="mw-rx">${RX.map(e => `<button class="${myRx === e ? "on" : ""}" data-rx="${esc(it.sk)}" data-e="${e}" aria-label="React ${e}">${e}${cnt(e) ? `<i>${cnt(e)}</i>` : ""}</button>`).join("")}<button data-rxtalk="${esc(key(it.m))}" aria-label="Reply">💬${talkN ? `<i>${talkN}</i>` : ""}</button></div>`;
@@ -2598,9 +2609,9 @@ function myWatchedCard(s) {
       const sp = ag.split, sm = sp && titleBySk(s, sp.sk);
       return `<p class="hint mw-ag">🤝 You and ${esc(whoName)} agree <b>${ag.pct}%</b> on ${ag.n} films.${sm ? ` Biggest split: <b>${esc(sm.n)}</b> (you ${starStr(sp.a)}, ${esc(whoName)} ${starStr(sp.b)}).` : ""}</p>`; })()}
     ${!whoName && diaryN ? `<button class="chip${mwDiary ? " on" : ""}" id="mwDiary">${mwDiary ? "✓ " : ""}Include ${diaryN} from my Letterboxd diary</button>` : ""}
-    ${list.length ? "" : `<p class="hint mw-sum">Nothing logged yet. Tap ＋ Add to log what you watched.</p>`}
+    ${list.length ? "" : `${empty("🛋️", "The couch is empty.", "Tap ＋ Add to log what you watched.")}`}
     ${typeSeg ? `<div class="mw-ctl">${typeSeg}</div>` : ""}
-    <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `<p class="hint">Nothing watched in the last month.</p>` : ""}</div>
+    <div class="mw-list">${recent.length ? rowsOf(recent) : list.length ? `${empty("💤", "Quiet month.", "Nothing watched in the last 31 days. Older logs are below.")}` : ""}</div>
     ${older.length ? `<details class="g-sec mw-older"><summary>Older <i>${older.length}</i></summary><div class="mw-list">${rowsOf(older)}</div></details>` : ""}
   </div>`;
 }
@@ -2810,5 +2821,7 @@ $("nav").addEventListener("click", e => { if (e.target.closest("[data-view=club]
     if (open && !locked) { y = window.scrollY; locked = true; Object.assign(document.body.style, { position: "fixed", top: `-${y}px`, left: "0", right: "0" }); }
     else if (!open && locked) { locked = false; Object.assign(document.body.style, { position: "", top: "", left: "", right: "" }); window.scrollTo(0, y); }
   };
-  new MutationObserver(sync).observe(document.body, { childList: true });
+  new MutationObserver(recs => { // a sheet that replaces another one at once (a list redrawing after a tick) appears without sliding in again
+    if (recs.some(r => [...r.removedNodes].some(n => n.classList?.contains("sheet-bg")))) recs.forEach(r => r.addedNodes.forEach(n => n.classList?.contains("sheet-bg") && n.classList.add("still")));
+    sync(); }).observe(document.body, { childList: true });
 })();
