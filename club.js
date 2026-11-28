@@ -1583,9 +1583,12 @@ function openTitle(s, m, focusSuggest) {
       const rs = [...(s.saw[sk] || new Map()).entries()].filter(([, x]) => x.v && (x.s || x.x)).sort(([a, x], [b, y]) => (b === me.id) - (a === me.id) || (y.at || 0) - (x.at || 0));
       const nm = (id, n) => id === me.id ? "You" : s.members.get(id)?.name || n || "?", col = id => id === me.id ? "#ffd400" : frCol(s, id) || "#888";
       const when = t => { if (!t) return ""; const d = (Date.now() - t) / 6e4; return d < 1 ? "now" : d < 60 ? `${Math.round(d)}m` : d < 1440 ? `${Math.round(d / 60)}h` : d < 1440 * 7 ? `${Math.round(d / 1440)}d` : new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
+      // A comment that starts with "@Name " is a reply to that person's review (whole name only: "@Kristian" is not Kris).
+      const rName = id => id === me.id ? me.name : s.members.get(id)?.name || s.saw[sk]?.get(id)?.name || "";
+      const target = e => rs.map(([id]) => [id, rName(id)]).filter(([, n]) => n && e.x.toLowerCase().startsWith("@" + n.toLowerCase()) && /^(\s|[,.:!?]|$)/.test(e.x.slice(n.length + 1))).sort((a, b) => b[1].length - a[1].length)[0] || null;
       const replyTo = new Map(), loose = [];
-      for (const e of talk) { const r = rs.find(([id, x]) => { const n = id === me.id ? me.name : s.members.get(id)?.name || x.name; return n && e.x.toLowerCase().startsWith("@" + n.toLowerCase()); }); if (r) (replyTo.get(r[0]) || replyTo.set(r[0], []).get(r[0])).push(e); else loose.push(e); }
-      const msg = e => { const id = e.a, rx = rs.find(([r]) => r && e.x.toLowerCase().startsWith("@" + (nm(r) === "You" ? me.name : nm(r)).toLowerCase())); let x = esc(e.x); if (rx) { const tag = "@" + (rx[0] === me.id ? me.name : nm(rx[0])); x = `<b class="tk-at">${esc(tag)}</b>${esc(e.x.slice(tag.length))}`; }
+      for (const e of talk) { const t = target(e); if (t) (replyTo.get(t[0]) || replyTo.set(t[0], []).get(t[0])).push(e); else loose.push(e); }
+      const msg = e => { const id = e.a, t = target(e); let x = esc(e.x); if (t) { const n = t[1].length + 1; x = `<b class="tk-at">${esc(e.x.slice(0, n))}</b>${esc(e.x.slice(n))}`; }
         return `<div class="tk-msg${id === me.id ? " me" : ""}"><span class="tk-av" style="--c:${col(id)}">${esc(((id === me.id ? me.name : nm(id, e.n)) || "?")[0].toUpperCase())}</span><div class="tk-b"><span class="tk-h"><b>${esc(nm(id, e.n))}</b><small>${when(e.t)}</small></span><p>${x}</p></div></div>`; };
       const rev = ([id, x]) => { const mine = id === me.id, reps = replyTo.get(id) || [];
         return `<div class="tk-rev${mine ? " mine" : ""}"><div class="tk-top"${mine ? " data-tsedit" : ""}><span class="tk-av" style="--c:${col(id)}">${esc(((id === me.id ? me.name : nm(id, x.name)) || "?")[0].toUpperCase())}</span><b>${esc(nm(id, x.name))}</b>${x.s ? `<span class="tk-st">${starStr(x.s)}</span>` : ""}<small>${when(x.at)}</small>${mine ? `<button class="link ts-edit">✎ change</button>` : `<button class="link ts-reply" data-tsreply="${esc(nm(id, x.name))}">↩ Reply</button>`}</div>${x.x ? `<p class="tk-x">“${esc(x.x)}”</p>` : ""}${reps.length ? `<div class="tk-reps">${reps.map(msg).join("")}</div>` : ""}</div>`; };
@@ -1673,7 +1676,7 @@ const listProg = (s, l) => { const n = l.items.filter(m => sawIt(s, m)).length; 
 const listMaker = s => s.owner === me.id || myLists().length > 0;
 // The race: everyone's progress on a list as one board, you included (in yellow), most seen first, the leader crowned.
 const FR_COL = ["#4aa8ff", "#3bb273", "#c77dff", "#ff8a3d", "#2ec4b6", "#ff5fa2"];
-const frCol = (s, id) => { const ids = [...s.members.keys()].sort().filter(x => x !== me.id); return FR_COL[ids.indexOf(id) % FR_COL.length]; }; // the same colour a friend has on the race board
+const frCol = (s, id) => { const ids = [...s.members.keys()].sort().filter(x => x !== me.id); const i = ids.indexOf(id); return i < 0 ? "#888" : FR_COL[i % FR_COL.length]; }; // the same colour a friend has on the race board
 function friendBars(s, l, withMe = true) {
   const tot = l.items.length || 1, ids = [...s.members.keys()].sort();
   const rows = ids.map(id => ({ id, n: l.items.filter(m => !!sawMap(s, m).get(id)?.v).length, col: FR_COL[ids.filter(x => x !== me.id).indexOf(id) % FR_COL.length] }))
