@@ -560,8 +560,11 @@ function openPerson(id) {
 }
 document.addEventListener("click", e => { const f = e.target.closest?.("[data-person]"); if (f && lastState) openPerson(f.dataset.person); });
 // Welcome for a friend who just joined: step 1 was their name; step 2 tick films they've seen; step 3 add a few to their watchlist.
+let welcomeDue = false;
 async function openWelcome(c) {
-  LS.set("marqueeWelcomed_" + c.id, true);
+  LS.set("marqueeWelcomed_" + c.id, true); welcomeDue = true;
+  // The welcome steps come first: if the tour already started, take it down; it starts again once the welcome is done.
+  document.querySelectorAll(".tour-veil, .tour-tip").forEach(x => x.remove()); document.querySelectorAll(".tour-on").forEach(x => x.classList.remove("tour-on"));
   const s = derive(c.id), uniq = a => a.filter((m, i) => m && a.findIndex(o => key(o) === key(m)) === i);
   const clubSeen = Object.entries(s.saw).flatMap(([sk, mp]) => [...mp.entries()].filter(([id, x]) => id !== me.id && x.v && !x.imp).map(() => titleBySk(s, sk)));
   const clubWant = [...s.wl.values()].filter(w => [...w.adders.keys()].some(id => id !== me.id)).map(w => w.m);
@@ -585,7 +588,7 @@ async function openWelcome(c) {
     if (e.target.closest("[data-wdone]")) {
       wantShown = wantPool.filter(m => !seenPool.some((o, i) => seen.has(i) && key(o) === key(m)));
       const evs2 = [...[...seen].map(i => seenPool[i]).map(m => ["saw", { sk: skOf(m), v: 1, old: 1, m }]), ...[...want].map(i => wantShown[i]).map(m => ["wl", { m }])];
-      bg.remove(); if (evs2.length) actMany(evs2, null);
+      bg.remove(); welcomeDue = false; if (evs2.length) actMany(evs2, null); setTimeout(maybeTour, 1200);
       M.toast(`You're all set${seen.size ? ` · ${seen.size} seen` : ""}${want.size ? ` · ${want.size} on your watchlist` : ""}. Enjoy the club!`); render();
     }
   });
@@ -743,10 +746,11 @@ function renderStart() {
   $("cbJoin")?.addEventListener("click", async () => {
     const n = nameOk(); if (!n) return;
     ensureMe(n); addClub(inv); pendingInvite = null; showStart = false;
+    welcomeDue = !LS.get("marqueeWelcomed_" + inv.id, false); // hold the tour until the welcome steps are done
     render(); await pull(inv.id);
     const s = derive(inv.id), fresh = ![...s.members.keys()].includes(me.id); if (fresh) act("join");
     live(); render();
-    if (fresh && !LS.get("marqueeWelcomed_" + inv.id, false)) setTimeout(() => openWelcome(inv), 400);
+    if (fresh && !LS.get("marqueeWelcomed_" + inv.id, false)) setTimeout(() => openWelcome(inv), 400); else welcomeDue = false;
   });
   $("cbCreate").onclick = () => {
     const n = nameOk(); if (!n) return;
@@ -2340,13 +2344,14 @@ const TOUR = [
 ];
 function maybeTour() {
   if (LS.get("marqueeTour3", false) || document.body.dataset.view !== "club" || !me || document.querySelector(".tour-tip")) return;
-  if (document.querySelector(".sheet-bg")) { setTimeout(maybeTour, 3000); return; }
+  if (welcomeDue || document.querySelector(".sheet-bg")) { setTimeout(maybeTour, 2000); return; }
   let i = 0; const wide = () => matchMedia("(min-width: 1100px)").matches;
   const veil = el(`<div class="tour-veil"></div>`), tip = el(`<div class="tour-tip" role="dialog" aria-live="polite"><p></p><div class="tour-row"><small></small><button class="link" data-tskip>Skip</button><button class="primary" data-tnext>Next</button></div><i class="tour-arr"></i></div>`);
   document.body.append(veil, tip);
   const end = () => { LS.set("marqueeTour3", true); if (!wide()) setClubTab("mine"); veil.remove(); tip.remove(); document.querySelectorAll(".tour-on").forEach(x => x.classList.remove("tour-on")); window.removeEventListener("resize", show); };
   const show = () => {
     document.querySelectorAll(".tour-on").forEach(x => x.classList.remove("tour-on"));
+    if (!veil.isConnected || document.querySelector(".sheet-bg")) { veil.remove(); tip.remove(); window.removeEventListener("resize", show); setTimeout(maybeTour, 2000); return; } // something else opened: pause, pick up later
     const st = TOUR[i]; if (st.tab && !wide() && clubTab !== st.tab) setClubTab(st.tab); // phone: switch to that tab first
     const pick = q => [...document.querySelectorAll(q)].find(x => x.getClientRects().length), a = pick("#clubView " + st.a) || pick(st.a);
     if (!a) { if (++i < TOUR.length) return show(); return end(); }
