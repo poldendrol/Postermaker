@@ -590,7 +590,11 @@ footer { padding-left: 0; }
   body { padding-top: 20px; }
   body[data-view=club] .app, body[data-view=leaders] .app { grid-template-columns: minmax(0, 1fr); }
   body[data-view=cine] .app { grid-template-columns: minmax(0, 1400px) !important; }
-  #cbCal { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  #cbCal { display: block; }
+  #cbCal .cn-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  #cbCal .cn-week { flex: 0 1 620px; margin: 0; }
+  #cbCal .cine-chips { margin: 12px 0 4px; }
+  #cbCal .cn-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); column-gap: 24px; }
   #cbCal .cal-main { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 16px; }
   #cbCal .cal-info { margin-top: 0; }
   #clubView { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 18px; align-items: start; background: none; border: 0; padding: 0; }

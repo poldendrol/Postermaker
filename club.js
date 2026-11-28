@@ -1041,8 +1041,7 @@ function cineDayHtml(s) {
   const body = !cine && !kp.length ? `<p class="hint">Loading what's on in Ghent…</p>`
     : films.length || opens.length ? `${films.map(row).join("")}${opens.map(f => kpRow(f, true)).join("")}`
     : empty("🎬", "Dark screens.", "No screenings listed for this day. Try another day.");
-  return `<div class="cn-head"><h3>What's on in Ghent</h3><small class="hint">${esc(dd(cineSel).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))}</small></div>
-    ${strip}${chips}<div class="cn-list">${body}</div>
+  return `<div class="cn-top"><div class="cn-head"><h3>What's on in Ghent</h3><small class="hint">${esc(dd(cineSel).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))}</small></div>${strip}</div>${chips}<div class="cn-list">${body}</div>
     ${running.length ? `<details class="g-sec cn-kp"><summary>Also showing at Kinepolis <i>${running.length}</i></summary><div class="cn-list">${running.map(f => kpRow(f, false)).join("")}</div></details>` : ""}
     <small class="hint cn-src">Times from the cinemas' own sites and UiT in Vlaanderen, updated every morning. Kinepolis films from TMDB; <a class="link" href="${esc(KP_URL)}" target="_blank" rel="noopener">times on kinepolis.be ↗</a></small>`;
 }
