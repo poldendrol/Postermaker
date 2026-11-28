@@ -605,7 +605,6 @@ function activity(s, clubId) {
     else if (e.k === "rx" && e.e && m && s.saw[e.sk]?.get(me.id)?.v) out.push({ t: e.t, who, m, ic: e.e, txt: `reacted to your <b>${esc(m.n)}</b>` });
     else if (e.k === "say" && m && e.sk && (s.saw[e.sk]?.get(me.id)?.v || (s.talk[e.sk] || []).some(x => x.a === me.id))) out.push({ t: e.t, who, m, ic: "💬", txt: `on <b>${esc(m.n)}</b>`, x: e.x });
     else if (e.k === "sug" && m && (e.to || []).some(id => id === "*" || id === me.id)) out.push({ t: e.t, who, m, ic: "📣", txt: `recommends <b>${esc(m.n)}</b> to ${(e.to || []).includes("*") ? "everyone" : "you"}` });
-    else if (e.k === "nom" && e.tr === "m" && m) out.push({ t: e.t, who, m, ic: "🍿", txt: `wants to see <b>${esc(m.n)}</b> at the cinema` });
     else if (e.k === "list" && !e.pt) out.push({ t: e.t, who, ic: "📋", txt: `shared a list: <b>${esc(e.name || "a list")}</b>`, list: e.lid });
   }
   return out.reverse().slice(0, 80);
@@ -772,7 +771,7 @@ function render() {
     hist.innerHTML = `<div class="fr-card"><h3>No history yet</h3><p class="hint">Start or join a movie club, and every movie the group votes on shows up here.</p><button class="primary" id="hsGo">Go to the club</button></div>`;
     $("hsGo").onclick = () => M.setView("club");
     if (listsEl) listsEl.innerHTML = `<div class="fr-card"><h3>Checklists</h3><p class="hint">Start or join a movie club first. Then you can import lists, make your own and add ready-made ones like the Oscar winners.</p></div>`;
-    if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching, reviews and outings get ranked here.</p></div>`;
+    if (lead) lead.innerHTML = `<div class="fr-card"><h3>No leaderboard yet</h3><p class="hint">Start or join a movie club first. Then everyone's watching and reviews get ranked here.</p></div>`;
     if (mwView) mwView.innerHTML = `<div class="fr-card"><h3>My watched list</h3><p class="hint">Start or join a movie club first, then everything you watch is logged here with its date.</p></div>`;
     return;
   }
@@ -1016,6 +1015,43 @@ function calHtml(s, ev, mode) {
     <div class="cal">${["M", "T", "W", "T", "F", "S", "S"].map(x => `<span class="cal-h">${x}</span>`).join("")}${cells}</div>
     <div class="cal-key">${home ? `<span><i class="k cnt">2</i>Reminders</span><span><i class="k past"></i>Watched together</span>` : `<span>🎟 Outing</span><span><i class="k cnt">3</i>${calAll ? "Screenings in Ghent" : "New at Kinepolis"}</span><button class="chip${calAll ? " on" : ""}" id="calAll">All Ghent screenings</button>`}</div></div>
     <div class="cal-info">${info}${home ? "" : cineHtml(selIso)}</div>`;
+}
+// Cinema: one week at a time, tap a day, see every film playing in Ghent that day with its poster, score and times.
+let cineSel = "", cineWk = 0;
+function cineDayHtml(s) {
+  const today = iso(new Date()), nowHm = new Date().toTimeString().slice(0, 5);
+  if (!cineSel || cineSel < today) cineSel = today;
+  if (cine && !ghentList && !ghentBusy) setTimeout(loadGhent, 0);
+  const start = isoAdd(today, cineWk * 7), days = Array.from({ length: 7 }, (_, i) => isoAdd(start, i));
+  const filmsOn = d => { const by = new Map(); for (const x of cineByDay[d] || []) { const k = seenKey(x.t), f = by.get(k) || by.set(k, { t: x.t, u: x.u, cs: new Map() }).get(k); const c = f.cs.get(x.c) || f.cs.set(x.c, { u: x.u, h: [] }).get(x.c); if (x.h && !c.h.includes(x.h)) c.h.push(x.h); } return [...by.values()]; };
+  const nOn = d => filmsOn(d).length + kpOpening(d).length;
+  const dd = d => new Date(d + "T12:00");
+  const strip = `<div class="cn-week"><button class="cn-arrow" data-cwk="-1" aria-label="Previous week"${cineWk <= 0 ? " disabled" : ""}>‹</button>${days.map(d => { const n = nOn(d);
+    return `<button class="cn-day${d === cineSel ? " on" : ""}${d === today ? " today" : ""}" data-cday="${d}"><small>${d === today ? "Today" : dd(d).toLocaleDateString(undefined, { weekday: "short" })}</small><b>${dd(d).getDate()}</b>${n ? `<i>${n}</i>` : "<i class='z'></i>"}</button>`; }).join("")}<button class="cn-arrow" data-cwk="1" aria-label="Next week">›</button></div>`;
+  const off = cineOff(), have = new Set((cine?.screenings || []).map(chipOf)); if (kp.length) have.add("Kinepolis Gent");
+  const chips = have.size > 1 ? `<div class="cine-chips">${CINEMAS.filter(c => have.has(c)).map(c => `<button class="chip${off.has(c) ? "" : " on"}" data-cine="${esc(c)}" aria-pressed="${!off.has(c)}">${esc(c)}</button>`).join("")}</div>` : "";
+  const onWl = m => !!m && !!s.wl.get(key(m))?.adders.has(me.id), want = m => m ? [...(s.wl.get(key(m))?.adders.entries() || [])].filter(([id]) => id !== me.id).map(([, n]) => n) : [];
+  const tags = m => { if (!m) return ""; const fr = want(m); return [sawIt(s, m) ? `<i class="row-ok">✓ seen</i>` : onWl(m) ? `<i class="row-ok">On your list</i>` : "", fr.length ? `<i class="cn-want">👀 ${esc(fr.join(", "))}</i>` : ""].join(""); };
+  const films = filmsOn(cineSel).map(f => ({ ...f, g: ghentCache[f.t] || null })).sort((a, b) => (onWl(b.g?.m) - onWl(a.g?.m)) || ((b.g?.r || 0) - (a.g?.r || 0)) || a.t.localeCompare(b.t));
+  const row = f => { const m = f.g?.m;
+    const times = [...f.cs.entries()].map(([c, x]) => `<span class="cn-cin"><b>${esc(c)}</b>${(x.h.length ? x.h.sort() : [""]).map(h => `<a class="cn-t${cineSel === today && h && h < nowHm ? " past" : ""}" href="${esc(x.u || f.u)}" target="_blank" rel="noopener">${esc(h || "times ↗")}</a>`).join("")}</span>`).join("");
+    return `<div class="cn-row"${m ? ` data-open="${esc(key(m))}"` : ""}>${poster(m?.p, "w154")}<div class="body"><b>${esc(m?.n || f.t)}${m?.y ? ` <small>${esc(m.y)}</small>` : ""}</b><span class="wl-rb">${f.g?.r ? rateRing(f.g.r) : ""}${tags(m)}</span><div class="cn-times">${times}</div></div></div>`; };
+  const kpRow = (f, opens) => `<div class="cn-row" data-open="${esc(key(f.m))}">${poster(f.m.p, "w154")}<div class="body"><b>${esc(f.m.n)}${opens ? ` <span class="tv-tag">New</span>` : ""}</b><span class="wl-rb">${rateOf(f.m) ? rateRing(rateOf(f.m)) : ""}${tags(f.m)}</span><div class="cn-times"><span class="cn-cin"><b>Kinepolis Gent</b><a class="cn-t" href="${esc(KP_URL)}" target="_blank" rel="noopener">times ↗</a></span></div></div></div>`;
+  const opens = kpOpening(cineSel), running = kpRunning(cineSel);
+  const body = !cine && !kp.length ? `<p class="hint">Loading what's on in Ghent…</p>`
+    : films.length || opens.length ? `${films.map(row).join("")}${opens.map(f => kpRow(f, true)).join("")}`
+    : empty("🎬", "Dark screens.", "No screenings listed for this day. Try another day.");
+  return `<div class="cn-head"><h3>What's on in Ghent</h3><small class="hint">${esc(dd(cineSel).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))}</small></div>
+    ${strip}${chips}<div class="cn-list">${body}</div>
+    ${running.length ? `<details class="g-sec cn-kp"><summary>Also showing at Kinepolis <i>${running.length}</i></summary><div class="cn-list">${running.map(f => kpRow(f, false)).join("")}</div></details>` : ""}
+    <small class="hint cn-src">Times from the cinemas' own sites and UiT in Vlaanderen, updated every morning. Kinepolis films from TMDB; <a class="link" href="${esc(KP_URL)}" target="_blank" rel="noopener">times on kinepolis.be ↗</a></small>`;
+}
+function bindCineDay(s) {
+  const box = $("cbCal"); if (!box) return;
+  box._redraw = () => { box.innerHTML = cineDayHtml(lastState || s); bindCineDay(lastState || s); box.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { if (!e.target.closest("a")) openTitleByKey(lastState || s, b.dataset.open); }); };
+  box.querySelectorAll("[data-cday]").forEach(b => b.onclick = () => { cineSel = b.dataset.cday; box._redraw(); });
+  box.querySelectorAll("[data-cwk]").forEach(b => b.onclick = () => { cineWk = Math.max(0, cineWk + +b.dataset.cwk); cineSel = isoAdd(iso(new Date()), cineWk * 7); box._redraw(); });
+  box.querySelectorAll("[data-cine]").forEach(b => b.onclick = () => { const off = cineOff(), c = b.dataset.cine; off.has(c) ? off.delete(c) : off.add(c); LS.set("marqueeCinemasOff", [...off]); indexCine(); box._redraw(); });
 }
 function bindCal(s, ev, mode) {
   const box = $(mode === "home" ? "cbCalH" : "cbCal"); if (!box) return;
@@ -1433,11 +1469,11 @@ function renderSettingsExtras() {
     if (!P?.ready) { pu.hidden = true; return; }
     pu.hidden = false;
     const on = P.on();
-    pu.innerHTML = `<b>Notifications</b><p class="hint">${on ? "On for this device. You hear about suggestions, reviews and outings, even when Marquee is closed." : me ? "Get told about suggestions, reviews and outings, even when Marquee is closed. Turn it on for each phone or computer." : "Join or start a club first, then turn notifications on here."}</p>${me ? `<button id="setPushBtn">${on ? "Turn off" : "🔔 Turn on notifications"}</button>` : ""}`;
+    pu.innerHTML = `<b>Notifications</b><p class="hint">${on ? "On for this device. You hear about recommendations and reviews, even when Marquee is closed." : me ? "Get told about recommendations and reviews, even when Marquee is closed. Turn it on for each phone or computer." : "Join or start a club first, then turn notifications on here."}</p>${me ? `<button id="setPushBtn">${on ? "Turn off" : "🔔 Turn on notifications"}</button>` : ""}`;
     pu.querySelector("#setPushBtn")?.addEventListener("click", async e => {
       e.target.disabled = true;
       if (on) { await P.disable(); M.toast("Notifications off for this device."); }
-      else { const r = await P.enable(me.id); M.toast(r === true ? "Notifications on. A test one arrives within a few minutes." : r); if (r === true) P.send({ to: [me.id], title: "Marquee notifications work 🎬", body: "You'll hear about suggestions, reviews and outings, even when Marquee is closed." }); }
+      else { const r = await P.enable(me.id); M.toast(r === true ? "Notifications on. A test one arrives within a few minutes." : r); if (r === true) P.send({ to: [me.id], title: "Marquee notifications work 🎬", body: "You'll hear about recommendations and reviews, even when Marquee is closed." }); }
       renderSettingsExtras();
     });
   }
@@ -1481,7 +1517,7 @@ function forYouCard(s, part) {
   </div>`;
 }
 function findTitle(s, k) {
-  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || ghentList?.find(g => key(g.m) === k)?.m || soonList?.l.find(f => key(f.m) === k)?.m || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
+  return s.wl.get(k)?.m || popList?.find(m => key(m) === k) || ghentList?.find(g => key(g.m) === k)?.m || Object.values(ghentCache).find(g => g?.m && key(g.m) === k)?.m || kp.find(f => key(f.m) === k)?.m || soonList?.l.find(f => key(f.m) === k)?.m || s.sugs.find(g => key(g.m) === k)?.m || [...s.outs.values()].find(o => key(o.m) === k)?.m || Object.values(s.saw).length && Object.keys(s.saw).map(sk => titleBySk(s, sk)).find(m => m && key(m) === k) || Object.values(s.picks).find(m => key(m) === k) || null;
 }
 function openTitleByKey(s, k, focusSuggest) { const m = findTitle(s, k); if (m) openTitle(s, m, focusSuggest); }
 let titleSheet = null;
@@ -2165,8 +2201,6 @@ function leadersHtml(s) {
     { e: "📣", g: "s", t: "Top recommender", d: "Recommendations sent", v: id => sugY.filter(g => g.a === id).length, u: "sent" },
     { e: "👍", g: "s", t: "Open mind", d: "Recommendations saved to their watchlist", v: id => accepted[id] || 0, u: "saved" },
     { e: "🏃", g: "s", t: "Quickest to watch", d: "Fastest average from recommendation to watched (2+)", v: id => (speed[id] || []).length >= 2 ? +avg(speed[id]).toFixed(1) : 0, low: true, fmt: v => v < 1 ? "same day" : `${v.toFixed(1)} days` },
-    { e: "🍿", g: "c", t: "Cinema regular", d: "Cinema outings joined", v: id => went[id] || 0, u: "outings" },
-    { e: "🗓️", g: "c", t: "Organiser", d: "Cinema outings suggested", v: id => organised[id] || 0, u: "suggested" },
     { e: "💬", g: "c", t: "Chatterbox", d: "Comments on titles", v: id => talk[id] || 0, u: "comments" },
     { e: "📚", g: "w", t: "Watchlist hoarder", d: "Titles on their watchlist right now", v: id => wlNow[id] || 0, u: "titles" },
     { e: "🌍", g: "w", t: "Explorer", d: "Different titles watched", v: uniq, u: "titles" },
@@ -2207,7 +2241,7 @@ function leadersHtml(s) {
         <span class="ld-v"><b>${r.b.length}</b><small>badge${r.b.length === 1 ? "" : "s"}</small></span></li>`; }).join("")}</ol>
       <small class="hint">A badge for every category you lead. Prizes at the end of the year.</small>`;
   })();
-  const G = [["w", "🎬 Watching"], ["r", "⭐ Ratings & reviews"], ["s", "📣 Recommendations"], ["c", "🍿 Cinema & chat"]];
+  const G = [["w", "🎬 Watching"], ["r", "⭐ Ratings & reviews"], ["s", "📣 Recommendations"], ["c", "💬 Chat"]];
   const board = `<div class="fr-card"><h4 class="ld-sec">Standings</h4>${standings}</div>
     ${(() => { // the 5 busiest categories up front, everything else folded away
       const ord = [...done].sort((a, b) => b.n - a.n || G.findIndex(([g]) => g === a.c.g) - G.findIndex(([g]) => g === b.c.g)), top5 = ord.slice(0, 5), rest = ord.slice(5);
@@ -2380,15 +2414,14 @@ function renderClub() {
         </div>
       </details>
     </div>`; }
-  if (cineEl) { const n = outings(s).length; cineEl.innerHTML = `<div class="fr-card cine-card"><div class="wl-pick" role="tablist">${[["cal", "In Ghent", "Calendar"], ["out", n ? `${n} planned` : "Cinema night", "Next outings"]].map(([k, ch, l], i) => `<button class="pulp-head${i ? " alt" : ""}${cinePane === k ? " on" : ""}" data-cnv="${k}" role="tab" aria-selected="${cinePane === k}"><span class="chapter">${ch}</span><span class="bang">${l}</span></button>`).join("")}</div>
-      ${cinePane === "cal" ? `<div id="cbCal">${calHtml(s, calC, "cine")}</div>` : cinemaCard(s, members) + pastOutingsHtml(s)}</div>`; }
-  { const cb = $("cineBadge"); if (cb) cb.hidden = !cineDot; }
+  if (cineEl) cineEl.innerHTML = `<div class="fr-card cine-card"><div id="cbCal">${cineDayHtml(s)}</div></div>`;
+  { const cb = $("cineBadge"); if (cb) cb.hidden = true; } // outings are switched off, so nothing to flag
   hist.innerHTML = historyHtml(s);
   if (lead) { lead.innerHTML = leadersHtml(s); bindLeaders(); }
   renderLists(s);
   bind(c, s, cands, movie);
   bindCinema(s);
-  bindCal(s, calH, "home"); bindCal(s, calC, "cine");
+  bindCal(s, calH, "home"); bindCineDay(s);
   bindWl(s, cands);
   setTimeout(() => scheduleDigest(s, c), 0);
   document.querySelectorAll("[data-sbs]").forEach(b => b.onclick = () => { sbSort = b.dataset.sbs; LS.set("marqueeSbSort", sbSort); renderClub(); });

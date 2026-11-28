@@ -1228,6 +1228,36 @@ img.prov.mine { opacity: 1; box-shadow: 0 0 0 2px #1e9e4a; }
 .ls-r .tile-ok { font-size: 0; overflow: hidden; } .ls-r .tile-ok::before { content: "✓"; font-size: 13px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ts-btn.on { background: #ffd400; border-color: #ffd400; color: #111; } }
 :root[data-theme="dark"] .ts-btn.on { background: #ffd400; border-color: #ffd400; color: #111; }
+
+/* Cinema: week strip and the day's films */
+.cn-head h3 { margin: 0; font-family: var(--display); font-size: 24px; letter-spacing: .4px; text-transform: uppercase; }
+.cn-head { margin-bottom: 8px; }
+.cn-week { display: grid; grid-template-columns: 22px repeat(7, 1fr) 22px; gap: 4px; align-items: stretch; margin: 6px 0 10px; }
+.cn-arrow { border: none; background: none; font-size: 22px; padding: 0; color: var(--fg); }
+.cn-arrow:disabled { opacity: .2; }
+.cn-day { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 0 5px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--panel); color: var(--fg); min-width: 0; }
+.cn-day small { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.cn-day b { font-size: 18px; line-height: 1.1; }
+.cn-day i { font-style: normal; font-size: 10px; font-weight: 800; min-width: 18px; height: 16px; line-height: 16px; border-radius: 8px; background: var(--field); color: var(--muted); }
+.cn-day i.z { visibility: hidden; }
+.cn-day.today { border-color: var(--accent); }
+.cn-day.on { background: #ffd400; border-color: #111; color: #111; box-shadow: 2px 2px 0 #111; }
+.cn-day.on small { color: #111; } .cn-day.on i { background: #111; color: #ffd400; }
+.cn-list { display: flex; flex-direction: column; }
+.cn-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cn-row[data-open] { cursor: pointer; }
+.cn-row > img, .cn-row > .ph { width: 70px; height: 105px; border-radius: 8px; object-fit: cover; flex: none; box-shadow: 0 3px 10px rgba(0,0,0,.25); }
+.cn-row .body { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.cn-row .body > b { font-size: 15px; overflow-wrap: anywhere; }
+.cn-want { font-style: normal; font-size: 12px; color: var(--muted); }
+.cn-times { display: flex; flex-direction: column; gap: 4px; }
+.cn-cin { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.cn-cin > b { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin-right: 2px; }
+.cn-t { font-size: 13px; font-weight: 800; padding: 3px 9px; border-radius: 8px; border: 1.5px solid var(--fg); color: var(--fg); text-decoration: none; }
+.cn-t:hover { background: #ffd400; color: #111; border-color: #111; }
+.cn-t.past { opacity: .35; text-decoration: line-through; }
+.cn-kp { margin-top: 10px; }
+.cn-src { display: block; margin-top: 12px; }
 </style>
 </head>
 <body>
