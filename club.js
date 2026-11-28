@@ -1475,8 +1475,7 @@ function forYouCard(s, part) {
   </div>`;
   return `<div id="fyCard">
     ${(() => { const nr = newReviews(s); return nr.length ? `<div class="rev-new"><b>🎬 Your recommendations got watched</b>${nr.map(r => `<p><b>${esc(r.name)}</b> watched <b>${esc(r.m.n)}</b>${r.s ? ` <span class="stars">${starStr(r.s)}</span>` : ""}${r.x ? `<br><i>“${esc(r.x)}”</i>` : ""}</p>`).join("")}<button class="link" id="revRead">Got it</button></div>` : ""; })()}
-    <h4 class="wl-sec">Recommended to you <i>${fresh.length || ""}</i></h4>
-    <div class="mw-list">${fresh.map(g => row(g, false)).join("") || `${empty("📣", "No tips yet.", "When a friend recommends something, it lands right here.")}`}</div>
+    ${fresh.length ? `<h4 class="wl-sec">Recommended to you <i>${fresh.length}</i></h4><div class="mw-list">${fresh.map(g => row(g, false)).join("")}</div>` : due.length ? "" : `<h4 class="wl-sec">Recommended to you</h4>${empty("📣", "No tips yet.", "When a friend recommends something, it lands right here.")}`}
     ${due.length ? `<h4 class="wl-sec">On your watchlist <i>${due.length}</i></h4><div class="mw-list">${due.map(g => row(g, false)).join("")}</div>` : ""}
     ${sent.length ? `<h4 class="wl-sec">You recommended <i>${sent.length}</i></h4><div class="mw-list">${sent.map(g => row(g, true)).join("")}</div>` : ""}
   </div>`;
